@@ -7,3 +7,4 @@ router.get('/my', protect, getMyTeam);
 router.put('/my', protect, updateMyTeam);
 
 module.exports = router;
+

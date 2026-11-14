@@ -225,3 +225,4 @@ export const FutCard = ({ player, onClick, compact = false, showBidButton = fals
     </motion.div>
   );
 };
+

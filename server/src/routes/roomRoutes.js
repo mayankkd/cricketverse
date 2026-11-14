@@ -19,3 +19,4 @@ router.post('/:roomCode/chat', protect, sendChatMessage);
 router.put('/:roomCode/ready', protect, toggleReady);
 
 module.exports = router;
+

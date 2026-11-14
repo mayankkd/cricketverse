@@ -63,3 +63,4 @@ const tournamentSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Tournament', tournamentSchema);
+

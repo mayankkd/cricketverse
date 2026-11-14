@@ -182,3 +182,4 @@ You can use the **1-Click VIP Demo** button on the landing or login page, or man
 - `GET /api/matches/:id` — Get match center details
 - `POST /api/matches/:id/simulate-ball` — Simulate ball delivery & update score
 - `GET /api/tournaments` — Get tournament standings & playoff brackets
+

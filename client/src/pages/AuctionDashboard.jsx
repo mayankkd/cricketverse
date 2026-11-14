@@ -291,17 +291,24 @@ export const AuctionDashboard = () => {
               ON DECK (NEXT UP):
             </span>
             {playersQueue[currentPlayerIndex + 1] ? (
-              <div className="p-2.5 rounded-xl bg-stadium-950 border border-white/5 flex items-center justify-between">
-                <div>
-                  <p className="font-display font-bold text-xs text-white">
+              <div className="p-2.5 rounded-xl bg-stadium-950 border border-white/5 flex items-center justify-between gap-3">
+                <div className="w-10 h-12 rounded-lg overflow-hidden border border-white/10 flex-shrink-0">
+                  <img
+                    src={playersQueue[currentPlayerIndex + 1].imageUrl || playersQueue[currentPlayerIndex + 1].avatarUrl}
+                    alt={playersQueue[currentPlayerIndex + 1].name}
+                    className="w-full h-full object-cover object-top"
+                  />
+                </div>
+                <div className="flex-1 truncate">
+                  <p className="font-display font-bold text-xs text-white truncate">
                     {playersQueue[currentPlayerIndex + 1].name}
                   </p>
                   <p className="text-[10px] font-mono text-slate-400">
-                    {playersQueue[currentPlayerIndex + 1].role} • OVR {playersQueue[currentPlayerIndex + 1].overallRating}
+                    {playersQueue[currentPlayerIndex + 1].role} • OVR {playersQueue[currentPlayerIndex + 1].ovr?.t20 || playersQueue[currentPlayerIndex + 1].overallRating}
                   </p>
                 </div>
-                <span className="text-[10px] font-mono text-gold-400 font-bold">
-                  {playersQueue[currentPlayerIndex + 1].cardTier}
+                <span className="text-[9px] font-mono text-gold-400 font-bold bg-gold-500/10 px-2 py-0.5 rounded uppercase">
+                  {playersQueue[currentPlayerIndex + 1].cardVariant || 'Peak'}
                 </span>
               </div>
             ) : (

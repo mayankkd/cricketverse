@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Trophy,
@@ -15,6 +15,7 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { FutCard } from '../components/common/FutCard';
+import { PlayerProfileModal } from '../components/player/PlayerProfileModal';
 import { sound } from '../services/sound';
 
 export const TeamDashboard = () => {
@@ -26,6 +27,8 @@ export const TeamDashboard = () => {
   const [captainId, setCaptainId] = useState('ply_01');
   const [viceCaptainId, setViceCaptainId] = useState('ply_02');
   const [chemistry, setChemistry] = useState(94);
+  const [activeFormat, setActiveFormat] = useState('t20');
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -76,6 +79,19 @@ export const TeamDashboard = () => {
   const playingXIPlayers = allPlayers.slice(0, 11);
   const benchPlayers = allPlayers.slice(11);
 
+  // Compute dynamic squad OVR for active format
+  const squadOVR = useMemo(() => {
+    if (playingXIPlayers.length === 0) return 93;
+    const ovrs = playingXIPlayers.map((p) => {
+      if (typeof p.ovr === 'object' && p.ovr !== null) {
+        return p.ovr[activeFormat] || p.ovr.t20 || p.ovr.odi || p.ovr.test || 85;
+      }
+      return p.ovr || 85;
+    });
+    const avg = Math.round(ovrs.reduce((a, b) => a + b, 0) / ovrs.length);
+    return avg;
+  }, [playingXIPlayers, activeFormat]);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Header Banner */}
@@ -100,6 +116,26 @@ export const TeamDashboard = () => {
 
         {/* Squad Metrics & Chemistry */}
         <div className="flex flex-wrap items-center gap-4">
+          {/* Format Selector */}
+          <div className="flex items-center bg-stadium-950 p-1.5 rounded-2xl border border-stadium-800">
+            {['t20', 'odi', 'test'].map((fmt) => (
+              <button
+                key={fmt}
+                onClick={() => {
+                  sound.playClick();
+                  setActiveFormat(fmt);
+                }}
+                className={`px-3 py-1.5 rounded-xl font-display uppercase font-bold text-xs transition-colors ${
+                  activeFormat === fmt
+                    ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {fmt}
+              </button>
+            ))}
+          </div>
+
           {/* Chemistry Meter */}
           <div className="bg-stadium-950 p-4 rounded-2xl border border-pitch-500/40 shadow-pitch-glow flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-pitch-500/10 border border-pitch-500/30 flex items-center justify-center text-pitch-400 font-display font-black text-xl">
@@ -118,11 +154,11 @@ export const TeamDashboard = () => {
           {/* Overall Squad OVR */}
           <div className="bg-stadium-950 p-4 rounded-2xl border border-gold-500/40 shadow-gold-glow flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-gold-500/10 border border-gold-500/30 flex items-center justify-center text-gold-400 font-display font-black text-xl">
-              93
+              {squadOVR}
             </div>
             <div>
               <span className="text-[10px] font-mono text-slate-400 uppercase block font-bold">
-                Overall Squad OVR
+                {activeFormat.toUpperCase()} Squad OVR (1–120)
               </span>
               <span className="text-xs font-bold text-gold-400">
                 CHAMPIONSHIP TIER
@@ -147,7 +183,7 @@ export const TeamDashboard = () => {
               PLAYING XI SQUAD
             </h2>
             <p className="text-xs font-mono text-slate-400">
-              CLICK A CARD TO ASSIGN (C) CAPTAIN OR (VC) VICE-CAPTAIN
+              CLICK A CARD TO INSPECT PROFILE • ASSIGN (C) CAPTAIN OR (VC) VICE-CAPTAIN
             </p>
           </div>
           <span className="text-xs font-mono text-pitch-400 font-bold bg-pitch-500/10 border border-pitch-500/30 px-3 py-1 rounded-xl">
@@ -176,7 +212,11 @@ export const TeamDashboard = () => {
                   )}
                 </div>
 
-                <FutCard player={player} />
+                <FutCard
+                  player={player}
+                  format={activeFormat}
+                  onClick={() => setSelectedPlayer(player)}
+                />
 
                 {/* Quick Captaincy Setter Buttons */}
                 <div className="mt-2 flex gap-2">
@@ -218,10 +258,23 @@ export const TeamDashboard = () => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
             {benchPlayers.map((player) => (
-              <FutCard key={player._id} player={player} />
+              <FutCard
+                key={player._id}
+                player={player}
+                format={activeFormat}
+                onClick={() => setSelectedPlayer(player)}
+              />
             ))}
           </div>
         </div>
+      )}
+
+      {/* Player Profile Detail Modal */}
+      {selectedPlayer && (
+        <PlayerProfileModal
+          player={selectedPlayer}
+          onClose={() => setSelectedPlayer(null)}
+        />
       )}
     </div>
   );

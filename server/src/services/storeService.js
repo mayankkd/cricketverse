@@ -146,11 +146,33 @@ const getAllPlayers = async (filters = {}) => {
     const query = {};
     if (filters.role && filters.role !== 'All') query.role = filters.role;
     if (filters.cardTier && filters.cardTier !== 'All') query.cardTier = filters.cardTier;
-    if (filters.search) {
-      query.name = { $regex: filters.search, $options: 'i' };
+    if (filters.cardVariant && filters.cardVariant !== 'All') query.cardVariant = filters.cardVariant;
+    if (filters.country && filters.country !== 'All') query.country = filters.country;
+    
+    // Strict format eligibility filter
+    if (filters.format && filters.format !== 'All') {
+      const fmtKey = filters.format.toLowerCase();
+      if (['test', 'odi', 't20'].includes(fmtKey)) {
+        query[`formatEligibility.${fmtKey}`] = true;
+      }
     }
-    return await Player.find(query).sort({ overallRating: -1 });
+
+    if (filters.search) {
+      const regex = { $regex: filters.search, $options: 'i' };
+      query.$or = [{ name: regex }, { shortName: regex }, { country: regex }];
+    }
+
+    let sortOptions = { overallRating: -1 };
+    if (filters.sortBy === 'test') sortOptions = { 'ovr.test': -1, overallRating: -1 };
+    else if (filters.sortBy === 'odi') sortOptions = { 'ovr.odi': -1, overallRating: -1 };
+    else if (filters.sortBy === 't20') sortOptions = { 'ovr.t20': -1, overallRating: -1 };
+    else if (filters.sortBy === 'bat') sortOptions = { 'attributes.batting': -1 };
+    else if (filters.sortBy === 'bwl') sortOptions = { 'attributes.bowling': -1 };
+    else if (filters.sortBy === 'name') sortOptions = { name: 1 };
+
+    return await Player.find(query).sort(sortOptions);
   }
+
   let players = [...memoryStore.players];
   if (filters.role && filters.role !== 'All') {
     players = players.filter(p => p.role.toLowerCase() === filters.role.toLowerCase());
@@ -158,18 +180,82 @@ const getAllPlayers = async (filters = {}) => {
   if (filters.cardTier && filters.cardTier !== 'All') {
     players = players.filter(p => p.cardTier.toLowerCase() === filters.cardTier.toLowerCase());
   }
+  if (filters.cardVariant && filters.cardVariant !== 'All') {
+    players = players.filter(p => p.cardVariant?.toLowerCase() === filters.cardVariant.toLowerCase());
+  }
+  if (filters.country && filters.country !== 'All') {
+    players = players.filter(p => p.country.toLowerCase() === filters.country.toLowerCase());
+  }
+  if (filters.format && filters.format !== 'All') {
+    const fmtKey = filters.format.toLowerCase();
+    if (['test', 'odi', 't20'].includes(fmtKey)) {
+      players = players.filter(p => p.formatEligibility && p.formatEligibility[fmtKey] === true);
+    }
+  }
   if (filters.search) {
     const term = filters.search.toLowerCase();
-    players = players.filter(p => p.name.toLowerCase().includes(term) || p.country.toLowerCase().includes(term));
+    players = players.filter(p =>
+      p.name.toLowerCase().includes(term) ||
+      p.shortName.toLowerCase().includes(term) ||
+      p.country.toLowerCase().includes(term)
+    );
   }
-  return players.sort((a, b) => b.overallRating - a.overallRating);
+
+  // Format and attribute sorting
+  if (filters.sortBy === 'test') {
+    players.sort((a, b) => (b.ovr?.test || 0) - (a.ovr?.test || 0));
+  } else if (filters.sortBy === 'odi') {
+    players.sort((a, b) => (b.ovr?.odi || 0) - (a.ovr?.odi || 0));
+  } else if (filters.sortBy === 't20') {
+    players.sort((a, b) => (b.ovr?.t20 || 0) - (a.ovr?.t20 || 0));
+  } else if (filters.sortBy === 'bat') {
+    players.sort((a, b) => (b.attributes?.batting || b.stats?.bat || 0) - (a.attributes?.batting || a.stats?.bat || 0));
+  } else if (filters.sortBy === 'bwl') {
+    players.sort((a, b) => (b.attributes?.bowling || b.stats?.bwl || 0) - (a.attributes?.bowling || a.stats?.bwl || 0));
+  } else if (filters.sortBy === 'name') {
+    players.sort((a, b) => a.name.localeCompare(b.name));
+  } else {
+    players.sort((a, b) => (b.overallRating || 0) - (a.overallRating || 0));
+  }
+
+  return players;
 };
 
 const getPlayerById = async (id) => {
   if (isMongoConnected()) {
     return await Player.findById(id);
   }
-  return memoryStore.players.find(p => p._id === id) || null;
+  return memoryStore.players.find(p => p._id === id || p.slug === id) || null;
+};
+
+const comparePlayers = async (id1, id2) => {
+  const [player1, player2] = await Promise.all([
+    getPlayerById(id1),
+    getPlayerById(id2)
+  ]);
+  return { player1, player2 };
+};
+
+const getPlayerFilterMetadata = async () => {
+  const players = isMongoConnected() ? await Player.find() : memoryStore.players;
+  const countries = Array.from(new Set(players.map(p => p.country))).sort();
+  const roles = ['Batter', 'Bowler', 'All-Rounder', 'Wicketkeeper'];
+  const formats = ['Test', 'ODI', 'T20'];
+  const variants = [
+    'Peak',
+    'Best',
+    'Average',
+    'Icon',
+    'Legends',
+    'World Cup',
+    'All-Time Great',
+    'Captain',
+    'Clutch',
+    'Anniversary'
+  ];
+  const tiers = ['ICON', 'DIAMOND', 'GOLD', 'SILVER', 'EMERGING'];
+
+  return { countries, roles, formats, variants, tiers, totalPlayers: players.length };
 };
 
 // Room operations
@@ -303,6 +389,8 @@ module.exports = {
   updateUser,
   getAllPlayers,
   getPlayerById,
+  comparePlayers,
+  getPlayerFilterMetadata,
   getAllRooms,
   getRoomByCode,
   createRoom,

@@ -10,13 +10,23 @@ const playerSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  slug: {
+    type: String,
+    lowercase: true,
+    trim: true
+  },
   country: {
     type: String,
     required: true
   },
+  countryCode: {
+    type: String,
+    required: true,
+    uppercase: true
+  },
   countryFlag: {
     type: String,
-    default: '🇮🇳'
+    default: '🏏'
   },
   role: {
     type: String,
@@ -31,28 +41,209 @@ const playerSchema = new mongoose.Schema({
     type: String,
     default: 'Right-arm medium fast'
   },
+  jerseyNumber: {
+    type: Number,
+    default: 18
+  },
+  era: {
+    type: String,
+    default: 'Modern'
+  },
+  bio: {
+    type: String,
+    default: ''
+  },
+
+  // Strict Format Eligibility (Rule: at least one official appearance)
+  formatEligibility: {
+    test: { type: Boolean, default: false },
+    odi: { type: Boolean, default: false },
+    t20: { type: Boolean, default: false }
+  },
+
+  // OVR System on a 1–120 Scale
+  ovr: {
+    test: { type: Number, min: 1, max: 120, default: null },
+    odi: { type: Number, min: 1, max: 120, default: null },
+    t20: { type: Number, min: 1, max: 120, default: null }
+  },
   overallRating: {
     type: Number,
-    required: true,
-    min: 50,
-    max: 99
+    default: 95
+  },
+
+  // Card Variants
+  cardVariant: {
+    type: String,
+    enum: [
+      'Peak',
+      'Best',
+      'Average',
+      'Icon',
+      'Legends',
+      'World Cup',
+      'All-Time Great',
+      'Captain',
+      'Clutch',
+      'Anniversary'
+    ],
+    default: 'Peak'
   },
   cardTier: {
     type: String,
     enum: ['ICON', 'DIAMOND', 'GOLD', 'SILVER', 'EMERGING'],
     default: 'GOLD'
   },
-  stats: {
-    bat: { type: Number, required: true }, // Batting skill
-    bwl: { type: Number, required: true }, // Bowling skill
-    fld: { type: Number, required: true }, // Fielding
-    pwr: { type: Number, required: true }, // Six hitting / power
-    clu: { type: Number, required: true }, // Clutch / death overs
-    ldr: { type: Number, required: true }  // Leadership / captaincy
+  variants: [
+    {
+      variant: {
+        type: String,
+        enum: [
+          'Peak',
+          'Best',
+          'Average',
+          'Icon',
+          'Legends',
+          'World Cup',
+          'All-Time Great',
+          'Captain',
+          'Clutch',
+          'Anniversary'
+        ]
+      },
+      ovr: {
+        test: Number,
+        odi: Number,
+        t20: Number
+      },
+      seasonYear: String,
+      specialBuff: String
+    }
+  ],
+
+  // 14 Core Attributes (1–120 Rating Scale)
+  attributes: {
+    batting: { type: Number, min: 1, max: 120, default: 70 },
+    bowling: { type: Number, min: 1, max: 120, default: 40 },
+    fielding: { type: Number, min: 1, max: 120, default: 75 },
+    fitness: { type: Number, min: 1, max: 120, default: 80 },
+    temperament: { type: Number, min: 1, max: 120, default: 80 },
+    consistency: { type: Number, min: 1, max: 120, default: 80 },
+    captaincy: { type: Number, min: 1, max: 120, default: 70 },
+    powerHitting: { type: Number, min: 1, max: 120, default: 70 },
+    strikeRotation: { type: Number, min: 1, max: 120, default: 80 },
+    pace: { type: Number, min: 1, max: 120, default: 35 },
+    swing: { type: Number, min: 1, max: 120, default: 35 },
+    spin: { type: Number, min: 1, max: 120, default: 35 },
+    deathBowling: { type: Number, min: 1, max: 120, default: 40 },
+    defensiveTechnique: { type: Number, min: 1, max: 120, default: 80 }
   },
+
+  // Backward-compatible summary stats
+  stats: {
+    bat: { type: Number, default: 80 },
+    bwl: { type: Number, default: 50 },
+    fld: { type: Number, default: 80 },
+    pwr: { type: Number, default: 80 },
+    clu: { type: Number, default: 85 },
+    ldr: { type: Number, default: 80 }
+  },
+
+  // Image Management & Legal Licensing
+  imageUrl: {
+    type: String,
+    required: true
+  },
+  avatarUrl: {
+    type: String,
+    default: ''
+  },
+  imageSource: {
+    type: String,
+    default: 'Wikimedia Commons'
+  },
+  attribution: {
+    type: String,
+    default: 'Creative Commons Sports Media Archive'
+  },
+  licenceInfo: {
+    type: String,
+    default: 'CC BY-SA 4.0'
+  },
+  formatSpecificImage: {
+    test: String,
+    odi: String,
+    t20: String
+  },
+
+  // Separate International Statistics
+  internationalStats: {
+    test: {
+      matches: { type: Number, default: 0 },
+      innings: { type: Number, default: 0 },
+      runs: { type: Number, default: 0 },
+      highestScore: { type: String, default: '0' },
+      average: { type: Number, default: 0 },
+      hundreds: { type: Number, default: 0 },
+      fifties: { type: Number, default: 0 },
+      wickets: { type: Number, default: 0 },
+      bowlingAverage: { type: Number, default: 0 },
+      bestBowling: { type: String, default: '-' }
+    },
+    odi: {
+      matches: { type: Number, default: 0 },
+      innings: { type: Number, default: 0 },
+      runs: { type: Number, default: 0 },
+      highestScore: { type: String, default: '0' },
+      average: { type: Number, default: 0 },
+      hundreds: { type: Number, default: 0 },
+      fifties: { type: Number, default: 0 },
+      wickets: { type: Number, default: 0 },
+      bowlingAverage: { type: Number, default: 0 },
+      bestBowling: { type: String, default: '-' }
+    },
+    t20i: {
+      matches: { type: Number, default: 0 },
+      innings: { type: Number, default: 0 },
+      runs: { type: Number, default: 0 },
+      highestScore: { type: String, default: '0' },
+      average: { type: Number, default: 0 },
+      strikeRate: { type: Number, default: 0 },
+      hundreds: { type: Number, default: 0 },
+      fifties: { type: Number, default: 0 },
+      wickets: { type: Number, default: 0 },
+      bowlingAverage: { type: Number, default: 0 },
+      bestBowling: { type: String, default: '-' }
+    }
+  },
+
+  // Domestic & Franchise Statistics (Kept Separate)
+  franchiseDomesticStats: {
+    ipl: {
+      teams: [{ type: String }],
+      matches: { type: Number, default: 0 },
+      runs: { type: Number, default: 0 },
+      highestScore: { type: String, default: '0' },
+      average: { type: Number, default: 0 },
+      strikeRate: { type: Number, default: 0 },
+      hundreds: { type: Number, default: 0 },
+      wickets: { type: Number, default: 0 },
+      titles: { type: Number, default: 0 }
+    },
+    domestic: {
+      teams: [{ type: String }],
+      firstClassMatches: { type: Number, default: 0 },
+      listAMatches: { type: Number, default: 0 },
+      t20Matches: { type: Number, default: 0 },
+      totalRuns: { type: Number, default: 0 },
+      totalWickets: { type: Number, default: 0 }
+    }
+  },
+
+  // Economy & Auction Settings (OVR affects gameplay only, NEVER auction base price)
   basePrice: {
     type: Number,
-    default: 20000000 // In INR (e.g. 2 Crore)
+    default: 20000000 // In INR (e.g. 2.0 Cr)
   },
   currentPrice: {
     type: Number,
@@ -62,17 +253,11 @@ const playerSchema = new mongoose.Schema({
     type: String,
     default: 'Unsold'
   },
-  avatarUrl: {
-    type: String,
-    default: ''
-  },
-  jerseyNumber: {
-    type: Number,
-    default: 18
-  },
-  specialTraits: [{
-    type: String
-  }],
+  specialTraits: [
+    {
+      type: String
+    }
+  ],
   isAvailableForAuction: {
     type: Boolean,
     default: true
@@ -82,4 +267,3 @@ const playerSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Player', playerSchema);
-

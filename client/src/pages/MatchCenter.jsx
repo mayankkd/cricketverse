@@ -217,75 +217,102 @@ export const MatchCenter = () => {
       {/* Batsmen & Bowler Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Striker */}
-        <div className="bg-stadium-900 border border-gold-500/30 p-5 rounded-3xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono font-bold uppercase text-gold-400">ON STRIKE ★</span>
-            <span className="text-xs font-mono text-slate-400">{strikeRate} SR</span>
+        <div className="bg-stadium-900 border border-gold-500/40 p-5 rounded-3xl flex items-center gap-4">
+          <div className="w-20 h-24 rounded-2xl overflow-hidden border border-gold-500/50 flex-shrink-0 shadow-gold-glow">
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Virat_Kohli_during_the_India_vs_Aus_4th_Test_match_at_Narendra_Modi_Stadium_on_09_March_2023.jpg/440px-Virat_Kohli_during_the_India_vs_Aus_4th_Test_match_at_Narendra_Modi_Stadium_on_09_March_2023.jpg"
+              alt="Striker"
+              className="w-full h-full object-cover object-top"
+            />
           </div>
-          <h3 className="font-display text-2xl font-bold uppercase text-white truncate">
-            {match.currentStriker?.name}
-          </h3>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="font-display font-black text-4xl text-gold-400">
-              {match.currentStriker?.runs}*
-            </span>
-            <span className="font-mono text-sm text-slate-400">
-              ({match.currentStriker?.balls}b)
-            </span>
-          </div>
-          <div className="mt-2 text-xs font-mono text-slate-400 flex gap-4">
-            <span>4s: <strong className="text-white">{match.currentStriker?.fours}</strong></span>
-            <span>6s: <strong className="text-white">{match.currentStriker?.sixes}</strong></span>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-mono font-bold uppercase text-gold-400">ON STRIKE ★</span>
+              <span className="text-[10px] font-mono text-slate-400">{strikeRate} SR</span>
+            </div>
+            <h3 className="font-display text-xl font-bold uppercase text-white truncate">
+              {match.currentStriker?.name}
+            </h3>
+            <div className="flex items-baseline gap-2">
+              <span className="font-display font-black text-3xl text-gold-400">
+                {match.currentStriker?.runs}*
+              </span>
+              <span className="font-mono text-xs text-slate-400">
+                ({match.currentStriker?.balls}b)
+              </span>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400 flex gap-3 mt-1">
+              <span>4s: <strong className="text-white">{match.currentStriker?.fours}</strong></span>
+              <span>6s: <strong className="text-white">{match.currentStriker?.sixes}</strong></span>
+            </div>
           </div>
         </div>
 
         {/* Non-Striker */}
-        <div className="bg-stadium-900 border border-stadium-800 p-5 rounded-3xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono font-bold uppercase text-slate-400">NON-STRIKER</span>
-            <span className="text-xs font-mono text-slate-400">
-              {((match.currentNonStriker.runs / match.currentNonStriker.balls) * 100).toFixed(1)} SR
-            </span>
+        <div className="bg-stadium-900 border border-stadium-800 p-5 rounded-3xl flex items-center gap-4">
+          <div className="w-20 h-24 rounded-2xl overflow-hidden border border-white/10 flex-shrink-0">
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Heinrich_Klaasen_2023.jpg/440px-Heinrich_Klaasen_2023.jpg"
+              alt="Non-Striker"
+              className="w-full h-full object-cover object-top"
+            />
           </div>
-          <h3 className="font-display text-2xl font-bold uppercase text-white truncate">
-            {match.currentNonStriker?.name}
-          </h3>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="font-display font-black text-4xl text-slate-200">
-              {match.currentNonStriker?.runs}*
-            </span>
-            <span className="font-mono text-sm text-slate-400">
-              ({match.currentNonStriker?.balls}b)
-            </span>
-          </div>
-          <div className="mt-2 text-xs font-mono text-slate-400 flex gap-4">
-            <span>4s: <strong className="text-white">{match.currentNonStriker?.fours}</strong></span>
-            <span>6s: <strong className="text-white">{match.currentNonStriker?.sixes}</strong></span>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-mono font-bold uppercase text-slate-400">NON-STRIKER</span>
+              <span className="text-[10px] font-mono text-slate-400">
+                {((match.currentNonStriker.runs / match.currentNonStriker.balls) * 100).toFixed(1)} SR
+              </span>
+            </div>
+            <h3 className="font-display text-xl font-bold uppercase text-white truncate">
+              {match.currentNonStriker?.name}
+            </h3>
+            <div className="flex items-baseline gap-2">
+              <span className="font-display font-black text-3xl text-slate-200">
+                {match.currentNonStriker?.runs}*
+              </span>
+              <span className="font-mono text-xs text-slate-400">
+                ({match.currentNonStriker?.balls}b)
+              </span>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400 flex gap-3 mt-1">
+              <span>4s: <strong className="text-white">{match.currentNonStriker?.fours}</strong></span>
+              <span>6s: <strong className="text-white">{match.currentNonStriker?.sixes}</strong></span>
+            </div>
           </div>
         </div>
 
         {/* Current Bowler */}
-        <div className="bg-stadium-900 border border-pitch-500/30 p-5 rounded-3xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono font-bold uppercase text-pitch-400">BOWLING SPELL</span>
-            <span className="text-xs font-mono text-pitch-400">
-              {(match.currentBowler.runs / (match.currentBowler.overs || 1)).toFixed(2)} ECON
-            </span>
+        <div className="bg-stadium-900 border border-pitch-500/40 p-5 rounded-3xl flex items-center gap-4">
+          <div className="w-20 h-24 rounded-2xl overflow-hidden border border-pitch-500/50 flex-shrink-0 shadow-pitch-glow">
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Jasprit_Bumrah_in_2023.jpg/440px-Jasprit_Bumrah_in_2023.jpg"
+              alt="Bowler"
+              className="w-full h-full object-cover object-top"
+            />
           </div>
-          <h3 className="font-display text-2xl font-bold uppercase text-white truncate">
-            {match.currentBowler?.name}
-          </h3>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="font-display font-black text-4xl text-pitch-400">
-              {match.currentBowler?.wickets}-{match.currentBowler?.runs}
-            </span>
-            <span className="font-mono text-sm text-slate-400">
-              ({match.currentBowler?.overs} ov)
-            </span>
-          </div>
-          <div className="mt-2 text-xs font-mono text-slate-400 flex gap-4">
-            <span>Maidens: <strong className="text-white">{match.currentBowler?.maidens}</strong></span>
-            <span>Speed: <strong className="text-pitch-400">146.4 km/h</strong></span>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-mono font-bold uppercase text-pitch-400">BOWLING SPELL</span>
+              <span className="text-[10px] font-mono text-pitch-400">
+                {(match.currentBowler.runs / (match.currentBowler.overs || 1)).toFixed(2)} ECON
+              </span>
+            </div>
+            <h3 className="font-display text-xl font-bold uppercase text-white truncate">
+              {match.currentBowler?.name}
+            </h3>
+            <div className="flex items-baseline gap-2">
+              <span className="font-display font-black text-3xl text-pitch-400">
+                {match.currentBowler?.wickets}-{match.currentBowler?.runs}
+              </span>
+              <span className="font-mono text-xs text-slate-400">
+                ({match.currentBowler?.overs} ov)
+              </span>
+            </div>
+            <div className="text-[11px] font-mono text-slate-400 flex gap-3 mt-1">
+              <span>Maidens: <strong className="text-white">{match.currentBowler?.maidens}</strong></span>
+              <span>Speed: <strong className="text-pitch-400">146.4 km/h</strong></span>
+            </div>
           </div>
         </div>
       </div>

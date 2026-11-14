@@ -118,6 +118,20 @@ export const api = {
     return await res.json();
   },
 
+  async comparePlayers(id1, id2) {
+    const res = await fetch(`${API_BASE}/players/compare/${id1}/${id2}`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getPlayerFilterMetadata() {
+    const res = await fetch(`${API_BASE}/players/meta/filters`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
   // Teams
   async getMyTeam() {
     const res = await fetch(`${API_BASE}/teams/my`, {

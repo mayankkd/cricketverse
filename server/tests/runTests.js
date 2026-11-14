@@ -187,20 +187,75 @@ const runAllTests = async () => {
     assert.strictEqual(res.body.user.username, testUsername);
   });
 
-  // 9. Players Database
-  await test('GET /api/players returns seeded cricket player cards', async () => {
+  // 9. Players Database & Phase 2 System
+  await test('GET /api/players returns seeded cricket player cards with legal photo attribution', async () => {
     const res = await callApp({ method: 'GET', url: '/api/players' });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.success, true);
-    assert.ok(res.body.players.length > 5);
-    const icon = res.body.players.find(p => p.cardTier === 'ICON');
-    assert.ok(icon, 'Must have at least one ICON player card');
+    assert.ok(res.body.players.length >= 10);
+    const kohli = res.body.players.find(p => p.name === 'Virat Kohli');
+    assert.ok(kohli, 'Virat Kohli must exist in player database');
+    assert.ok(kohli.imageUrl, 'Player must have recognizable photograph URL');
+    assert.ok(kohli.imageSource, 'Image must have documented source');
+    assert.ok(kohli.attribution, 'Image must have documented photographer attribution');
+    assert.ok(kohli.licenceInfo, 'Image must have documented licence information');
+    assert.strictEqual(kohli.ovr.odi, 120, 'OVR scale must support 1-120 range (Kohli Peak ODI OVR = 120)');
   });
 
   await test('GET /api/players?role=Bowler filters by bowling role', async () => {
     const res = await callApp({ method: 'GET', url: '/api/players?role=Bowler' });
     assert.strictEqual(res.status, 200);
     assert.ok(res.body.players.every(p => p.role === 'Bowler'));
+  });
+
+  await test('GET /api/players?format=Test strictly filters by Test match eligibility', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/players?format=Test' });
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.body.players.every(p => p.formatEligibility && p.formatEligibility.test === true));
+    const bradman = res.body.players.find(p => p.name.includes('Bradman'));
+    assert.ok(bradman, 'Don Bradman must be in Test format');
+  });
+
+  await test('GET /api/players?format=T20 strictly excludes players without official T20 appearance', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/players?format=T20' });
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.body.players.every(p => p.formatEligibility && p.formatEligibility.t20 === true));
+    const bradmanInT20 = res.body.players.find(p => p.name.includes('Bradman'));
+    assert.strictEqual(bradmanInT20, undefined, 'Bradman never appeared in official T20 and must be excluded');
+  });
+
+  await test('GET /api/players?country=Australia filters by country', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/players?country=Australia' });
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.body.players.every(p => p.country === 'Australia'));
+  });
+
+  await test('GET /api/players?cardVariant=Peak filters by card variant', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/players?cardVariant=Peak' });
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.body.players.every(p => p.cardVariant === 'Peak'));
+  });
+
+  await test('GET /api/players/meta/filters returns all filtering metadata', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/players/meta/filters' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.metadata.countries.includes('India'));
+    assert.ok(res.body.metadata.countries.includes('Australia'));
+    assert.ok(res.body.metadata.variants.includes('Peak'));
+    assert.ok(res.body.metadata.variants.includes('All-Time Great'));
+  });
+
+  await test('GET /api/players/compare/ply_01/ply_02 compares 14 attributes & format OVRs', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/players/compare/ply_01/ply_02' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.player1.name, 'Virat Kohli');
+    assert.strictEqual(res.body.player2.name, 'Jasprit Bumrah');
+    assert.strictEqual(res.body.comparison.length, 14, 'Must compare all 14 specified cricket attributes');
+    assert.ok(res.body.ovrComparison.test, 'Must include Test OVR comparison');
+    assert.ok(res.body.ovrComparison.odi, 'Must include ODI OVR comparison');
+    assert.ok(res.body.ovrComparison.t20, 'Must include T20 OVR comparison');
   });
 
   // 10. Rooms (Create & Join)

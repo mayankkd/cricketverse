@@ -1,0 +1,19 @@
+{
+  "name": "cricketverse",
+  "version": "1.0.0",
+  "description": "CRICKETVERSE - Premium browser-based multiplayer cricket gaming platform",
+  "scripts": {
+    "server": "npm run dev --prefix server",
+    "client": "npm run dev --prefix client",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build": "npm run build --prefix client",
+    "install:all": "npm install && npm install --prefix server && npm install --prefix client",
+    "test:server": "node server/tests/runTests.js"
+  },
+  "keywords": ["cricket", "gaming", "mern", "socket.io", "fifa-ultimate-team", "ipl", "multiplayer"],
+  "author": "CricketVerse Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

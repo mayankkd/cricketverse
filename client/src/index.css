@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #06090F;
+    color: #F8FAFC;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Rajdhani', 'Impact', sans-serif;
+    letter-spacing: 0.03em;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0B0F17;
+}
+::-webkit-scrollbar-thumb {
+  background: #23324D;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #F59E0B;
+}
+
+/* FUT Card Shield Cut */
+.fut-card-shield {
+  clip-path: polygon(
+    0% 0%, 
+    100% 0%, 
+    100% 88%, 
+    50% 100%, 
+    0% 88%
+  );
+}
+
+.fut-badge-cut {
+  clip-path: polygon(
+    10% 0%, 
+    90% 0%, 
+    100% 50%, 
+    90% 100%, 
+    10% 100%, 
+    0% 50%
+  );
+}
+
+/* Shimmer Keyframe */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2.5s infinite;
+}
+
+/* Stadium Floodlight Ambient Glow */
+.stadium-bg {
+  background: radial-gradient(circle at 50% -10%, rgba(16, 185, 129, 0.15) 0%, rgba(6, 9, 15, 0.98) 70%),
+              radial-gradient(circle at 90% 20%, rgba(245, 158, 11, 0.08) 0%, transparent 50%),
+              radial-gradient(circle at 10% 20%, rgba(6, 182, 212, 0.08) 0%, transparent 50%);
+}

@@ -138,6 +138,69 @@ const runStadiumAndSimplificationTests = async ({ callApp, test }) => {
 
     assert.strictEqual(res.status, 403);
   });
+
+  // 4. Room Creation MongoDB Persistence & String _id Verification
+  await test('Room Persistence 4.1: Room Mongoose model initializes with valid non-empty string _id by default', async () => {
+    const Room = require('../src/models/Room');
+    const roomDoc = new Room({
+      name: 'Persistence Model Test',
+      roomCode: `CRIC-${Math.floor(1000 + Math.random() * 9000)}`,
+      hostId: 'usr_test_host_1',
+      hostUsername: 'TestHost',
+      format: 'T20'
+    });
+    assert.strictEqual(typeof roomDoc._id, 'string', 'roomDoc._id must be a string');
+    assert.ok(roomDoc._id.length > 0, 'roomDoc._id must be non-empty');
+    assert.ok(roomDoc._id.startsWith('room_'), 'roomDoc._id should start with room_');
+    await roomDoc.validate();
+  });
+
+  await test('Room Persistence 4.2: storeService.createRoom() assigns unique string _id and returns correct _id and roomCode', async () => {
+    const storeService = require('../src/services/storeService');
+    const room = await storeService.createRoom({
+      name: 'Atlas Persistence Match Arena',
+      hostId: 'usr_test_host_2',
+      hostUsername: 'AtlasHost',
+      format: 'T20',
+      budgetPerTeam: 30
+    });
+    assert.strictEqual(typeof room._id, 'string', 'room._id must be a string');
+    assert.ok(room._id.length > 0, 'room._id must be non-empty');
+    assert.ok(room._id.startsWith('room_'), 'room._id must start with room_');
+    assert.ok(room.roomCode.startsWith('CRIC-'), 'room.roomCode must start with CRIC-');
+    assert.strictEqual(room.auctionPurse, 30);
+  });
+
+  await test('Room Persistence 4.3: storeService.createRoom() preserves user-supplied _id if provided', async () => {
+    const storeService = require('../src/services/storeService');
+    const customId = `room_custom_atlas_${Date.now()}`;
+    const room = await storeService.createRoom({
+      _id: customId,
+      name: 'Custom ID Arena',
+      hostId: 'usr_test_host_3',
+      hostUsername: 'CustomHost',
+      format: 'ODI'
+    });
+    assert.strictEqual(room._id, customId, 'storeService must preserve custom string _id');
+    assert.strictEqual(room.format, 'ODI');
+    assert.strictEqual(room.auctionPurse, 40);
+  });
+
+  await test('Room Persistence 4.4: Room API POST /api/rooms returns non-empty string _id and valid roomCode', async () => {
+    const token = await demoLogin();
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/rooms',
+      headers: { authorization: `Bearer ${token}` },
+      body: { name: 'API Persistence Arena', format: 'T20', teamName: 'Warriors XI' }
+    });
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(typeof res.body.room._id, 'string', 'API room._id must be string');
+    assert.ok(res.body.room._id.length > 0, 'API room._id must not be empty');
+    assert.ok(res.body.room._id.startsWith('room_'), 'API room._id must start with room_');
+    assert.ok(res.body.room.roomCode.startsWith('CRIC-'), 'API room.roomCode must start with CRIC-');
+  });
 };
 
 module.exports = { runStadiumAndSimplificationTests };

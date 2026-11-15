@@ -395,6 +395,7 @@ const getRoomByInviteToken = async (token) => {
 };
 
 const createRoom = async (roomData) => {
+  const roomId = roomData._id || `room_${crypto.randomBytes(12).toString('hex')}`;
   const token = `inv_${crypto.randomBytes(8).toString('hex')}`;
   const format = roomData.format || 'T20';
   const purse = getFormatPurse(format);
@@ -403,6 +404,7 @@ const createRoom = async (roomData) => {
   const stadiumData = roomData.stadium || getStadiumById(stadiumId);
   const completeRoomData = {
     ...roomData,
+    _id: roomId,
     minPlayers: 2,
     maxPlayers: 6,
     maxTeams: 6,
@@ -451,7 +453,6 @@ const createRoom = async (roomData) => {
   }
 
   const newRoom = {
-    _id: `room_${Date.now()}`,
     ...completeRoomData,
     participants: completeRoomData.participants || [],
     chatMessages: completeRoomData.chatMessages || [],

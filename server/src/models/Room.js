@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const participantSchema = new mongoose.Schema({
   userId: { type: String, required: true },
@@ -137,7 +138,8 @@ const auctionStateSchema = new mongoose.Schema({
 
 const roomSchema = new mongoose.Schema({
   _id: {
-    type: String
+    type: String,
+    default: () => `room_${crypto.randomBytes(12).toString('hex')}`
   },
   roomCode: {
     type: String,

@@ -104,6 +104,9 @@ async function runTests() {
   const room = t20Res.body.room;
   assert.ok(room, 'Response must include room object');
   assert.ok(room._id, 'Room must have a valid _id');
+  assert.strictEqual(typeof room._id, 'string', 'Room _id must be a string');
+  assert.ok(room._id.length > 0, 'Room _id must be non-empty');
+  assert.ok(room._id.startsWith('room_'), 'Room _id must start with room_');
   assert.ok(room.roomCode, 'Room must have a unique roomCode');
   assert.strictEqual(room.name, 'Championship T20 Arena');
   assert.strictEqual(room.format, 'T20');
@@ -238,7 +241,53 @@ async function runTests() {
   assert.strictEqual(startRes.body.code, 'INSUFFICIENT_PLAYERS');
   console.log('  ✓ 1-player start correctly rejected (requires min 2 players).\n');
 
-  console.log('🎯 --- ALL 9 WORKFLOW SCENARIOS VERIFIED SUCCESSFULLY! --- 🎯');
+  // 10. Verifying MongoDB Persistence Room Schema & _id String Generation
+  console.log('10. Verifying MongoDB Persistence Room Schema & _id String Generation...');
+  const Room = require('../src/models/Room');
+  const storeService = require('../src/services/storeService');
+  
+  const hostId = hostUser.id || hostUser._id || 'usr_demo_101';
+  const hostUsername = hostUser.username || 'cricket_legend';
+
+  // Test 1: Mongoose schema default generates string _id
+  const modelRoom = new Room({
+    name: 'Mongoose Persistence Test',
+    roomCode: 'CRIC-7777',
+    hostId,
+    hostUsername,
+    format: 'T20'
+  });
+  assert.strictEqual(typeof modelRoom._id, 'string', 'Model _id must be string');
+  assert.ok(modelRoom._id.length > 0, 'Model _id must be non-empty');
+  assert.ok(modelRoom._id.startsWith('room_'), 'Model _id must start with room_');
+  await modelRoom.validate();
+
+  // Test 2: storeService.createRoom generates string _id
+  const serviceRoom = await storeService.createRoom({
+    name: 'StoreService Atlas Arena',
+    hostId,
+    hostUsername,
+    format: 'ODI'
+  });
+  assert.strictEqual(typeof serviceRoom._id, 'string', 'Service room _id must be string');
+  assert.ok(serviceRoom._id.length > 0, 'Service room _id must be non-empty');
+  assert.ok(serviceRoom._id.startsWith('room_'), 'Service room _id must start with room_');
+  assert.strictEqual(serviceRoom.format, 'ODI');
+  assert.ok(serviceRoom.roomCode, 'Service room must have a roomCode');
+
+  // Test 3: Custom _id is preserved
+  const customId = `room_custom_${Date.now()}`;
+  const customRoom = await storeService.createRoom({
+    _id: customId,
+    name: 'Custom ID Arena',
+    hostId,
+    hostUsername,
+    format: 'Test'
+  });
+  assert.strictEqual(customRoom._id, customId, 'Custom _id must be preserved');
+  console.log('  ✓ MongoDB room persistence and string _id generation verified successfully.\n');
+
+  console.log('🎯 --- ALL 10 WORKFLOW SCENARIOS VERIFIED SUCCESSFULLY! --- 🎯');
 }
 
 runTests().catch(err => {

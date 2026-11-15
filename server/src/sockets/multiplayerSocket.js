@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const storeService = require('../services/storeService');
 const matchEngineService = require('../services/matchEngineService');
+const { getStadiumById } = require('../data/stadiumsData');
 
 const initMultiplayerSockets = (io) => {
   // Socket Handshake Authentication Middleware
@@ -235,6 +236,50 @@ const initMultiplayerSockets = (io) => {
         io.to(code).emit('receive_chat', message);
       } catch (err) {
         console.error('[Socket Chat Error]:', err.message);
+      }
+    });
+
+    // Host Selects Stadium (Synchronized in real-time to all players and spectators)
+    socket.on('select_stadium', async ({ roomCode, stadiumId }) => {
+      try {
+        const code = (roomCode || socket.currentRoomCode || '').toUpperCase();
+        const userId = socket.user?._id;
+        if (!code || !userId) {
+          return socket.emit('action_error', { code: 'UNAUTHORIZED', message: 'You must be logged in as host to select stadium.' });
+        }
+
+        const room = await storeService.getRoomByCode(code);
+        if (!room) {
+          return socket.emit('action_error', { code: 'ROOM_NOT_FOUND', message: 'Room not found.' });
+        }
+
+        if (room.hostId !== userId) {
+          return socket.emit('action_error', { code: 'HOST_ONLY', message: 'Only the room host can select the stadium.' });
+        }
+
+        if (room.status === 'match' || room.status === 'completed') {
+          return socket.emit('action_error', { code: 'STADIUM_LOCKED', message: 'Stadium selection is locked once match begins.' });
+        }
+
+        const stadiumData = getStadiumById(stadiumId);
+        const updatedRoom = await storeService.updateRoom(code, {
+          stadiumId: stadiumData.id,
+          stadium: stadiumData
+        });
+
+        // Broadcast to all participants and spectators
+        io.to(code).emit('stadium_selected', {
+          roomCode: code,
+          stadium: stadiumData,
+          stadiumId: stadiumData.id
+        });
+        io.to(code).emit('room_state', updatedRoom);
+        io.to(code).emit('room_notification', {
+          type: 'STADIUM_SELECTED',
+          text: `Host selected venue: ${stadiumData.fullName || stadiumData.name} (${stadiumData.city}, ${stadiumData.country}).`
+        });
+      } catch (err) {
+        socket.emit('action_error', { code: 'STADIUM_ERROR', message: err.message });
       }
     });
 

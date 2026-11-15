@@ -400,26 +400,6 @@ export const TeamDashboard = () => {
             <Shield className="w-4 h-4 text-gold-400" /> TACTICAL SETUP
           </button>
 
-          <button
-            onClick={() => {
-              sound.playClick();
-              setChemistryModalOpen(true);
-            }}
-            className="bg-stadium-950 hover:bg-stadium-850 border border-purple-500/40 text-purple-400 hover:text-white font-mono text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors"
-          >
-            <Sparkles className="w-4 h-4 text-purple-400" /> SQUAD CHEMISTRY
-          </button>
-
-          <button
-            onClick={() => {
-              sound.playClick();
-              setScoutingModalOpen(true);
-            }}
-            className="bg-stadium-950 hover:bg-stadium-850 border border-cyan-500/40 text-cyan-400 hover:text-white font-mono text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors"
-          >
-            <Compass className="w-4 h-4 text-cyan-400" /> SCOUT OPPONENT
-          </button>
-
           {!isReadOnly && (
             <button
               onClick={() => setIdentityModalOpen(true)}
@@ -538,43 +518,7 @@ export const TeamDashboard = () => {
         </div>
       </div>
 
-      {/* Primary Dashboard Navigation Tabs */}
-      <div className="flex items-center gap-3 bg-stadium-950 p-2 rounded-2xl border border-white/5">
-        <button
-          onClick={() => {
-            sound.playClick();
-            setActiveMainTab('squad');
-          }}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-display uppercase font-bold text-xs transition-all ${
-            activeMainTab === 'squad'
-              ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
-              : 'text-slate-400 hover:text-white bg-stadium-900/60'
-          }`}
-        >
-          <Shirt className="w-4 h-4" /> Squad & Lineup Tactics
-        </button>
-
-        <button
-          onClick={() => {
-            sound.playClick();
-            setActiveMainTab('legacy');
-          }}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-display uppercase font-bold text-xs transition-all ${
-            activeMainTab === 'legacy'
-              ? 'bg-gradient-to-r from-amber-500 to-gold-500 text-slate-950 shadow-gold-glow'
-              : 'text-slate-400 hover:text-white bg-stadium-900/60'
-          }`}
-        >
-          <Trophy className="w-4 h-4 text-amber-400" /> Franchise Legacy & Career
-          <span className="bg-amber-400/20 text-amber-300 text-[10px] font-mono px-2 py-0.5 rounded-full border border-amber-400/30">
-            SEASONS & RECAPS
-          </span>
-        </button>
-      </div>
-
-      {activeMainTab === 'squad' && (
-        <>
-          {/* Main Playing XI Section */}
+      {/* Main Playing XI Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -844,19 +788,6 @@ export const TeamDashboard = () => {
           </div>
         )}
       </div>
-    </>
-  )}
-
-  {/* Franchise Legacy & Career History Section */}
-  {activeMainTab === 'legacy' && (
-    <div className="pt-2">
-      <FranchiseLegacyTab
-        teamId={team?._id}
-        team={team}
-        isOwner={!isReadOnly}
-      />
-    </div>
-  )}
 
   {/* Player Profile Detail Modal */}
       {profileModalPlayer && (

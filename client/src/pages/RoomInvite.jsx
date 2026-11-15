@@ -180,7 +180,7 @@ export const RoomInvite = () => {
           {room.name}
         </h1>
         <p className="text-xs font-mono text-slate-400 mt-1">
-          Host: <strong className="text-gold-400">{room.hostUsername}</strong> • Format: <strong className="text-white">{room.format}</strong> • Budget: ₹{(room.budgetPerTeam / 10000000).toFixed(0)} Cr
+          Host: <strong className="text-gold-400">{room.hostUsername}</strong> • Format: <strong className="text-white">{room.format}</strong> • Purse: <strong className="text-gold-300">{room.budgetPerTeam || (room.format === 'Test' ? 50 : room.format === 'ODI' ? 40 : 30)} Points</strong> per team
         </p>
 
         {/* Live Capacity Indicators */}

@@ -89,7 +89,7 @@ const start = async () => {
   await connectDB();
   await seedMongoIfEmpty();
 
-  server.listen(PORT, () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`=======================================================`);
     console.log(`🏏 CRICKETVERSE Server running on port ${PORT}`);
     console.log(`📡 Health Check: http://localhost:${PORT}/api/health`);

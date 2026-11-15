@@ -3826,6 +3826,12 @@ const runAllTests = async () => {
   // ==========================================
   const { runPhase13QATests } = require('./phase13QATests');
   const qa13Res = await runPhase13QATests({ callApp, test });
+
+  // ==========================================
+  // STADIUM SELECTION & SIMPLIFIED GAME TESTS
+  // ==========================================
+  const { runStadiumAndSimplificationTests } = require('./stadiumAndSimplificationTests');
+  await runStadiumAndSimplificationTests({ callApp, test });
   // (passed and failed are incremented directly inside test callback)
 
   console.log(`\n🎯 --- ALL TESTS PASSED: ${passed} PASSED, ${failed} FAILED --- 🎯\n`);

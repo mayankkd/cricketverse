@@ -806,7 +806,10 @@ const updateRoomSettings = async (roomCode, hostId, settings) => {
     'isPrivate',
     'password',
     'format',
-    'name'
+    'name',
+    'stadiumId',
+    'stadium',
+    'stadiumName'
   ];
 
   const updates = {};

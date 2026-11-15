@@ -31,6 +31,8 @@ import { socketService } from '../services/socket';
 import { sound } from '../services/sound';
 import { InviteFriendsModal } from '../components/room/InviteFriendsModal';
 import { JoinRoleModal } from '../components/room/JoinRoleModal';
+import { StadiumSelectorModal } from '../components/room/StadiumSelectorModal';
+import { StadiumCard } from '../components/room/StadiumCard';
 
 export const RoomLobby = () => {
   const { roomCode } = useParams();
@@ -44,6 +46,8 @@ export const RoomLobby = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showRoleSelectModal, setShowRoleSelectModal] = useState(false);
+  const [showStadiumModal, setShowStadiumModal] = useState(false);
+  const [currentStadium, setCurrentStadium] = useState(null);
 
   // Host settings state
   const [allowSpectators, setAllowSpectators] = useState(true);
@@ -62,6 +66,15 @@ export const RoomLobby = () => {
           setAllowSpectators(res.room.allowSpectators !== false);
           setAllowPlayerJoining(res.room.allowPlayerJoining !== false);
           setSpectatorChatEnabled(res.room.spectatorChatEnabled !== false);
+
+          if (res.room.stadium) {
+            setCurrentStadium(res.room.stadium);
+          } else {
+            const stadRes = await api.getStadiumById(res.room.stadiumId || 'lords');
+            if (stadRes.success && stadRes.stadium && mounted) {
+              setCurrentStadium(stadRes.stadium);
+            }
+          }
 
           // Check if current user has joined
           const isParticipant = (res.room.participants || []).some(
@@ -89,6 +102,28 @@ export const RoomLobby = () => {
     const unsubRoomState = socketService.onRoomState((updatedRoom) => {
       if (mounted && updatedRoom) {
         setRoom(updatedRoom);
+        if (updatedRoom.stadium) {
+          setCurrentStadium(updatedRoom.stadium);
+        }
+      }
+    });
+
+    const unsubStadiumSelected = socketService.onStadiumSelected((data) => {
+      if (mounted && data) {
+        sound.playClick();
+        if (data.stadium) {
+          setCurrentStadium(data.stadium);
+        }
+        setRoom(prev => prev ? ({
+          ...prev,
+          stadiumId: data.stadiumId,
+          stadium: data.stadium
+        }) : prev);
+        addToast({
+          type: 'info',
+          title: 'STADIUM SELECTED',
+          message: `Match venue set to: ${data.stadium?.name || data.stadiumId}`
+        });
       }
     });
 
@@ -136,6 +171,7 @@ export const RoomLobby = () => {
     return () => {
       mounted = false;
       unsubRoomState();
+      unsubStadiumSelected();
       unsubChat();
       unsubNotification();
       unsubActionError();
@@ -324,12 +360,24 @@ export const RoomLobby = () => {
             {room.name}
           </h1>
           <p className="text-xs font-mono text-slate-400 mt-1">
-            Host: <strong className="text-gold-400">{room.hostUsername}</strong> • Budget: ₹{(room.budgetPerTeam / 10000000).toFixed(0)} Cr per franchise
+            Host: <strong className="text-gold-400">{room.hostUsername}</strong> • Format: <strong className="text-white">{room.format}</strong> • Purse: <strong className="text-gold-300">{room.budgetPerTeam || (room.format === 'Test' ? 50 : room.format === 'ODI' ? 40 : 30)} Points</strong> per team
           </p>
         </div>
 
         {/* Action Controls & Invite Button */}
         <div className="flex flex-wrap items-center gap-3">
+          {isHost && (
+            <button
+              onClick={() => {
+                sound.playClick();
+                setShowStadiumModal(true);
+              }}
+              className="bg-stadium-950 hover:bg-stadium-850 text-gold-300 border border-gold-500/40 font-display uppercase font-bold text-xs px-4 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-md"
+            >
+              <Shield className="w-4 h-4 text-gold-400" /> SELECT STADIUM
+            </button>
+          )}
+
           <button
             onClick={() => {
               sound.playClick();
@@ -460,6 +508,62 @@ export const RoomLobby = () => {
             >
               {currentParticipant?.isReady ? '✓ READY' : 'SET AS READY'}
             </button>
+          )}
+        </div>
+      </div>
+
+      {/* Selected Match Stadium & Ground Conditions Banner */}
+      <div className="bg-stadium-900 border border-stadium-800 p-5 rounded-3xl shadow-lg flex flex-col md:flex-row items-center justify-between gap-5 relative overflow-hidden">
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          <div className="w-24 h-16 rounded-2xl overflow-hidden bg-stadium-950 border border-white/10 flex-shrink-0 relative">
+            {currentStadium?.imageUrl ? (
+              <img
+                src={currentStadium.imageUrl}
+                alt={currentStadium.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-2xl">🏟️</div>
+            )}
+            <span className="absolute bottom-1 right-1 bg-black/70 text-[9px] font-mono text-gold-400 px-1 rounded">
+              {currentStadium?.pitchType || 'Pitch'}
+            </span>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono font-bold uppercase text-gold-400 tracking-wider">
+                MATCH VENUE & CONDITIONS
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                • {currentStadium?.city || 'London'}, {currentStadium?.country || 'England'}
+              </span>
+            </div>
+            <h3 className="font-display font-black text-lg uppercase text-white leading-tight">
+              {currentStadium?.fullName || currentStadium?.name || "Lord's Cricket Ground"}
+            </h3>
+            <p className="text-xs text-slate-300 line-clamp-1 max-w-xl">
+              {currentStadium?.boundaryDimensions?.description || 'Authentic venue with pitch effects influencing swing, spin, and boundaries.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+          {isHost ? (
+            <button
+              onClick={() => {
+                sound.playClick();
+                setShowStadiumModal(true);
+              }}
+              className="bg-gold-500 hover:bg-gold-400 text-slate-950 font-display uppercase font-bold text-xs px-4 py-2.5 rounded-xl shadow-gold-glow flex items-center gap-1.5 transition-transform active:scale-95"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              CHOOSE STADIUM ({currentStadium?.name || "Lord's"})
+            </button>
+          ) : (
+            <div className="text-[11px] font-mono text-slate-400 bg-stadium-950 px-3 py-2 rounded-xl border border-stadium-800">
+              Venue selected by Host
+            </div>
           )}
         </div>
       </div>
@@ -790,6 +894,16 @@ export const RoomLobby = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Stadium Selector Modal */}
+      <StadiumSelectorModal
+        isOpen={showStadiumModal}
+        onClose={() => setShowStadiumModal(false)}
+        roomCode={roomCode}
+        isHost={isHost}
+        currentStadiumId={room.stadiumId || 'lords'}
+        onStadiumConfirmed={(stad) => setCurrentStadium(stad)}
+      />
     </div>
   );
 };

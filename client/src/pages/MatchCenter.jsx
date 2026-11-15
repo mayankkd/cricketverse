@@ -42,7 +42,8 @@ export const MatchCenter = () => {
   const [matchNotification, setMatchNotification] = useState(null);
 
   useEffect(() => {
-    const matchId = 'LIVE-IPL-FINAL';
+    const params = new URLSearchParams(window.location.search);
+    const matchId = params.get('match') || params.get('room') || 'LIVE-IPL-FINAL';
 
     const fetchMatch = async () => {
       try {

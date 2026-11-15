@@ -10,6 +10,8 @@ const STADIUMS = [
     paceSupport: 88,
     spinSupport: 52,
     bounce: 'Steep',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Lord%27s_Cricket_Ground_-_grandstand.jpg/640px-Lord%27s_Cricket_Ground_-_grandstand.jpg',
+    attribution: "Anthony O'Neil / Wikimedia Commons (CC BY-SA 2.0)",
     boundaryDimensions: {
       straight: 74,
       square: 65,
@@ -42,6 +44,8 @@ const STADIUMS = [
     paceSupport: 82,
     spinSupport: 58,
     bounce: 'True',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Melbourne_Cricket_Ground_%28MCG%29.jpg/640px-Melbourne_Cricket_Ground_%28MCG%29.jpg',
+    attribution: 'Donaldytong / Wikimedia Commons (CC BY-SA 3.0)',
     boundaryDimensions: {
       straight: 88,
       square: 85,
@@ -74,6 +78,8 @@ const STADIUMS = [
     paceSupport: 72,
     spinSupport: 84,
     bounce: 'True',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Sydney_Cricket_Ground_%28SCG%29_panoramic.jpg/640px-Sydney_Cricket_Ground_%28SCG%29_panoramic.jpg',
+    attribution: 'Brendan Smith / Wikimedia Commons (CC BY-SA 3.0)',
     boundaryDimensions: {
       straight: 78,
       square: 69,
@@ -106,6 +112,8 @@ const STADIUMS = [
     paceSupport: 68,
     spinSupport: 88,
     bounce: 'True',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Eden_Gardens_under_floodlights_during_IPL_2018.jpg/640px-Eden_Gardens_under_floodlights_during_IPL_2018.jpg',
+    attribution: 'Ajit Kumar / Wikimedia Commons (CC BY-SA 4.0)',
     boundaryDimensions: {
       straight: 72,
       square: 67,
@@ -138,6 +146,8 @@ const STADIUMS = [
     paceSupport: 76,
     spinSupport: 64,
     bounce: 'True',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Wankhede_Stadium_during_IPL_2023.jpg/640px-Wankhede_Stadium_during_IPL_2023.jpg',
+    attribution: 'Cricket Shutter / Wikimedia Commons (CC BY-SA 4.0)',
     boundaryDimensions: {
       straight: 70,
       square: 64,
@@ -170,6 +180,8 @@ const STADIUMS = [
     paceSupport: 74,
     spinSupport: 80,
     bounce: 'Variable',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Narendra_Modi_Stadium_aerial_view.jpg/640px-Narendra_Modi_Stadium_aerial_view.jpg',
+    attribution: 'Gujarat Cricket Association / Wikimedia Commons (CC BY-SA 4.0)',
     boundaryDimensions: {
       straight: 76,
       square: 71,
@@ -202,6 +214,8 @@ const STADIUMS = [
     paceSupport: 55,
     spinSupport: 96,
     bounce: 'Low',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/MA_Chidambaram_Stadium_Chepauk_Chennai.jpg/640px-MA_Chidambaram_Stadium_Chepauk_Chennai.jpg',
+    attribution: 'Naveen / Wikimedia Commons (CC BY-SA 3.0)',
     boundaryDimensions: {
       straight: 70,
       square: 66,
@@ -234,6 +248,8 @@ const STADIUMS = [
     paceSupport: 62,
     spinSupport: 58,
     bounce: 'True',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/M._Chinnaswamy_Stadium%2C_Bengaluru.jpg/640px-M._Chinnaswamy_Stadium%2C_Bengaluru.jpg',
+    attribution: 'Karthik Prabhu / Wikimedia Commons (CC BY-SA 4.0)',
     boundaryDimensions: {
       straight: 68,
       square: 61,
@@ -266,6 +282,8 @@ const STADIUMS = [
     paceSupport: 78,
     spinSupport: 70,
     bounce: 'True',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/The_Oval_cricket_ground_in_London.jpg/640px-The_Oval_cricket_ground_in_London.jpg',
+    attribution: 'Diliff / Wikimedia Commons (CC BY-SA 3.0)',
     boundaryDimensions: {
       straight: 75,
       square: 68,
@@ -298,6 +316,8 @@ const STADIUMS = [
     paceSupport: 92,
     spinSupport: 48,
     bounce: 'Steep',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Headingley_Cricket_Ground_Leeds.jpg/640px-Headingley_Cricket_Ground_Leeds.jpg',
+    attribution: 'MountMan / Wikimedia Commons (CC BY-SA 2.0)',
     boundaryDimensions: {
       straight: 73,
       square: 64,
@@ -330,6 +350,8 @@ const STADIUMS = [
     paceSupport: 86,
     spinSupport: 68,
     bounce: 'Steep',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Newlands_Cricket_Ground_Cape_Town.jpg/640px-Newlands_Cricket_Ground_Cape_Town.jpg',
+    attribution: 'SkyPixels / Wikimedia Commons (CC BY-SA 4.0)',
     boundaryDimensions: {
       straight: 75,
       square: 66,
@@ -362,6 +384,8 @@ const STADIUMS = [
     paceSupport: 95,
     spinSupport: 42,
     bounce: 'Steep',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Wanderers_Stadium_Johannesburg.jpg/640px-Wanderers_Stadium_Johannesburg.jpg',
+    attribution: 'Joburg Parks / Wikimedia Commons (CC BY-SA 3.0)',
     boundaryDimensions: {
       straight: 78,
       square: 68,
@@ -394,6 +418,8 @@ const STADIUMS = [
     paceSupport: 72,
     spinSupport: 76,
     bounce: 'True',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Gaddafi_Stadium_Lahore_night.jpg/640px-Gaddafi_Stadium_Lahore_night.jpg',
+    attribution: 'Ali Raza / Wikimedia Commons (CC BY-SA 4.0)',
     boundaryDimensions: {
       straight: 74,
       square: 67,
@@ -426,6 +452,8 @@ const STADIUMS = [
     paceSupport: 60,
     spinSupport: 94,
     bounce: 'Low',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/R._Premadasa_Stadium_Colombo.jpg/640px-R._Premadasa_Stadium_Colombo.jpg',
+    attribution: 'SLC / Wikimedia Commons (CC BY-SA 3.0)',
     boundaryDimensions: {
       straight: 74,
       square: 68,
@@ -458,6 +486,8 @@ const STADIUMS = [
     paceSupport: 84,
     spinSupport: 66,
     bounce: 'True',
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Kensington_Oval_Barbados.jpg/640px-Kensington_Oval_Barbados.jpg',
+    attribution: 'BajanSports / Wikimedia Commons (CC BY-SA 3.0)',
     boundaryDimensions: {
       straight: 76,
       square: 67,
@@ -495,4 +525,3 @@ module.exports = {
   getStadiumById,
   getAllStadiums
 };
-

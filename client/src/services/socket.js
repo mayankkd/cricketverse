@@ -77,6 +77,17 @@ class SocketService {
     socket.emit('start_game', { roomCode });
   }
 
+  selectStadium(roomCode, stadiumId) {
+    const socket = this.getSocket();
+    socket.emit('select_stadium', { roomCode, stadiumId });
+  }
+
+  onStadiumSelected(callback) {
+    const socket = this.getSocket();
+    socket.on('stadium_selected', callback);
+    return () => socket.off('stadium_selected', callback);
+  }
+
   onRoomState(callback) {
     const socket = this.getSocket();
     socket.on('room_state', callback);

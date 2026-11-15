@@ -209,6 +209,14 @@ const roomSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  stadiumId: {
+    type: String,
+    default: 'lords'
+  },
+  stadium: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
   invitation: {
     type: invitationSchema,
     default: null

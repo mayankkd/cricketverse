@@ -464,6 +464,30 @@ export const api = {
     return await res.json();
   },
 
+  // Phase 10: Broadcast & Telemetry Analytics
+  async getMatchAnalytics(matchId) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/analytics`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async setCommentaryPersonality(matchId, personality) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/personality`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ personality })
+    });
+    return await res.json();
+  },
+
+  async compareMatchPlayers(matchId, player1Id, player2Id) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/compare-players?player1Id=${player1Id}&player2Id=${player2Id}`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
   // Tournaments
   async getTournaments() {
     const res = await fetch(`${API_BASE}/tournaments`, {
@@ -479,4 +503,6 @@ export const api = {
     return await res.json();
   }
 };
+
+export default api;
 

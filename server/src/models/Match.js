@@ -217,6 +217,118 @@ const matchSchema = new mongoose.Schema({
   bowlerFatigue: {
     type: mongoose.Schema.Types.Mixed,
     default: () => ({})
+  },
+  commentaryPersonality: {
+    type: String,
+    enum: ['Professional', 'Hype', 'Savage'],
+    default: 'Professional'
+  },
+  deliveries: [{
+    innings: Number,
+    over: Number,
+    ball: Number,
+    overBallStr: String,
+    striker: { name: String, runs: Number, balls: Number, ovr: Number, photoUrl: String },
+    nonStriker: { name: String, ovr: Number },
+    bowler: { name: String, ovr: Number, photoUrl: String },
+    shotType: String,
+    direction: String,
+    pitchLine: String,
+    pitchLength: String,
+    deliveryTactic: String,
+    timing: String,
+    runs: Number,
+    isWicket: Boolean,
+    wicketType: String,
+    badge: String,
+    commentary: {
+      professional: String,
+      hype: String,
+      savage: String
+    },
+    wagonWheel: {
+      direction: String,
+      angleDeg: Number,
+      distanceMeters: Number,
+      runs: Number,
+      isWicket: Boolean
+    },
+    pitchMap: {
+      pitchLine: String,
+      pitchLength: String,
+      x: Number,
+      y: Number,
+      runs: Number,
+      isWicket: Boolean
+    },
+    battingTeamScore: Number,
+    battingTeamWickets: Number,
+    timestamp: Date
+  }],
+  manhattanData: [{
+    innings: Number,
+    over: Number,
+    runs: Number,
+    wickets: Number,
+    balls: Number
+  }],
+  partnerships: [{
+    wicketNumber: Number,
+    batter1: { name: String, runs: Number, balls: Number },
+    batter2: { name: String, runs: Number, balls: Number },
+    totalRuns: Number,
+    totalBalls: Number,
+    active: Boolean
+  }],
+  fallOfWickets: [{
+    wicketNumber: Number,
+    score: Number,
+    over: String,
+    batterName: String,
+    dismissal: String,
+    bowlerName: String
+  }],
+  bowlingScorecard: [{
+    name: String,
+    ovr: Number,
+    photoUrl: String,
+    overs: String,
+    oversDecimal: Number,
+    maidens: Number,
+    runs: Number,
+    wickets: Number,
+    dots: Number,
+    fours: Number,
+    sixes: Number,
+    economy: Number
+  }],
+  battingScorecard: [{
+    name: String,
+    ovr: Number,
+    photoUrl: String,
+    runs: Number,
+    balls: Number,
+    fours: Number,
+    sixes: Number,
+    strikeRate: Number,
+    isOut: Boolean,
+    dismissal: String
+  }],
+  highlights: [{
+    id: String,
+    over: String,
+    type: String,
+    title: String,
+    runs: Number,
+    striker: String,
+    bowler: String,
+    badge: String,
+    commentary: mongoose.Schema.Types.Mixed,
+    deliveryData: mongoose.Schema.Types.Mixed
+  }],
+  matchSummary: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
   }
 }, {
   timestamps: true

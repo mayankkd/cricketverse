@@ -22,6 +22,7 @@ import { TeamDashboard } from './pages/TeamDashboard';
 import { MatchCenter } from './pages/MatchCenter';
 import { TournamentDashboard } from './pages/TournamentDashboard';
 import { Settings } from './pages/Settings';
+import BroadcastMode from './pages/BroadcastMode';
 
 export function App() {
   return (
@@ -98,6 +99,11 @@ export function App() {
                 {/* 12. Match center */}
                 <Route path="/matches" element={<MatchCenter />} />
                 <Route path="/matches/:matchId" element={<MatchCenter />} />
+                <Route path="/match/:matchId" element={<MatchCenter />} />
+
+                {/* 13. Spectator Broadcast Mode */}
+                <Route path="/broadcast" element={<BroadcastMode />} />
+                <Route path="/broadcast/:matchId" element={<BroadcastMode />} />
 
                 {/* 13. Tournament dashboard */}
                 <Route path="/tournaments" element={<TournamentDashboard />} />

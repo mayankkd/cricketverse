@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity,
@@ -215,6 +216,14 @@ export const MatchCenter = () => {
               👁️ SPECTATOR
             </button>
           </div>
+
+          <Link
+            to={`/broadcast/${match._id || 'LIVE-IPL-FINAL'}`}
+            onClick={() => sound.playClick()}
+            className="px-4 py-2 rounded-xl text-xs font-display uppercase font-bold flex items-center gap-1.5 bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600 hover:text-white transition-all shadow-md"
+          >
+            📺 TV BROADCAST
+          </Link>
 
           <button
             onClick={() => {

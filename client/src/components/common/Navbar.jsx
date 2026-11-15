@@ -16,7 +16,8 @@ import {
   PlusCircle,
   Users,
   Layers,
-  Activity
+  Activity,
+  Tv
 } from 'lucide-react';
 import { sound } from '../../services/sound';
 
@@ -34,6 +35,7 @@ export const Navbar = () => {
     { name: 'Live Auction', path: '/auction', icon: Flame },
     { name: 'Squad XI', path: '/teams', icon: Trophy },
     { name: 'Match Center', path: '/matches', icon: Activity },
+    { name: 'Broadcast', path: '/broadcast', icon: Tv },
     { name: 'Tournaments', path: '/tournaments', icon: Trophy }
   ];
 
@@ -59,6 +61,14 @@ export const Navbar = () => {
           </span>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            to="/broadcast"
+            onClick={() => sound.playClick()}
+            className="text-[11px] font-mono text-rose-400 hover:text-rose-300 font-bold underline flex items-center gap-1"
+          >
+            TV BROADCAST 📺
+          </Link>
+          <span className="text-slate-600">|</span>
           <Link
             to="/matches"
             onClick={() => sound.playClick()}

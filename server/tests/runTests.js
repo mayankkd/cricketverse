@@ -3054,6 +3054,268 @@ const runAllTests = async () => {
     assert.ok(resSingle.body.conditions.boundaryDifficulty > 1.2);
   });
 
+  // ==========================================
+  // PHASE 10: BROADCAST & ANALYTICS TESTS
+  // ==========================================
+  console.log('\n--- PHASE 10: BROADCAST & ANALYTICS TESTS ---');
+
+  const { generateMultiPersonalityCommentary } = require('../src/services/commentaryService');
+  const {
+    calculateWagonWheelCoords,
+    calculatePitchMapCoords,
+    aggregateManhattanData,
+    aggregatePartnerships,
+    aggregateFallOfWickets,
+    aggregateBowlingFigures,
+    aggregateBattingFigures,
+    extractHighlights,
+    comparePlayers,
+    generateMatchSummary
+  } = require('../src/services/analyticsService');
+
+  // Test 1: Commentary personalities (Professional, Hype, Savage)
+  await test('Phase 10 - 1. Commentary Personalities: Professional, Hype, and Savage generate distinct event templates', async () => {
+    const sixComm = generateMultiPersonalityCommentary({
+      badge: 'SIX',
+      strikerName: 'Virat Kohli',
+      bowlerName: 'Jasprit Bumrah',
+      direction: 'Long-on',
+      seedNum: 1
+    });
+
+    assert.ok(sixComm.Professional, 'Must have Professional commentary for SIX');
+    assert.ok(sixComm.Hype, 'Must have Hype commentary for SIX');
+    assert.ok(sixComm.Savage, 'Must have Savage commentary for SIX');
+    assert.notStrictEqual(sixComm.Professional, sixComm.Hype);
+    assert.notStrictEqual(sixComm.Hype, sixComm.Savage);
+
+    const wicketComm = generateMultiPersonalityCommentary({
+      badge: 'WICKET',
+      wicketType: 'Bowled',
+      strikerName: 'Glenn Maxwell',
+      bowlerName: 'Jasprit Bumrah',
+      direction: 'Mid-off',
+      seedNum: 2
+    });
+    assert.ok(wicketComm.Professional.includes('bowled') || wicketComm.Professional.includes('timber') || wicketComm.Professional.includes('stump'));
+    assert.ok(wicketComm.Hype.includes('TIMBER') || wicketComm.Hype.includes('SHATTERED') || wicketComm.Hype.includes('BOOM') || wicketComm.Hype.includes('CARTWHEEL'));
+    assert.ok(wicketComm.Savage.includes('gate') || wicketComm.Savage.includes('swing') || wicketComm.Savage.includes('breeze') || wicketComm.Savage.includes('lost'));
+  });
+
+  // Test 2: Wagon Wheel 360-degree radial geometry
+  await test('Phase 10 - 2. Wagon Wheel: 360-degree field radial angles and boundary distance', async () => {
+    const coverDrive = calculateWagonWheelCoords({
+      direction: 'Cover',
+      shotType: 'Drive',
+      runs: 4,
+      isWicket: false,
+      boundaryMeters: 75
+    });
+    assert.ok(coverDrive.angleDeg >= 280 && coverDrive.angleDeg <= 310, `Cover angle should be ~295° (actual: ${coverDrive.angleDeg})`);
+    assert.strictEqual(coverDrive.runs, 4);
+    assert.ok(coverDrive.distanceMeters >= 70, `Boundary four should travel >= 70m (actual: ${coverDrive.distanceMeters})`);
+
+    const fineLeg = calculateWagonWheelCoords({
+      direction: 'Fine Leg',
+      shotType: 'Sweep',
+      runs: 1,
+      isWicket: false,
+      boundaryMeters: 70
+    });
+    assert.ok(fineLeg.angleDeg >= 120 && fineLeg.angleDeg <= 150, `Fine Leg angle should be ~135° (actual: ${fineLeg.angleDeg})`);
+    assert.ok(fineLeg.distanceMeters < 50, `Single should stay well inside boundary (actual: ${fineLeg.distanceMeters})`);
+  });
+
+  // Test 3: Pitch Map 2D coordinate mapping
+  await test('Phase 10 - 3. Pitch Map: 2D coordinates across lines and lengths', async () => {
+    const yorkerOff = calculatePitchMapCoords({
+      pitchLine: 'Off Stump',
+      pitchLength: 'Yorker',
+      runs: 0,
+      isWicket: true
+    });
+    assert.ok(yorkerOff.y >= 0.85, `Yorker length must be at the popping crease (Y >= 0.85, actual: ${yorkerOff.y})`);
+    assert.ok(yorkerOff.x >= -0.2 && yorkerOff.x <= 0.1, `Off stump line must be near -0.05 (actual: ${yorkerOff.x})`);
+
+    const shortLeg = calculatePitchMapCoords({
+      pitchLine: 'Leg Stump',
+      pitchLength: 'Short',
+      runs: 6,
+      isWicket: false
+    });
+    assert.ok(shortLeg.y <= 0.40, `Short ball length must be near bowler release (Y <= 0.40, actual: ${shortLeg.y})`);
+    assert.ok(shortLeg.x > 0.05, `Leg stump line must have positive X (actual: ${shortLeg.x})`);
+  });
+
+  // Test 4: Manhattan chart over-by-over aggregation
+  await test('Phase 10 - 4. Manhattan Chart: Over-by-over runs and wickets aggregated from match deliveries', async () => {
+    const testDeliveries = [
+      { innings: 1, over: 0, ball: 1, runs: 4, isWicket: false },
+      { innings: 1, over: 0, ball: 2, runs: 6, isWicket: false },
+      { innings: 1, over: 0, ball: 3, runs: 0, isWicket: true },
+      { innings: 1, over: 1, ball: 1, runs: 1, isWicket: false },
+      { innings: 1, over: 1, ball: 2, runs: 2, isWicket: false }
+    ];
+
+    const manhattan = aggregateManhattanData(testDeliveries);
+    assert.strictEqual(manhattan.length, 2, 'Must have 2 overs');
+    assert.strictEqual(manhattan[0].over, 1);
+    assert.strictEqual(manhattan[0].runs, 10);
+    assert.strictEqual(manhattan[0].wickets, 1);
+    assert.strictEqual(manhattan[1].over, 2);
+    assert.strictEqual(manhattan[1].runs, 3);
+    assert.strictEqual(manhattan[1].wickets, 0);
+  });
+
+  // Test 5: Partnerships tracking
+  await test('Phase 10 - 5. Partnerships: Batting pair runs, balls and active partnership state', async () => {
+    const testDeliveries = [
+      { innings: 1, striker: { name: 'Virat Kohli' }, nonStriker: { name: 'Glenn Maxwell' }, runs: 4, isWicket: false },
+      { innings: 1, striker: { name: 'Virat Kohli' }, nonStriker: { name: 'Glenn Maxwell' }, runs: 6, isWicket: false },
+      { innings: 1, striker: { name: 'Glenn Maxwell' }, nonStriker: { name: 'Virat Kohli' }, runs: 0, isWicket: true },
+      { innings: 1, striker: { name: 'Virat Kohli' }, nonStriker: { name: 'Heinrich Klaasen' }, runs: 4, isWicket: false }
+    ];
+
+    const parts = aggregatePartnerships(testDeliveries);
+    assert.strictEqual(parts.length, 2, 'Must track 2 partnerships');
+    assert.strictEqual(parts[0].wicketNumber, 1);
+    assert.strictEqual(parts[0].totalRuns, 10);
+    assert.strictEqual(parts[0].active, false, 'First partnership ended on wicket');
+    assert.strictEqual(parts[1].wicketNumber, 2);
+    assert.strictEqual(parts[1].totalRuns, 4);
+    assert.strictEqual(parts[1].active, true, 'Second partnership currently active');
+  });
+
+  // Test 6: Fall of Wickets calculation
+  await test('Phase 10 - 6. Fall of Wickets: Exact score, over, dismissed batter and dismissal mode', async () => {
+    const testDeliveries = [
+      { innings: 1, overBallStr: '2.4', striker: { name: 'Glenn Maxwell' }, bowler: { name: 'Jasprit Bumrah' }, runs: 0, isWicket: true, wicketType: 'Bowled', battingTeamScore: 24, battingTeamWickets: 1 },
+      { innings: 1, overBallStr: '5.2', striker: { name: 'Heinrich Klaasen' }, bowler: { name: 'Mohammed Siraj' }, runs: 0, isWicket: true, wicketType: 'Caught', battingTeamScore: 56, battingTeamWickets: 2 }
+    ];
+
+    const fow = aggregateFallOfWickets(testDeliveries);
+    assert.strictEqual(fow.length, 2);
+    assert.strictEqual(fow[0].wicketNumber, 1);
+    assert.strictEqual(fow[0].score, 24);
+    assert.strictEqual(fow[0].batterName, 'Glenn Maxwell');
+    assert.strictEqual(fow[0].dismissal, 'b Jasprit Bumrah');
+    assert.strictEqual(fow[1].wicketNumber, 2);
+    assert.strictEqual(fow[1].score, 56);
+    assert.strictEqual(fow[1].batterName, 'Heinrich Klaasen');
+  });
+
+  // Test 7: Bowling scorecard figures (overs, maidens, runs, wickets, dots, economy)
+  await test('Phase 10 - 7. Bowling Figures: Complete scorecard with economy, dots, maidens', async () => {
+    const testDeliveries = [
+      { innings: 1, bowler: { name: 'Jasprit Bumrah', ovr: 118 }, runs: 0, isWicket: false },
+      { innings: 1, bowler: { name: 'Jasprit Bumrah', ovr: 118 }, runs: 0, isWicket: false },
+      { innings: 1, bowler: { name: 'Jasprit Bumrah', ovr: 118 }, runs: 0, isWicket: false },
+      { innings: 1, bowler: { name: 'Jasprit Bumrah', ovr: 118 }, runs: 0, isWicket: false },
+      { innings: 1, bowler: { name: 'Jasprit Bumrah', ovr: 118 }, runs: 0, isWicket: false },
+      { innings: 1, bowler: { name: 'Jasprit Bumrah', ovr: 118 }, runs: 0, isWicket: true }
+    ];
+
+    const bowling = aggregateBowlingFigures(testDeliveries);
+    assert.strictEqual(bowling.length, 1);
+    assert.strictEqual(bowling[0].name, 'Jasprit Bumrah');
+    assert.strictEqual(bowling[0].overs, '1.0');
+    assert.strictEqual(bowling[0].runs, 0);
+    assert.strictEqual(bowling[0].wickets, 1);
+    assert.strictEqual(bowling[0].maidens, 1, 'Over with 0 runs should count as maiden');
+    assert.strictEqual(bowling[0].economy, 0.0);
+    assert.strictEqual(bowling[0].dots, 6);
+  });
+
+  // Test 8: Highlights extraction
+  await test('Phase 10 - 8. Highlights: Filterable key events (Wickets, SIXes, FOURs) with replay data', async () => {
+    const testDeliveries = [
+      { overBallStr: '0.1', badge: 'DOT', runs: 0, isWicket: false, striker: { name: 'A' }, bowler: { name: 'B' } },
+      { overBallStr: '0.2', badge: 'FOUR', runs: 4, isWicket: false, striker: { name: 'A' }, bowler: { name: 'B' } },
+      { overBallStr: '0.3', badge: 'SIX', runs: 6, isWicket: false, striker: { name: 'A' }, bowler: { name: 'B' } },
+      { overBallStr: '0.4', badge: 'WICKET', runs: 0, isWicket: true, wicketType: 'Bowled', striker: { name: 'A' }, bowler: { name: 'B' } }
+    ];
+
+    const highlights = extractHighlights(testDeliveries);
+    assert.strictEqual(highlights.length, 3, 'Must filter out DOT and capture FOUR, SIX, WICKET');
+    assert.strictEqual(highlights[0].badge, 'FOUR');
+    assert.strictEqual(highlights[1].badge, 'SIX');
+    assert.strictEqual(highlights[2].badge, 'WICKET');
+  });
+
+  // Test 9: Match Summary Card generation
+  await test('Phase 10 - 9. Match Summary Card: Player of the Match, top performers, and decisive phase', async () => {
+    const mockMatch = {
+      title: 'Grand Championship Final',
+      venue: 'Eden Gardens',
+      format: 'T20',
+      status: 'completed',
+      result: 'Bangalore Royal Titans won by 14 runs',
+      currentStriker: { name: 'Virat Kohli', runs: 82, balls: 45, fours: 7, sixes: 3 },
+      currentBowler: { name: 'Jasprit Bumrah' },
+      deliveries: [
+        { innings: 1, striker: { name: 'Virat Kohli' }, bowler: { name: 'Mitchell Starc' }, runs: 6, badge: 'SIX', isWicket: false },
+        { innings: 1, striker: { name: 'Virat Kohli' }, bowler: { name: 'Mitchell Starc' }, runs: 4, badge: 'FOUR', isWicket: false }
+      ]
+    };
+
+    const summary = generateMatchSummary(mockMatch);
+    assert.ok(summary);
+    assert.strictEqual(summary.format, 'T20');
+    assert.ok(summary.playerOfTheMatch);
+    assert.ok(summary.topBatter);
+    assert.ok(summary.decisivePhase);
+  });
+
+  // Test 10: REST API: GET /api/matches/:id/analytics returns live telemetry
+  await test('Phase 10 - 10. REST API: GET /api/matches/:id/analytics returns live telemetry', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/matches/match_broadcast_demo/analytics' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.analytics);
+    assert.ok(Array.isArray(res.body.analytics.deliveries));
+    assert.ok(Array.isArray(res.body.analytics.manhattanData));
+    assert.ok(Array.isArray(res.body.analytics.partnerships));
+    assert.ok(Array.isArray(res.body.analytics.fallOfWickets));
+    assert.ok(Array.isArray(res.body.analytics.bowlingScorecard));
+    assert.ok(Array.isArray(res.body.analytics.battingScorecard));
+    assert.ok(Array.isArray(res.body.analytics.highlights));
+    assert.ok(res.body.analytics.matchSummary);
+  });
+
+  // Test 11: Real-time personality switcher endpoint
+  await test('Phase 10 - 11. REST API: POST /api/matches/:id/personality changes commentary persona', async () => {
+    const resHype = await callApp({
+      method: 'POST',
+      url: '/api/matches/match_broadcast_demo/personality',
+      body: { personality: 'Hype' }
+    });
+    assert.strictEqual(resHype.status, 200);
+    assert.strictEqual(resHype.body.success, true);
+    assert.strictEqual(resHype.body.personality, 'Hype');
+
+    const resSavage = await callApp({
+      method: 'POST',
+      url: '/api/matches/match_broadcast_demo/personality',
+      body: { personality: 'Savage' }
+    });
+    assert.strictEqual(resSavage.status, 200);
+    assert.strictEqual(resSavage.body.success, true);
+    assert.strictEqual(resSavage.body.personality, 'Savage');
+  });
+
+  // Test 12: Player comparison endpoint
+  await test('Phase 10 - 12. REST API: GET /api/matches/:id/compare-players returns side-by-side attributes', async () => {
+    const resComp = await callApp({
+      method: 'GET',
+      url: '/api/matches/match_broadcast_demo/compare-players?player1Id=ply_01&player2Id=ply_02'
+    });
+    assert.strictEqual(resComp.status, 200);
+    assert.strictEqual(resComp.body.success, true);
+    assert.ok(resComp.body.comparison);
+    assert.ok(resComp.body.comparison.radarMetrics);
+    assert.ok(resComp.body.comparison.radarMetrics.length >= 6);
+  });
+
   // Match Center & Simulation
   await test('GET /api/matches returns live match data', async () => {
     const res = await callApp({ method: 'GET', url: '/api/matches' });

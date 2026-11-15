@@ -6,3 +6,4 @@ router.get('/', getStadiums);
 router.get('/:id', getStadiumDetails);
 
 module.exports = router;
+

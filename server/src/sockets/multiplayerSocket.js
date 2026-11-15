@@ -621,6 +621,28 @@ const initMultiplayerSockets = (io) => {
       }
     });
 
+    // Change Commentary Personality in Real-Time
+    socket.on('change_commentary_personality', async ({ matchId, personality }) => {
+      try {
+        const id = matchId || socket.currentMatchId;
+        if (!id) return;
+
+        const result = await matchEngineService.setCommentaryPersonality(id, personality);
+        const roomChannel = `match:${id}`;
+        io.to(roomChannel).emit('commentary_personality_changed', {
+          matchId: id,
+          personality: result.personality,
+          snapshot: result.snapshot
+        });
+        io.to(roomChannel).emit('match_state', result.snapshot);
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'PERSONALITY_ERROR',
+          message: err.message
+        });
+      }
+    });
+
     // Disconnect handling: preserve slot and mark disconnected
     socket.on('disconnect', async () => {
       console.log(`[Socket] Disconnected: ${socket.id}`);

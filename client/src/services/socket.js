@@ -314,7 +314,12 @@ class SocketService {
       this.connected = false;
     }
   }
+
+  connect() {
+    return this.getSocket();
+  }
 }
 
 export const socketService = new SocketService();
+export default socketService;
 

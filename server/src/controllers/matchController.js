@@ -368,6 +368,67 @@ const setStadiumAndConditions = async (req, res, next) => {
   }
 };
 
+// @desc    Get match broadcast analytics (Wagon Wheel, Manhattan, Worm, Pitch Map, Partnerships, Bowling, Batting)
+// @route   GET /api/matches/:id/analytics
+// @access  Public
+const getMatchAnalytics = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const analytics = await matchEngineService.getMatchAnalytics(id);
+    res.status(200).json({
+      success: true,
+      analytics
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Set commentary personality (Professional, Hype, Savage)
+// @route   POST /api/matches/:id/personality
+// @access  Public / Private
+const setCommentaryPersonality = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { personality } = req.body;
+    const result = await matchEngineService.setCommentaryPersonality(id, personality);
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Compare two players side-by-side
+// @route   GET /api/matches/:id/compare-players
+// @access  Public
+const comparePlayers = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { player1Id, player2Id } = req.query;
+    const p1 = player1Id ? await storeService.getPlayerById(player1Id) : null;
+    const p2 = player2Id ? await storeService.getPlayerById(player2Id) : null;
+    const comparison = matchEngineService.comparePlayers(p1, p2);
+    res.status(200).json({
+      success: true,
+      comparison
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
 module.exports = {
   getMatches,
   getMatchById,
@@ -385,6 +446,9 @@ module.exports = {
   callTacticalTimeout,
   resumeTacticalTimeout,
   applyDLSRevision,
-  setStadiumAndConditions
+  setStadiumAndConditions,
+  getMatchAnalytics,
+  setCommentaryPersonality,
+  comparePlayers
 };
 

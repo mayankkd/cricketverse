@@ -17,7 +17,10 @@ const {
   callTacticalTimeout,
   resumeTacticalTimeout,
   applyDLSRevision,
-  setStadiumAndConditions
+  setStadiumAndConditions,
+  getMatchAnalytics,
+  setCommentaryPersonality,
+  comparePlayers
 } = require('../controllers/matchController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -25,6 +28,9 @@ router.get('/', getMatches);
 router.get('/:id', getMatchById);
 router.get('/:id/snapshot', getMatchSnapshot);
 router.get('/:id/sync', syncMatch);
+router.get('/:id/analytics', getMatchAnalytics);
+router.get('/:id/compare-players', comparePlayers);
+router.post('/:id/personality', setCommentaryPersonality);
 router.get('/:id/tactics', getMatchTactics);
 router.put('/:id/tactics', protect, updateMatchTactics);
 router.post('/:id/join', joinMatch);

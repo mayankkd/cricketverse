@@ -9,9 +9,22 @@ const {
   getMaxBowlerLimitForFormat,
   evaluateBowlerFatigue
 } = require('./stadiumConditionsService');
+const { generateMultiPersonalityCommentary } = require('./commentaryService');
+const {
+  calculateWagonWheelCoords,
+  calculatePitchMapCoords,
+  aggregateManhattanData,
+  aggregatePartnerships,
+  aggregateFallOfWickets,
+  aggregateBowlingFigures,
+  aggregateBattingFigures,
+  extractHighlights,
+  comparePlayers,
+  generateMatchSummary
+} = require('./analyticsService');
 
 // ==========================================
-// PHASE 8 & 9: MULTIPLAYER DETERMINISTIC MATCH ENGINE & STADIUM CONDITIONS
+// PHASE 8, 9 & 10: MATCH ENGINE, STADIUM CONDITIONS & BROADCAST ANALYTICS
 // ==========================================
 
 // 1. Deterministic Pseudo-Random Number Generator (Mulberry32)
@@ -168,13 +181,108 @@ const getOrCreateMatchEngine = async (matchId) => {
     teamBTactics: matchDoc.teamBTactics || {},
     participants: matchDoc.participants || [],
     maxPlayers: 6, // FIXED CAPACITY: Maximum 6 active players
+    commentaryPersonality: matchDoc.commentaryPersonality || 'Professional',
+    deliveries: (matchDoc.deliveries && matchDoc.deliveries.length > 0)
+      ? matchDoc.deliveries
+      : generateInitialMatchDeliveries(matchDoc),
+    manhattanData: matchDoc.manhattanData || [],
+    partnerships: matchDoc.partnerships || [],
+    fallOfWickets: matchDoc.fallOfWickets || [],
+    bowlingScorecard: matchDoc.bowlingScorecard || [],
+    battingScorecard: matchDoc.battingScorecard || [],
+    highlights: matchDoc.highlights || [],
+    matchSummary: matchDoc.matchSummary || null,
     eventLog: [],
     processedActionIds: new Set()
   };
 
+  // Pre-calculate aggregates if empty
+  if (engineState.manhattanData.length === 0 && engineState.deliveries.length > 0) {
+    engineState.manhattanData = aggregateManhattanData(engineState.deliveries);
+    engineState.partnerships = aggregatePartnerships(engineState.deliveries);
+    engineState.fallOfWickets = aggregateFallOfWickets(engineState.deliveries);
+    engineState.bowlingScorecard = aggregateBowlingFigures(engineState.deliveries);
+    engineState.battingScorecard = aggregateBattingFigures(engineState.deliveries);
+    engineState.highlights = extractHighlights(engineState.deliveries);
+  }
+
   activeMatchEngines.set(matchId, engineState);
   return engineState;
 };
+
+// Seed baseline deliveries for live match analytics if none exist
+function generateInitialMatchDeliveries(mDoc) {
+  const seeds = [
+    { over: 0, ball: 1, striker: 'Virat Kohli', bowler: 'Jasprit Bumrah', shotType: 'Drive', direction: 'Cover', pitchLine: 'Off Stump', pitchLength: 'Full', runs: 4, badge: 'FOUR' },
+    { over: 0, ball: 2, striker: 'Virat Kohli', bowler: 'Jasprit Bumrah', shotType: 'Defensive Block', direction: 'Mid-off', pitchLine: 'Outside Off', pitchLength: 'Good Length', runs: 0, badge: 'DOT' },
+    { over: 1, ball: 3, striker: 'Glenn Maxwell', bowler: 'Mohammed Siraj', shotType: 'Pull / Hook', direction: 'Midwicket', pitchLine: 'Leg Stump', pitchLength: 'Short', runs: 6, badge: 'SIX' },
+    { over: 2, ball: 4, striker: 'Glenn Maxwell', bowler: 'Jasprit Bumrah', shotType: 'Drive', direction: 'Cover', pitchLine: 'Off Stump', pitchLength: 'Full', runs: 0, isWicket: true, wicketType: 'Bowled', badge: 'WICKET' },
+    { over: 3, ball: 1, striker: 'Heinrich Klaasen', bowler: 'Jasprit Bumrah', shotType: 'Cut', direction: 'Point', pitchLine: 'Outside Off', pitchLength: 'Short', runs: 4, badge: 'FOUR' },
+    { over: 4, ball: 2, striker: 'Virat Kohli', bowler: 'Mohammed Siraj', shotType: 'Drive', direction: 'Long-off', pitchLine: 'Middle Stump', pitchLength: 'Full', runs: 1, badge: 'SINGLE' },
+    { over: 5, ball: 6, striker: 'Heinrich Klaasen', bowler: 'Jasprit Bumrah', shotType: 'Lofted Drive', direction: 'Long-on', pitchLine: 'Middle Stump', pitchLength: 'Good Length', runs: 6, badge: 'SIX' },
+    { over: 7, ball: 2, striker: 'Virat Kohli', bowler: 'Mohammed Siraj', shotType: 'Sweep', direction: 'Square Leg', pitchLine: 'Leg Stump', pitchLength: 'Full', runs: 2, badge: 'TWO' },
+    { over: 9, ball: 5, striker: 'Heinrich Klaasen', bowler: 'Mohammed Siraj', shotType: 'Lofted Drive', direction: 'Extra Cover', pitchLine: 'Outside Off', pitchLength: 'Full', runs: 4, badge: 'FOUR' },
+    { over: 11, ball: 1, striker: 'Virat Kohli', bowler: 'Jasprit Bumrah', shotType: 'Drive', direction: 'Cover', pitchLine: 'Off Stump', pitchLength: 'Good Length', runs: 1, badge: 'SINGLE' },
+    { over: 13, ball: 4, striker: 'Heinrich Klaasen', bowler: 'Mohammed Siraj', shotType: 'Lofted Drive', direction: 'Long-on', pitchLine: 'Middle Stump', pitchLength: 'Full', runs: 6, badge: 'SIX' },
+    { over: 15, ball: 3, striker: 'Virat Kohli', bowler: 'Mohammed Siraj', shotType: 'Pull / Hook', direction: 'Midwicket', pitchLine: 'Middle Stump', pitchLength: 'Short', runs: 4, badge: 'FOUR' },
+    { over: 17, ball: 1, striker: 'Heinrich Klaasen', bowler: 'Jasprit Bumrah', shotType: 'Lofted Drive', direction: 'Long-on', pitchLine: 'Off Stump', pitchLength: 'Full', runs: 6, badge: 'SIX' },
+    { over: 17, ball: 6, striker: 'Virat Kohli', bowler: 'Jasprit Bumrah', shotType: 'Cut', direction: 'Third Man', pitchLine: 'Outside Off', pitchLength: 'Good Length', runs: 4, badge: 'FOUR' },
+    { over: 18, ball: 1, striker: 'Heinrich Klaasen', bowler: 'Jasprit Bumrah', shotType: 'Lofted Drive', direction: 'Long-on', pitchLine: 'Middle Stump', pitchLength: 'Full', runs: 6, badge: 'SIX' },
+    { over: 18, ball: 2, striker: 'Virat Kohli', bowler: 'Jasprit Bumrah', shotType: 'Drive', direction: 'Midwicket', pitchLine: 'Middle Stump', pitchLength: 'Yorker', runs: 2, badge: 'TWO' }
+  ];
+
+  return seeds.map((s, idx) => {
+    const multiCommentary = generateMultiPersonalityCommentary({
+      badge: s.badge,
+      wicketType: s.wicketType || 'Caught',
+      strikerName: s.striker,
+      bowlerName: s.bowler,
+      direction: s.direction,
+      seedNum: idx + 1
+    });
+
+    const wagonWheel = calculateWagonWheelCoords({
+      direction: s.direction,
+      shotType: s.shotType,
+      runs: s.runs,
+      isWicket: !!s.isWicket,
+      boundaryMeters: 70
+    });
+
+    const pitchMap = calculatePitchMapCoords({
+      pitchLine: s.pitchLine,
+      pitchLength: s.pitchLength,
+      runs: s.runs,
+      isWicket: !!s.isWicket
+    });
+
+    return {
+      innings: 2,
+      over: s.over,
+      ball: s.ball,
+      overBallStr: `${s.over}.${s.ball}`,
+      striker: { name: s.striker, runs: 0, balls: 0, ovr: 115 },
+      nonStriker: { name: 'Partner', ovr: 108 },
+      bowler: { name: s.bowler, ovr: 118 },
+      shotType: s.shotType,
+      direction: s.direction,
+      pitchLine: s.pitchLine,
+      pitchLength: s.pitchLength,
+      deliveryTactic: 'Seam',
+      timing: 'Good',
+      runs: s.runs,
+      isWicket: !!s.isWicket,
+      wicketType: s.wicketType || null,
+      badge: s.badge,
+      commentary: multiCommentary,
+      wagonWheel,
+      pitchMap,
+      battingTeamScore: 10 + idx * 11,
+      battingTeamWickets: s.isWicket ? 2 : 1,
+      timestamp: new Date(Date.now() - (18 - idx) * 90000)
+    };
+  });
+}
 
 /**
  * Join Match as Player (up to 6 active players) or Spectator (unlimited additional users)
@@ -323,6 +431,15 @@ const getMatchSnapshot = (matchId) => {
     currentBowler: { ...match.currentBowler },
     recentBalls: [...match.recentBalls],
     commentary: match.commentary.slice(0, 20),
+    commentaryPersonality: match.commentaryPersonality || 'Professional',
+    deliveries: match.deliveries || [],
+    manhattanData: match.manhattanData || [],
+    partnerships: match.partnerships || [],
+    fallOfWickets: match.fallOfWickets || [],
+    bowlingScorecard: match.bowlingScorecard || [],
+    battingScorecard: match.battingScorecard || [],
+    highlights: match.highlights || [],
+    matchSummary: match.matchSummary || null,
     wormData: [...match.wormData],
     result: match.result,
     participants: match.participants.map(p => ({
@@ -800,6 +917,35 @@ const submitBattingDecision = async (matchId, userId, {
     }
   }
 
+  // Phase 10: Multi-Personality Commentary & Analytics Telemetry
+  const multiCommentary = generateMultiPersonalityCommentary({
+    badge: outcome.badge,
+    wicketType: outcome.wicketType || 'Caught',
+    strikerName,
+    bowlerName,
+    direction,
+    seedNum: match.currentTurn.deliverySeq
+  });
+
+  if (multiCommentary[match.commentaryPersonality]) {
+    outcome.commentary = multiCommentary[match.commentaryPersonality];
+  }
+
+  const wagonWheel = calculateWagonWheelCoords({
+    direction,
+    shotType,
+    runs: outcome.runs,
+    isWicket: outcome.isWicket,
+    boundaryMeters: match.stadium?.boundaryDimensions?.straightMeters || 70
+  });
+
+  const pitchMap = calculatePitchMapCoords({
+    pitchLine: bowlingDecision.line,
+    pitchLength: bowlingDecision.length,
+    runs: outcome.runs,
+    isWicket: outcome.isWicket
+  });
+
   // Update Inning Scores
   const battingTeam = match.battingTeamKey === 'teamA' ? match.teamA : match.teamB;
   const bowlingTeam = match.bowlingTeamKey === 'teamA' ? match.teamA : match.teamB;
@@ -860,9 +1006,49 @@ const submitBattingDecision = async (matchId, userId, {
     over: newOvers.toFixed(1),
     text: `${strikerName} vs ${bowlerName}: ${outcome.commentary}`,
     badge: outcome.badge,
-    timestamp: new Date()
+    timestamp: new Date(),
+    multiCommentary
   });
   if (match.commentary.length > 25) match.commentary.pop();
+
+  // Phase 10: Store individual delivery telemetry
+  const deliveryRecord = {
+    innings: match.currentInnings,
+    over: wholeOvers,
+    ball: ballsInOver + 1,
+    overBallStr: `${wholeOvers}.${ballsInOver + 1}`,
+    striker: { ...match.currentStriker },
+    nonStriker: { ...match.currentNonStriker },
+    bowler: { ...match.currentBowler },
+    shotType,
+    direction,
+    pitchLine: bowlingDecision.line,
+    pitchLength: bowlingDecision.length,
+    deliveryTactic: bowlingDecision.variation,
+    timing,
+    runs: outcome.runs,
+    isWicket: outcome.isWicket,
+    wicketType: outcome.wicketType,
+    badge: outcome.badge,
+    commentary: multiCommentary,
+    wagonWheel,
+    pitchMap,
+    battingTeamScore: battingTeam.score,
+    battingTeamWickets: battingTeam.wickets,
+    timestamp: new Date()
+  };
+
+  if (!match.deliveries) match.deliveries = [];
+  match.deliveries.push(deliveryRecord);
+
+  // Re-aggregate match metrics from actual delivery data
+  match.manhattanData = aggregateManhattanData(match.deliveries);
+  match.partnerships = aggregatePartnerships(match.deliveries);
+  match.fallOfWickets = aggregateFallOfWickets(match.deliveries);
+  match.bowlingScorecard = aggregateBowlingFigures(match.deliveries);
+  match.battingScorecard = aggregateBattingFigures(match.deliveries);
+  match.highlights = extractHighlights(match.deliveries);
+  match.matchSummary = generateMatchSummary(match);
 
   // Check Innings & Match Conclusions
   let inningsEnded = false;
@@ -1046,7 +1232,7 @@ const submitBattingDecision = async (matchId, userId, {
     });
   }
 
-  // Visual payload for Phaser 3 rendering
+  // Visual payload for Phaser 3 rendering & broadcast telemetry
   const deliveryData = {
     shotType,
     direction,
@@ -1058,7 +1244,10 @@ const submitBattingDecision = async (matchId, userId, {
     isWicket: outcome.isWicket,
     wicketType: outcome.wicketType,
     badge: outcome.badge,
-    commentary: outcome.commentary
+    commentary: outcome.commentary,
+    multiCommentary,
+    wagonWheel,
+    pitchMap
   };
 
   // Monotonic Event Sequencing
@@ -1102,7 +1291,16 @@ const submitBattingDecision = async (matchId, userId, {
     testDetails: match.testDetails,
     tacticalTimeouts: match.tacticalTimeouts,
     inningsHistory: match.inningsHistory,
-    bowlerFatigue: match.bowlerFatigue
+    bowlerFatigue: match.bowlerFatigue,
+    deliveries: match.deliveries,
+    manhattanData: match.manhattanData,
+    partnerships: match.partnerships,
+    fallOfWickets: match.fallOfWickets,
+    bowlingScorecard: match.bowlingScorecard,
+    battingScorecard: match.battingScorecard,
+    highlights: match.highlights,
+    matchSummary: match.matchSummary,
+    commentaryPersonality: match.commentaryPersonality
   });
 
   return {
@@ -1561,6 +1759,51 @@ const syncMatch = async (matchId, { fromSeq = 0, userId = null, socketId = null 
   };
 };
 
+/**
+ * Switch commentary personality in real-time
+ */
+const setCommentaryPersonality = async (matchId, personality) => {
+  const match = await getOrCreateMatchEngine(matchId);
+  const VALID_PERSONALITIES = ['Professional', 'Hype', 'Savage'];
+  if (!VALID_PERSONALITIES.includes(personality)) {
+    personality = 'Professional';
+  }
+  match.commentaryPersonality = personality;
+  await storeService.updateMatch(matchId, { commentaryPersonality: personality });
+  return {
+    success: true,
+    personality,
+    snapshot: getMatchSnapshot(matchId)
+  };
+};
+
+/**
+ * Retrieve comprehensive match analytics for broadcast & telemetry
+ */
+const getMatchAnalytics = async (matchId) => {
+  const match = await getOrCreateMatchEngine(matchId);
+  return {
+    matchId: match.matchId,
+    personality: match.commentaryPersonality || 'Professional',
+    deliveries: match.deliveries || [],
+    manhattanData: match.manhattanData || [],
+    partnerships: match.partnerships || [],
+    fallOfWickets: match.fallOfWickets || [],
+    bowlingScorecard: match.bowlingScorecard || [],
+    battingScorecard: match.battingScorecard || [],
+    highlights: match.highlights || [],
+    matchSummary: match.matchSummary || generateMatchSummary(match),
+    wormData: match.wormData || [],
+    stadium: match.stadium,
+    weather: match.weather,
+    teamA: match.teamA,
+    teamB: match.teamB,
+    currentStriker: match.currentStriker,
+    currentNonStriker: match.currentNonStriker,
+    currentBowler: match.currentBowler
+  };
+};
+
 module.exports = {
   createSeededRandom,
   getOrCreateMatchEngine,
@@ -1576,5 +1819,8 @@ module.exports = {
   resumeTacticalTimeout,
   applyDLSRevision,
   setStadiumAndConditions,
+  setCommentaryPersonality,
+  getMatchAnalytics,
+  comparePlayers,
   syncMatch
 };

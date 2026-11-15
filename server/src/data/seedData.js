@@ -74,6 +74,7 @@ const initialPlayers = [
   // 1. VIRAT KOHLI (INDIA)
   {
     _id: 'ply_01',
+    playerId: 'cric_virat_kohli',
     name: 'Virat Kohli',
     shortName: 'V. Kohli',
     slug: 'virat-kohli',
@@ -135,8 +136,8 @@ const initialPlayers = [
       ipl: { teams: ['Royal Challengers Bengaluru'], matches: 252, runs: 8004, highestScore: '113', average: 38.67, strikeRate: 131.97, hundreds: 8, wickets: 4, titles: 0 },
       domestic: { teams: ['Delhi', 'North Zone'], firstClassMatches: 148, listAMatches: 320, t20Matches: 377, totalRuns: 27500, totalWickets: 12 }
     },
-    basePrice: 200000000,
-    currentPrice: 210000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Royal Challengers Bengaluru',
     specialTraits: ['Chase Master', 'Anchor & Accelerate', 'Fitness Freak'],
     isAvailableForAuction: true
@@ -145,6 +146,7 @@ const initialPlayers = [
   // 2. JASPRIT BUMRAH (INDIA)
   {
     _id: 'ply_02',
+    playerId: 'cric_jasprit_bumrah',
     name: 'Jasprit Bumrah',
     shortName: 'J. Bumrah',
     slug: 'jasprit-bumrah',
@@ -204,8 +206,8 @@ const initialPlayers = [
       ipl: { teams: ['Mumbai Indians'], matches: 133, runs: 69, highestScore: '16', average: 9.85, strikeRate: 98.57, hundreds: 0, wickets: 165, titles: 5 },
       domestic: { teams: ['Gujarat', 'West Zone'], firstClassMatches: 68, listAMatches: 110, t20Matches: 220, totalRuns: 650, totalWickets: 440 }
     },
-    basePrice: 200000000,
-    currentPrice: 225000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Mumbai Indians',
     specialTraits: ['Toe Crusher', 'Death Over Magician', 'Zero Economy'],
     isAvailableForAuction: true
@@ -214,6 +216,7 @@ const initialPlayers = [
   // 3. SIR DONALD BRADMAN (AUSTRALIA) - Test Only
   {
     _id: 'ply_03',
+    playerId: 'cric_don_bradman',
     name: 'Sir Donald Bradman',
     shortName: 'D. Bradman',
     slug: 'don-bradman',
@@ -272,8 +275,8 @@ const initialPlayers = [
       ipl: { teams: [], matches: 0, runs: 0, highestScore: '-', average: 0, strikeRate: 0, hundreds: 0, wickets: 0, titles: 0 },
       domestic: { teams: ['New South Wales', 'South Australia'], firstClassMatches: 234, listAMatches: 0, t20Matches: 0, totalRuns: 28067, totalWickets: 36 }
     },
-    basePrice: 200000000,
-    currentPrice: 230000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Unsold',
     specialTraits: ['99.94 Average', 'Unmatched Concentration', 'Invincible Captain'],
     isAvailableForAuction: true
@@ -282,6 +285,7 @@ const initialPlayers = [
   // 4. SACHIN TENDULKAR (INDIA)
   {
     _id: 'ply_04',
+    playerId: 'cric_sachin_tendulkar',
     name: 'Sachin Tendulkar',
     shortName: 'S. Tendulkar',
     slug: 'sachin-tendulkar',
@@ -341,8 +345,8 @@ const initialPlayers = [
       ipl: { teams: ['Mumbai Indians'], matches: 78, runs: 2334, highestScore: '100*', average: 34.83, strikeRate: 119.81, hundreds: 1, wickets: 0, titles: 1 },
       domestic: { teams: ['Mumbai', 'Yorkshire'], firstClassMatches: 310, listAMatches: 551, t20Matches: 96, totalRuns: 50192, totalWickets: 201 }
     },
-    basePrice: 200000000,
-    currentPrice: 220000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Mumbai Indians',
     specialTraits: ['100 Centuries', 'Desert Storm', 'Straight Drive Master'],
     isAvailableForAuction: true
@@ -351,6 +355,7 @@ const initialPlayers = [
   // 5. SHANE WARNE (AUSTRALIA) - Test & ODI
   {
     _id: 'ply_05',
+    playerId: 'cric_shane_warne',
     name: 'Shane Warne',
     shortName: 'S. Warne',
     slug: 'shane-warne',
@@ -409,8 +414,8 @@ const initialPlayers = [
       ipl: { teams: ['Rajasthan Royals'], matches: 55, runs: 198, highestScore: '34*', average: 9.9, strikeRate: 92.52, hundreds: 0, wickets: 57, titles: 1 },
       domestic: { teams: ['Victoria', 'Hampshire'], firstClassMatches: 301, listAMatches: 311, t20Matches: 73, totalRuns: 6919, totalWickets: 1319 }
     },
-    basePrice: 200000000,
-    currentPrice: 215000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Rajasthan Royals',
     specialTraits: ['Ball of the Century', 'Flipper Specialist', 'Psychological Warfare'],
     isAvailableForAuction: true
@@ -419,6 +424,7 @@ const initialPlayers = [
   // 6. SIR VIV RICHARDS (WEST INDIES)
   {
     _id: 'ply_06',
+    playerId: 'cric_viv_richards',
     name: 'Sir Vivian Richards',
     shortName: 'V. Richards',
     slug: 'viv-richards',
@@ -477,8 +483,8 @@ const initialPlayers = [
       ipl: { teams: [], matches: 0, runs: 0, highestScore: '-', average: 0, strikeRate: 0, hundreds: 0, wickets: 0, titles: 0 },
       domestic: { teams: ['Somerset', 'Queensland'], firstClassMatches: 507, listAMatches: 419, t20Matches: 0, totalRuns: 36212, totalWickets: 382 }
     },
-    basePrice: 200000000,
-    currentPrice: 220000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Unsold',
     specialTraits: ['No-Helmet Swagger', 'Hook Shot King', '90 SR in 1970s'],
     isAvailableForAuction: true
@@ -487,6 +493,7 @@ const initialPlayers = [
   // 7. BRIAN LARA (WEST INDIES)
   {
     _id: 'ply_07',
+    playerId: 'cric_brian_lara',
     name: 'Brian Lara',
     shortName: 'B. Lara',
     slug: 'brian-lara',
@@ -545,8 +552,8 @@ const initialPlayers = [
       ipl: { teams: [], matches: 0, runs: 0, highestScore: '-', average: 0, strikeRate: 0, hundreds: 0, wickets: 0, titles: 0 },
       domestic: { teams: ['Trinidad & Tobago', 'Warwickshire'], firstClassMatches: 261, listAMatches: 427, t20Matches: 3, totalRuns: 33760, totalWickets: 9 }
     },
-    basePrice: 200000000,
-    currentPrice: 215000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Unsold',
     specialTraits: ['400* Record', '501* County Innings', 'High Backlift'],
     isAvailableForAuction: true
@@ -555,6 +562,7 @@ const initialPlayers = [
   // 8. MS DHONI (INDIA)
   {
     _id: 'ply_08',
+    playerId: 'cric_ms_dhoni',
     name: 'MS Dhoni',
     shortName: 'MS Dhoni',
     slug: 'ms-dhoni',
@@ -614,8 +622,8 @@ const initialPlayers = [
       ipl: { teams: ['Chennai Super Kings', 'Rising Pune Supergiant'], matches: 264, runs: 5243, highestScore: '84*', average: 39.13, strikeRate: 137.53, hundreds: 0, wickets: 0, titles: 5 },
       domestic: { teams: ['Jharkhand', 'Bihar'], firstClassMatches: 131, listAMatches: 412, t20Matches: 390, totalRuns: 21500, totalWickets: 2 }
     },
-    basePrice: 200000000,
-    currentPrice: 220000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Chennai Super Kings',
     specialTraits: ['Helicopter Shot', 'Lightning 0.08s Stumping', 'Captain Cool'],
     isAvailableForAuction: true
@@ -624,6 +632,7 @@ const initialPlayers = [
   // 9. ROHIT SHARMA (INDIA)
   {
     _id: 'ply_09',
+    playerId: 'cric_rohit_sharma',
     name: 'Rohit Sharma',
     shortName: 'R. Sharma',
     slug: 'rohit-sharma',
@@ -683,8 +692,8 @@ const initialPlayers = [
       ipl: { teams: ['Mumbai Indians', 'Deccan Chargers'], matches: 257, runs: 6628, highestScore: '109*', average: 29.72, strikeRate: 131.14, hundreds: 2, wickets: 15, titles: 6 },
       domestic: { teams: ['Mumbai', 'West Zone'], firstClassMatches: 126, listAMatches: 334, t20Matches: 442, totalRuns: 27900, totalWickets: 34 }
     },
-    basePrice: 200000000,
-    currentPrice: 205000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Mumbai Indians',
     specialTraits: ['264 World Record', 'Pull Shot King', '5x IPL Champion'],
     isAvailableForAuction: true
@@ -693,6 +702,7 @@ const initialPlayers = [
   // 10. HEINRICH KLAASEN (SOUTH AFRICA)
   {
     _id: 'ply_10',
+    playerId: 'cric_heinrich_klaasen',
     name: 'Heinrich Klaasen',
     shortName: 'H. Klaasen',
     slug: 'heinrich-klaasen',
@@ -751,8 +761,8 @@ const initialPlayers = [
       ipl: { teams: ['Sunrisers Hyderabad', 'Rajasthan Royals', 'Royal Challengers Bangalore'], matches: 35, runs: 993, highestScore: '104', average: 36.78, strikeRate: 168.31, hundreds: 1, wickets: 0, titles: 0 },
       domestic: { teams: ['Titans', 'Northerns', 'Durban Super Giants'], firstClassMatches: 85, listAMatches: 160, t20Matches: 215, totalRuns: 13400, totalWickets: 0 }
     },
-    basePrice: 150000000,
-    currentPrice: 175000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Sunrisers Hyderabad',
     specialTraits: ['Spin Destroyer', 'Death Surge', 'Back-Foot Sixes'],
     isAvailableForAuction: true
@@ -761,6 +771,7 @@ const initialPlayers = [
   // 11. PAT CUMMINS (AUSTRALIA)
   {
     _id: 'ply_11',
+    playerId: 'cric_pat_cummins',
     name: 'Pat Cummins',
     shortName: 'P. Cummins',
     slug: 'pat-cummins',
@@ -819,8 +830,8 @@ const initialPlayers = [
       ipl: { teams: ['Sunrisers Hyderabad', 'Kolkata Knight Riders', 'Delhi Daredevils'], matches: 58, runs: 515, highestScore: '56*', average: 18.39, strikeRate: 151.03, hundreds: 0, wickets: 63, titles: 1 },
       domestic: { teams: ['New South Wales'], firstClassMatches: 84, listAMatches: 115, t20Matches: 154, totalRuns: 2750, totalWickets: 530 }
     },
-    basePrice: 200000000,
-    currentPrice: 205000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Sunrisers Hyderabad',
     specialTraits: ['Silence The Crowd', '14-Ball Fifty', 'Elite Captain'],
     isAvailableForAuction: true
@@ -829,6 +840,7 @@ const initialPlayers = [
   // 12. BEN STOKES (ENGLAND)
   {
     _id: 'ply_12',
+    playerId: 'cric_ben_stokes',
     name: 'Ben Stokes',
     shortName: 'B. Stokes',
     slug: 'ben-stokes',
@@ -887,8 +899,8 @@ const initialPlayers = [
       ipl: { teams: ['Rising Pune Supergiant', 'Rajasthan Royals', 'Chennai Super Kings'], matches: 45, runs: 935, highestScore: '107*', average: 24.6, strikeRate: 133.95, hundreds: 2, wickets: 28, titles: 1 },
       domestic: { teams: ['Durham'], firstClassMatches: 172, listAMatches: 168, t20Matches: 160, totalRuns: 16200, totalWickets: 450 }
     },
-    basePrice: 200000000,
-    currentPrice: 200000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Chennai Super Kings',
     specialTraits: ['Headingley 135*', 'Bazball Pioneer', 'Never Say Die'],
     isAvailableForAuction: true
@@ -897,6 +909,7 @@ const initialPlayers = [
   // 13. CHRIS GAYLE (WEST INDIES)
   {
     _id: 'ply_13',
+    playerId: 'cric_chris_gayle',
     name: 'Chris Gayle',
     shortName: 'C. Gayle',
     slug: 'chris-gayle',
@@ -955,8 +968,8 @@ const initialPlayers = [
       ipl: { teams: ['Royal Challengers Bangalore', 'Punjab Kings', 'Kolkata Knight Riders'], matches: 142, runs: 4965, highestScore: '175*', average: 39.72, strikeRate: 148.96, hundreds: 6, wickets: 18, titles: 0 },
       domestic: { teams: ['Jamaica', 'Somerset', 'Melbourne Renegades'], firstClassMatches: 180, listAMatches: 382, t20Matches: 463, totalRuns: 37000, totalWickets: 360 }
     },
-    basePrice: 150000000,
-    currentPrice: 185000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Royal Challengers Bengaluru',
     specialTraits: ['175* World Record', '1000+ T20 Sixes', 'Universe Boss'],
     isAvailableForAuction: true
@@ -965,6 +978,7 @@ const initialPlayers = [
   // 14. WASIM AKRAM (PAKISTAN)
   {
     _id: 'ply_14',
+    playerId: 'cric_wasim_akram',
     name: 'Wasim Akram',
     shortName: 'W. Akram',
     slug: 'wasim-akram',
@@ -1023,8 +1037,8 @@ const initialPlayers = [
       ipl: { teams: [], matches: 0, runs: 0, highestScore: '-', average: 0, strikeRate: 0, hundreds: 0, wickets: 0, titles: 0 },
       domestic: { teams: ['Lancashire', 'Lahore'], firstClassMatches: 257, listAMatches: 594, t20Matches: 0, totalRuns: 11800, totalWickets: 1928 }
     },
-    basePrice: 200000000,
-    currentPrice: 225000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Unsold',
     specialTraits: ['Sultan of Swing', '1992 WC Final Hero', '500+ ODI Wickets'],
     isAvailableForAuction: true
@@ -1033,6 +1047,7 @@ const initialPlayers = [
   // 15. MUTTIAH MURALITHARAN (SRI LANKA)
   {
     _id: 'ply_15',
+    playerId: 'cric_muttiah_muralitharan',
     name: 'Muttiah Muralitharan',
     shortName: 'M. Muralitharan',
     slug: 'muttiah-muralitharan',
@@ -1091,8 +1106,8 @@ const initialPlayers = [
       ipl: { teams: ['Chennai Super Kings', 'Kochi Tuskers Kerala', 'Royal Challengers Bangalore'], matches: 66, runs: 63, highestScore: '9*', average: 5.25, strikeRate: 64.28, hundreds: 0, wickets: 63, titles: 1 },
       domestic: { teams: ['Tamil Union', 'Lancashire', 'Kent'], firstClassMatches: 232, listAMatches: 453, t20Matches: 164, totalRuns: 3450, totalWickets: 2100 }
     },
-    basePrice: 200000000,
-    currentPrice: 215000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Chennai Super Kings',
     specialTraits: ['800 Test Wickets', 'Mystery Doosra', '67 Five-Wicket Hauls'],
     isAvailableForAuction: true
@@ -1101,6 +1116,7 @@ const initialPlayers = [
   // 16. RASHID KHAN (AFGHANISTAN)
   {
     _id: 'ply_16',
+    playerId: 'cric_rashid_khan',
     name: 'Rashid Khan',
     shortName: 'R. Khan',
     slug: 'rashid-khan',
@@ -1159,10 +1175,190 @@ const initialPlayers = [
       ipl: { teams: ['Gujarat Titans', 'Sunrisers Hyderabad'], matches: 121, runs: 545, highestScore: '79*', average: 15.57, strikeRate: 145.72, hundreds: 0, wickets: 149, titles: 1 },
       domestic: { teams: ['Adelaide Strikers', 'MI Cape Town', 'Trent Rockets'], firstClassMatches: 10, listAMatches: 120, t20Matches: 440, totalRuns: 3100, totalWickets: 610 }
     },
-    basePrice: 180000000,
-    currentPrice: 195000000,
+    basePrice: 1,
+    currentPrice: 1,
     franchise: 'Gujarat Titans',
     specialTraits: ['Mystery Arm Speed', 'Snake Shot', '600+ T20 Wickets'],
+    isAvailableForAuction: true
+  },
+
+  // 17. VIRAT KOHLI (BEST VARIANT - 105 OVR)
+  {
+    _id: 'ply_01_best',
+    playerId: 'cric_virat_kohli',
+    name: 'Virat Kohli',
+    shortName: 'V. Kohli',
+    slug: 'virat-kohli-best',
+    country: 'India',
+    countryCode: 'IND',
+    countryFlag: '🇮🇳',
+    role: 'Batter',
+    battingStyle: 'Right-hand bat',
+    bowlingStyle: 'Right-arm medium',
+    jerseyNumber: 18,
+    era: '2019 Season',
+    bio: 'Peak consistency Virat Kohli leading team India with high strike rotation and tactical poise.',
+    formatEligibility: { test: true, odi: true, t20: true },
+    ovr: { test: 104, odi: 105, t20: 102 },
+    overallRating: 105,
+    cardVariant: 'Best',
+    cardTier: 'DIAMOND',
+    variants: [],
+    attributes: {
+      batting: 105,
+      bowling: 40,
+      fielding: 104,
+      fitness: 108,
+      temperament: 106,
+      consistency: 107,
+      captaincy: 100,
+      powerHitting: 98,
+      strikeRotation: 106,
+      pace: 35,
+      swing: 40,
+      spin: 30,
+      deathBowling: 30,
+      defensiveTechnique: 102
+    },
+    stats: { bat: 105, bwl: 40, fld: 104, pwr: 98, clu: 106, ldr: 100 },
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Virat_Kohli_during_the_India_vs_Aus_4th_Test_match_at_Narendra_Modi_Stadium_on_09_March_2023.jpg/440px-Virat_Kohli_during_the_India_vs_Aus_4th_Test_match_at_Narendra_Modi_Stadium_on_09_March_2023.jpg',
+    avatarUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Virat_Kohli_during_the_India_vs_Aus_4th_Test_match_at_Narendra_Modi_Stadium_on_09_March_2023.jpg/440px-Virat_Kohli_during_the_India_vs_Aus_4th_Test_match_at_Narendra_Modi_Stadium_on_09_March_2023.jpg',
+    imageSource: 'Wikimedia Commons',
+    attribution: 'Creative Commons / Harish Rao',
+    licenceInfo: 'CC BY-SA 4.0',
+    internationalStats: {
+      test: { matches: 118, innings: 200, runs: 9040, highestScore: '254*', average: 48.74, hundreds: 29, fifties: 31, wickets: 0, bowlingAverage: 0, bestBowling: '0/0' },
+      odi: { matches: 295, innings: 283, runs: 13906, highestScore: '183', average: 58.18, hundreds: 50, fifties: 72, wickets: 5, bowlingAverage: 142.2, bestBowling: '1/15' },
+      t20i: { matches: 125, innings: 117, runs: 4188, highestScore: '122*', average: 48.69, strikeRate: 137.04, hundreds: 1, fifties: 38, wickets: 4, bowlingAverage: 51.0, bestBowling: '1/13' }
+    },
+    franchiseDomesticStats: {
+      ipl: { teams: ['Royal Challengers Bengaluru'], matches: 252, runs: 8004, highestScore: '113', average: 38.67, strikeRate: 131.97, hundreds: 8, wickets: 4, titles: 0 },
+      domestic: { teams: ['Delhi', 'North Zone'], firstClassMatches: 148, listAMatches: 320, t20Matches: 377, totalRuns: 27500, totalWickets: 12 }
+    },
+    basePrice: 1,
+    currentPrice: 1,
+    franchise: 'Royal Challengers Bengaluru',
+    specialTraits: ['Anchor Master', 'Tactical Precision'],
+    isAvailableForAuction: true
+  },
+
+  // 18. VIRAT KOHLI (AVERAGE VARIANT - 92 OVR)
+  {
+    _id: 'ply_01_avg',
+    playerId: 'cric_virat_kohli',
+    name: 'Virat Kohli',
+    shortName: 'V. Kohli',
+    slug: 'virat-kohli-average',
+    country: 'India',
+    countryCode: 'IND',
+    countryFlag: '🇮🇳',
+    role: 'Batter',
+    battingStyle: 'Right-hand bat',
+    bowlingStyle: 'Right-arm medium',
+    jerseyNumber: 18,
+    era: 'Career Mean',
+    bio: 'Balanced baseline version of Virat Kohli representing career foundational numbers.',
+    formatEligibility: { test: true, odi: true, t20: true },
+    ovr: { test: 94, odi: 92, t20: 89 },
+    overallRating: 92,
+    cardVariant: 'Average',
+    cardTier: 'GOLD',
+    variants: [],
+    attributes: {
+      batting: 92,
+      bowling: 35,
+      fielding: 90,
+      fitness: 95,
+      temperament: 92,
+      consistency: 91,
+      captaincy: 88,
+      powerHitting: 85,
+      strikeRotation: 92,
+      pace: 30,
+      swing: 35,
+      spin: 25,
+      deathBowling: 25,
+      defensiveTechnique: 90
+    },
+    stats: { bat: 92, bwl: 35, fld: 90, pwr: 85, clu: 91, ldr: 88 },
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Virat_Kohli_during_the_India_vs_Aus_4th_Test_match_at_Narendra_Modi_Stadium_on_09_March_2023.jpg/440px-Virat_Kohli_during_the_India_vs_Aus_4th_Test_match_at_Narendra_Modi_Stadium_on_09_March_2023.jpg',
+    avatarUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Virat_Kohli_during_the_India_vs_Aus_4th_Test_match_at_Narendra_Modi_Stadium_on_09_March_2023.jpg/440px-Virat_Kohli_during_the_India_vs_Aus_4th_Test_match_at_Narendra_Modi_Stadium_on_09_March_2023.jpg',
+    imageSource: 'Wikimedia Commons',
+    attribution: 'Creative Commons / Harish Rao',
+    licenceInfo: 'CC BY-SA 4.0',
+    internationalStats: {
+      test: { matches: 118, innings: 200, runs: 9040, highestScore: '254*', average: 48.74, hundreds: 29, fifties: 31, wickets: 0, bowlingAverage: 0, bestBowling: '0/0' },
+      odi: { matches: 295, innings: 283, runs: 13906, highestScore: '183', average: 58.18, hundreds: 50, fifties: 72, wickets: 5, bowlingAverage: 142.2, bestBowling: '1/15' },
+      t20i: { matches: 125, innings: 117, runs: 4188, highestScore: '122*', average: 48.69, strikeRate: 137.04, hundreds: 1, fifties: 38, wickets: 4, bowlingAverage: 51.0, bestBowling: '1/13' }
+    },
+    franchiseDomesticStats: {
+      ipl: { teams: ['Royal Challengers Bengaluru'], matches: 252, runs: 8004, highestScore: '113', average: 38.67, strikeRate: 131.97, hundreds: 8, wickets: 4, titles: 0 },
+      domestic: { teams: ['Delhi', 'North Zone'], firstClassMatches: 148, listAMatches: 320, t20Matches: 377, totalRuns: 27500, totalWickets: 12 }
+    },
+    basePrice: 1,
+    currentPrice: 1,
+    franchise: 'Royal Challengers Bengaluru',
+    specialTraits: ['Solid Fundamentals'],
+    isAvailableForAuction: true
+  },
+
+  // 19. JASPRIT BUMRAH (CLUTCH VARIANT)
+  {
+    _id: 'ply_02_clutch',
+    playerId: 'cric_jasprit_bumrah',
+    name: 'Jasprit Bumrah',
+    shortName: 'J. Bumrah',
+    slug: 'jasprit-bumrah-clutch',
+    country: 'India',
+    countryCode: 'IND',
+    countryFlag: '🇮🇳',
+    role: 'Bowler',
+    battingStyle: 'Right-hand bat',
+    bowlingStyle: 'Right-arm fast',
+    jerseyNumber: 93,
+    era: 'Finals Specialist',
+    bio: 'Clutch edition Jasprit Bumrah known for match-winning death spells in championship finals.',
+    formatEligibility: { test: true, odi: true, t20: true },
+    ovr: { test: 116, odi: 118, t20: 120 },
+    overallRating: 119,
+    cardVariant: 'Clutch',
+    cardTier: 'ICON',
+    variants: [],
+    attributes: {
+      batting: 30,
+      bowling: 120,
+      fielding: 90,
+      fitness: 110,
+      temperament: 120,
+      consistency: 120,
+      captaincy: 90,
+      powerHitting: 45,
+      strikeRotation: 30,
+      pace: 118,
+      swing: 112,
+      spin: 10,
+      deathBowling: 120,
+      defensiveTechnique: 40
+    },
+    stats: { bat: 30, bwl: 120, fld: 90, pwr: 45, clu: 120, ldr: 90 },
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Jasprit_Bumrah_in_2023.jpg/440px-Jasprit_Bumrah_in_2023.jpg',
+    avatarUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Jasprit_Bumrah_in_2023.jpg/440px-Jasprit_Bumrah_in_2023.jpg',
+    imageSource: 'Wikimedia Commons',
+    attribution: 'Creative Commons / A. B. Roy',
+    licenceInfo: 'CC BY-SA 4.0',
+    internationalStats: {
+      test: { matches: 40, innings: 76, runs: 280, highestScore: '34*', average: 6.82, hundreds: 0, fifties: 0, wickets: 173, bowlingAverage: 20.49, bestBowling: '6/27' },
+      odi: { matches: 89, innings: 88, runs: 95, highestScore: '16', average: 7.91, strikeRate: 59.7, hundreds: 0, fifties: 0, wickets: 149, bowlingAverage: 23.55, bestBowling: '6/19' },
+      t20i: { matches: 70, innings: 69, runs: 12, highestScore: '7', average: 4.0, strikeRate: 63.1, hundreds: 0, fifties: 0, wickets: 89, bowlingAverage: 17.74, bestBowling: '3/7' }
+    },
+    franchiseDomesticStats: {
+      ipl: { teams: ['Mumbai Indians'], matches: 133, runs: 69, highestScore: '16', average: 9.85, strikeRate: 98.57, hundreds: 0, wickets: 165, titles: 5 },
+      domestic: { teams: ['Gujarat'], firstClassMatches: 65, listAMatches: 110, t20Matches: 220, totalRuns: 450, totalWickets: 430 }
+    },
+    basePrice: 1,
+    currentPrice: 1,
+    franchise: 'Mumbai Indians',
+    specialTraits: ['Death Over Lockout', 'Yorker Bullseye'],
     isAvailableForAuction: true
   }
 ];
@@ -1179,7 +1375,7 @@ const initialRooms = [
     minPlayers: 2,
     maxPlayers: 6,
     maxTeams: 6,
-    budgetPerTeam: 1000000000,
+    budgetPerTeam: 30, // 30 points for T20
     isPrivate: false,
     allowSpectators: true,
     allowPlayerJoining: true,
@@ -1200,8 +1396,13 @@ const initialRooms = [
         isReady: true,
         isHost: true,
         isConnected: true,
-        budgetRemaining: 790000000,
-        squad: ['ply_01', 'ply_10']
+        t2VetoTokens: 2,
+        vetoedPlayers: [],
+        budgetRemaining: 26,
+        squad: [
+          { cardId: 'ply_10', playerId: 'cric_rashid_khan', playerName: 'Rashid Khan', acquiredPrice: 2, cardVariant: 'Peak', ovr: { t20: 118 } },
+          { cardId: 'ply_12', playerId: 'cric_glenn_maxwell', playerName: 'Glenn Maxwell', acquiredPrice: 2, cardVariant: 'Peak', ovr: { t20: 114 } }
+        ]
       },
       {
         userId: 'usr_demo_102',
@@ -1211,8 +1412,12 @@ const initialRooms = [
         isReady: true,
         isHost: false,
         isConnected: true,
-        budgetRemaining: 775000000,
-        squad: ['ply_02', 'ply_09']
+        t2VetoTokens: 2,
+        vetoedPlayers: [],
+        budgetRemaining: 27,
+        squad: [
+          { cardId: 'ply_09', playerId: 'cric_pat_cummins', playerName: 'Pat Cummins', acquiredPrice: 3, cardVariant: 'Captain', ovr: { t20: 112 } }
+        ]
       },
       {
         userId: 'usr_guest_301',
@@ -1222,8 +1427,12 @@ const initialRooms = [
         isReady: true,
         isHost: false,
         isConnected: true,
-        budgetRemaining: 780000000,
-        squad: ['ply_08']
+        t2VetoTokens: 2,
+        vetoedPlayers: [],
+        budgetRemaining: 28,
+        squad: [
+          { cardId: 'ply_08', playerId: 'cric_ben_stokes', playerName: 'Ben Stokes', acquiredPrice: 2, cardVariant: 'World Cup', ovr: { t20: 112 } }
+        ]
       },
       {
         userId: 'usr_guest_302',
@@ -1233,8 +1442,10 @@ const initialRooms = [
         isReady: false,
         isHost: false,
         isConnected: true,
-        budgetRemaining: 645000000,
-        squad: ['ply_10', 'ply_11']
+        t2VetoTokens: 2,
+        vetoedPlayers: [],
+        budgetRemaining: 30,
+        squad: []
       },
       {
         userId: 'usr_guest_305',
@@ -1244,10 +1455,31 @@ const initialRooms = [
         isReady: false,
         isHost: false,
         isConnected: true,
+        t2VetoTokens: 0,
+        vetoedPlayers: [],
         budgetRemaining: 0,
         squad: []
       }
     ],
+    auctionState: {
+      status: 'active',
+      format: 'T20',
+      initialPurse: 30,
+      bidIncrement: 1,
+      currentLot: null,
+      nominatedPlayerIds: ['cric_rashid_khan', 'cric_glenn_maxwell', 'cric_pat_cummins', 'cric_ben_stokes'],
+      soldLots: [],
+      unsoldLots: [],
+      vetoedLots: [],
+      unsoldRoundActive: false,
+      bidHistory: [],
+      spendingHistory: [],
+      vetoHistory: [],
+      replayLogs: [],
+      turnOrder: ['usr_demo_101', 'usr_demo_102', 'usr_guest_301', 'usr_guest_302'],
+      currentTurnIndex: 0,
+      nominationMode: 'rotating'
+    },
     chatMessages: [
       { id: 'm1', sender: 'cricket_legend', senderRole: 'host', text: 'Welcome to the Mega Auction room! Good luck managers.', timestamp: new Date(Date.now() - 3600000) },
       { id: 'm2', sender: 'rohit_hitman', senderRole: 'player', text: 'Targeting top tier death bowlers today.', timestamp: new Date(Date.now() - 1800000) },
@@ -1265,7 +1497,7 @@ const initialRooms = [
     minPlayers: 2,
     maxPlayers: 6,
     maxTeams: 6,
-    budgetPerTeam: 800000000,
+    budgetPerTeam: 30,
     isPrivate: false,
     allowSpectators: true,
     allowPlayerJoining: true,
@@ -1286,7 +1518,9 @@ const initialRooms = [
         isReady: true,
         isHost: true,
         isConnected: true,
-        budgetRemaining: 800000000,
+        t2VetoTokens: 2,
+        vetoedPlayers: [],
+        budgetRemaining: 30,
         squad: []
       },
       {
@@ -1297,51 +1531,179 @@ const initialRooms = [
         isReady: true,
         isHost: false,
         isConnected: true,
-        budgetRemaining: 800000000,
+        t2VetoTokens: 2,
+        vetoedPlayers: [],
+        budgetRemaining: 30,
         squad: []
       }
     ],
+    auctionState: {
+      status: 'idle',
+      format: 'The Hundred',
+      initialPurse: 30,
+      bidIncrement: 1,
+      currentLot: null,
+      nominatedPlayerIds: [],
+      soldLots: [],
+      unsoldLots: [],
+      vetoedLots: [],
+      unsoldRoundActive: false,
+      bidHistory: [],
+      spendingHistory: [],
+      vetoHistory: [],
+      replayLogs: [],
+      turnOrder: ['usr_demo_102', 'usr_guest_303'],
+      currentTurnIndex: 0,
+      nominationMode: 'rotating'
+    },
     chatMessages: [
       { id: 'm1', sender: 'rohit_hitman', senderRole: 'host', text: 'Room opened! Waiting for 4 more managers.', timestamp: new Date(Date.now() - 900000) }
     ]
   },
   {
     _id: 'room_03',
-    roomCode: 'EL-CLASICO',
-    name: 'CSK vs RCB Showdown (Private Clan)',
+    roomCode: 'ASHES-TEST',
+    name: 'The Ashes Classic Test Arena',
     hostId: 'usr_guest_301',
     hostUsername: 'sam_curran_fan',
     status: 'waiting',
-    format: 'Super Over',
+    format: 'Test',
     minPlayers: 2,
     maxPlayers: 6,
     maxTeams: 6,
-    budgetPerTeam: 500000000,
-    isPrivate: true,
-    password: 'secretclash',
+    budgetPerTeam: 50, // 50 points fixed purse for Test
+    isPrivate: false,
+    password: '',
     allowSpectators: true,
     allowPlayerJoining: true,
     spectatorChatEnabled: true,
     invitation: {
-      token: 'inv_clasico_demo',
+      token: 'inv_ashes_demo',
       createdAt: new Date(),
       expiresAt: null,
       isRevoked: false,
-      password: 'secretclash'
+      password: ''
     },
     participants: [
       {
         userId: 'usr_guest_301',
         username: 'sam_curran_fan',
         role: 'player',
-        teamName: 'Chennai Super Vipers',
+        teamName: 'England Lions XI',
         isReady: true,
         isHost: true,
         isConnected: true,
-        budgetRemaining: 500000000,
+        t2VetoTokens: 2,
+        vetoedPlayers: [],
+        budgetRemaining: 50,
+        squad: []
+      },
+      {
+        userId: 'usr_guest_302',
+        username: 'david_warner_bull',
+        role: 'player',
+        teamName: 'Aussie Baggy Greens',
+        isReady: true,
+        isHost: false,
+        isConnected: true,
+        t2VetoTokens: 2,
+        vetoedPlayers: [],
+        budgetRemaining: 50,
         squad: []
       }
     ],
+    auctionState: {
+      status: 'idle',
+      format: 'Test',
+      initialPurse: 50,
+      bidIncrement: 1,
+      currentLot: null,
+      nominatedPlayerIds: [],
+      soldLots: [],
+      unsoldLots: [],
+      vetoedLots: [],
+      unsoldRoundActive: false,
+      bidHistory: [],
+      spendingHistory: [],
+      vetoHistory: [],
+      replayLogs: [],
+      turnOrder: ['usr_guest_301', 'usr_guest_302'],
+      currentTurnIndex: 0,
+      nominationMode: 'rotating'
+    },
+    chatMessages: []
+  },
+  {
+    _id: 'room_04',
+    roomCode: 'CWC-ODI',
+    name: 'ODI World Cup Auction Arena',
+    hostId: 'usr_demo_101',
+    hostUsername: 'cricket_legend',
+    status: 'waiting',
+    format: 'ODI',
+    minPlayers: 2,
+    maxPlayers: 6,
+    maxTeams: 6,
+    budgetPerTeam: 40, // 40 points fixed purse for ODI
+    isPrivate: false,
+    password: '',
+    allowSpectators: true,
+    allowPlayerJoining: true,
+    spectatorChatEnabled: true,
+    invitation: {
+      token: 'inv_cwc_demo',
+      createdAt: new Date(),
+      expiresAt: null,
+      isRevoked: false,
+      password: ''
+    },
+    participants: [
+      {
+        userId: 'usr_demo_101',
+        username: 'cricket_legend',
+        role: 'player',
+        teamName: 'India World XI',
+        isReady: true,
+        isHost: true,
+        isConnected: true,
+        t2VetoTokens: 2,
+        vetoedPlayers: [],
+        budgetRemaining: 40,
+        squad: []
+      },
+      {
+        userId: 'usr_demo_102',
+        username: 'rohit_hitman',
+        role: 'player',
+        teamName: 'Mumbai ODI Kings',
+        isReady: true,
+        isHost: false,
+        isConnected: true,
+        t2VetoTokens: 2,
+        vetoedPlayers: [],
+        budgetRemaining: 40,
+        squad: []
+      }
+    ],
+    auctionState: {
+      status: 'idle',
+      format: 'ODI',
+      initialPurse: 40,
+      bidIncrement: 1,
+      currentLot: null,
+      nominatedPlayerIds: [],
+      soldLots: [],
+      unsoldLots: [],
+      vetoedLots: [],
+      unsoldRoundActive: false,
+      bidHistory: [],
+      spendingHistory: [],
+      vetoHistory: [],
+      replayLogs: [],
+      turnOrder: ['usr_demo_101', 'usr_demo_102'],
+      currentTurnIndex: 0,
+      nominationMode: 'rotating'
+    },
     chatMessages: []
   }
 ];

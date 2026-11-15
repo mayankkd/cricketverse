@@ -67,7 +67,7 @@ const initMultiplayerSockets = (io) => {
       }
     });
 
-    // Auction bid broadcast with SPECTATOR PERMISSION ENFORCEMENT
+    // Auction bid broadcast with SPECTATOR PERMISSION ENFORCEMENT & ENGINE SYNC
     socket.on('place_bid', async ({ roomCode, bidData }) => {
       try {
         const code = (roomCode || socket.currentRoomCode || '').toUpperCase();
@@ -82,11 +82,26 @@ const initMultiplayerSockets = (io) => {
         }
 
         // SPECTATOR PERMISSION ENFORCEMENT:
-        // Spectators are strictly barred from bidding
         await storeService.verifyPlayerActionPermission(code, userId, 'place bid');
 
-        console.log(`[Socket] Bid approved in ${code}: ₹${bidData.amount} by ${bidData.username}`);
-        io.to(code).emit('bid_updated', bidData);
+        // Apply bid via storeService
+        const updatedRoom = await storeService.placeAuctionBid(code, userId, {
+          amount: bidData.amount
+        });
+
+        const currentLot = updatedRoom.auctionState?.currentLot;
+
+        io.to(code).emit('bid_updated', {
+          amount: currentLot?.currentBid || bidData.amount,
+          username: currentLot?.highestBidderUsername || bidData.username,
+          teamName: currentLot?.highestBidderTeam || bidData.teamName,
+          userId,
+          lot: currentLot,
+          bidHistory: updatedRoom.auctionState?.bidHistory
+        });
+
+        io.to(code).emit('auction_state', updatedRoom.auctionState);
+        io.to(code).emit('room_state', updatedRoom);
       } catch (err) {
         socket.emit('action_error', {
           code: err.code || 'BID_REJECTED',
@@ -95,15 +110,26 @@ const initMultiplayerSockets = (io) => {
       }
     });
 
-    // Nominate player with SPECTATOR PERMISSION ENFORCEMENT
-    socket.on('nominate_player', async ({ roomCode, player }) => {
+    // Nominate player with SPECTATOR PERMISSION ENFORCEMENT & ENGINE SYNC
+    socket.on('nominate_player', async ({ roomCode, player, cardId, playerId }) => {
       try {
         const code = (roomCode || socket.currentRoomCode || '').toUpperCase();
         const userId = socket.user?._id;
-        if (!userId) return;
+        if (!userId) {
+          return socket.emit('action_error', { code: 'UNAUTHORIZED', message: 'Authentication required.' });
+        }
 
         await storeService.verifyPlayerActionPermission(code, userId, 'nominate player');
-        io.to(code).emit('player_nominated', player);
+
+        const pId = cardId || player?._id || playerId || player?.playerId;
+        const updatedRoom = await storeService.nominatePlayerForAuction(code, userId, {
+          cardId: pId,
+          playerId: pId
+        });
+
+        io.to(code).emit('player_nominated', updatedRoom.auctionState?.currentLot);
+        io.to(code).emit('auction_state', updatedRoom.auctionState);
+        io.to(code).emit('room_state', updatedRoom);
       } catch (err) {
         socket.emit('action_error', {
           code: err.code || 'ACTION_FORBIDDEN',
@@ -112,15 +138,55 @@ const initMultiplayerSockets = (io) => {
       }
     });
 
-    // T2 Veto with SPECTATOR PERMISSION ENFORCEMENT
+    // T2 Veto with SPECTATOR PERMISSION ENFORCEMENT & ENGINE SYNC
     socket.on('use_t2_veto', async ({ roomCode, vetoData }) => {
+      try {
+        const code = (roomCode || socket.currentRoomCode || '').toUpperCase();
+        const userId = socket.user?._id;
+        if (!userId) {
+          return socket.emit('action_error', { code: 'UNAUTHORIZED', message: 'Authentication required.' });
+        }
+
+        await storeService.verifyPlayerActionPermission(code, userId, 'use T2 Veto');
+
+        const updatedRoom = await storeService.useT2Veto(code, userId);
+        const participant = (updatedRoom.participants || []).find(p => p.userId === userId);
+
+        io.to(code).emit('t2_veto_activated', {
+          vetoedBy: participant?.username || socket.user?.username,
+          userId,
+          lot: updatedRoom.auctionState?.currentLot,
+          remainingTokens: participant?.t2VetoTokens,
+          vetoedLots: updatedRoom.auctionState?.vetoedLots
+        });
+
+        io.to(code).emit('auction_state', updatedRoom.auctionState);
+        io.to(code).emit('room_state', updatedRoom);
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'ACTION_FORBIDDEN',
+          message: err.message
+        });
+      }
+    });
+
+    // Hammer sold / unsold resolution via socket
+    socket.on('hammer_lot', async ({ roomCode }) => {
       try {
         const code = (roomCode || socket.currentRoomCode || '').toUpperCase();
         const userId = socket.user?._id;
         if (!userId) return;
 
-        await storeService.verifyPlayerActionPermission(code, userId, 'use T2 Veto');
-        io.to(code).emit('t2_veto_activated', vetoData);
+        const updatedRoom = await storeService.hammerCurrentLot(code, userId);
+
+        io.to(code).emit('lot_hammered', {
+          lot: updatedRoom.auctionState?.currentLot,
+          soldLots: updatedRoom.auctionState?.soldLots,
+          unsoldLots: updatedRoom.auctionState?.unsoldLots
+        });
+
+        io.to(code).emit('auction_state', updatedRoom.auctionState);
+        io.to(code).emit('room_state', updatedRoom);
       } catch (err) {
         socket.emit('action_error', {
           code: err.code || 'ACTION_FORBIDDEN',
@@ -218,3 +284,4 @@ const initMultiplayerSockets = (io) => {
 };
 
 module.exports = { initMultiplayerSockets };
+

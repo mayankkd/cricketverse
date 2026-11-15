@@ -59,6 +59,8 @@ const createRoom = async (req, res, next) => {
     const user = req.user;
 
     const roomCode = `CRIC-${Math.floor(1000 + Math.random() * 9000)}`;
+    const roomFormat = format || 'T20';
+    const purse = budgetPerTeam !== undefined ? Number(budgetPerTeam) : storeService.getFormatPurse(roomFormat);
 
     const newRoom = await storeService.createRoom({
       roomCode,
@@ -66,11 +68,11 @@ const createRoom = async (req, res, next) => {
       hostId: user._id,
       hostUsername: user.username,
       status: 'waiting',
-      format: format || 'T20',
+      format: roomFormat,
       minPlayers: 2,
       maxPlayers: 6,
       maxTeams: 6,
-      budgetPerTeam: budgetPerTeam || 1000000000,
+      budgetPerTeam: purse,
       isPrivate: Boolean(isPrivate),
       password: password || '',
       allowSpectators: allowSpectators !== undefined ? Boolean(allowSpectators) : true,
@@ -85,7 +87,9 @@ const createRoom = async (req, res, next) => {
           isReady: true,
           isHost: true,
           isConnected: true,
-          budgetRemaining: budgetPerTeam || 1000000000,
+          t2VetoTokens: 2,
+          vetoedPlayers: [],
+          budgetRemaining: purse,
           squad: []
         }
       ],
@@ -420,21 +424,19 @@ const sendChatMessage = async (req, res, next) => {
 const placeBidAction = async (req, res, next) => {
   try {
     const { roomCode } = req.params;
-    const { amount, playerId } = req.body;
+    const { amount } = req.body;
 
     // SPECTATOR PERMISSION ENFORCEMENT:
     await storeService.verifyPlayerActionPermission(roomCode, req.user._id, 'place bid');
 
+    const updatedRoom = await storeService.placeAuctionBid(roomCode, req.user._id, { amount });
+
     res.status(200).json({
       success: true,
       message: 'Bid placed successfully.',
-      bid: {
-        userId: req.user._id,
-        username: req.user.username,
-        amount,
-        playerId,
-        timestamp: new Date()
-      }
+      currentLot: updatedRoom.auctionState?.currentLot,
+      bidHistory: updatedRoom.auctionState?.bidHistory,
+      room: updatedRoom
     });
   } catch (err) {
     if (err.status) {
@@ -454,15 +456,21 @@ const placeBidAction = async (req, res, next) => {
 const nominateAction = async (req, res, next) => {
   try {
     const { roomCode } = req.params;
-    const { playerId } = req.body;
+    const { cardId, playerId } = req.body;
 
     // SPECTATOR PERMISSION ENFORCEMENT:
     await storeService.verifyPlayerActionPermission(roomCode, req.user._id, 'nominate player');
 
+    const updatedRoom = await storeService.nominatePlayerForAuction(roomCode, req.user._id, {
+      cardId,
+      playerId
+    });
+
     res.status(200).json({
       success: true,
       message: 'Player nominated for auction.',
-      playerId
+      currentLot: updatedRoom.auctionState?.currentLot,
+      room: updatedRoom
     });
   } catch (err) {
     if (err.status) {

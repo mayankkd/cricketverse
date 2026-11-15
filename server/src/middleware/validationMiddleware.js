@@ -62,7 +62,7 @@ const validateCreateRoom = (req, res, next) => {
     errors.push('Room title must be at least 3 characters.');
   }
 
-  const validFormats = ['T20', 'ODI', 'The Hundred', 'Super Over'];
+  const validFormats = ['Test', 'ODI', 'T20', 'The Hundred', 'Super Over'];
   if (format && !validFormats.includes(format)) {
     errors.push(`Format must be one of: ${validFormats.join(', ')}`);
   }

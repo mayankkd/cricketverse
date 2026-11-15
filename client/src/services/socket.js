@@ -101,6 +101,35 @@ class SocketService {
     return () => socket.off('room_notification', callback);
   }
 
+  hammerLot(roomCode) {
+    const socket = this.getSocket();
+    socket.emit('hammer_lot', { roomCode });
+  }
+
+  onAuctionState(callback) {
+    const socket = this.getSocket();
+    socket.on('auction_state', callback);
+    return () => socket.off('auction_state', callback);
+  }
+
+  onPlayerNominated(callback) {
+    const socket = this.getSocket();
+    socket.on('player_nominated', callback);
+    return () => socket.off('player_nominated', callback);
+  }
+
+  onT2VetoActivated(callback) {
+    const socket = this.getSocket();
+    socket.on('t2_veto_activated', callback);
+    return () => socket.off('t2_veto_activated', callback);
+  }
+
+  onLotHammered(callback) {
+    const socket = this.getSocket();
+    socket.on('lot_hammered', callback);
+    return () => socket.off('lot_hammered', callback);
+  }
+
   onActionError(callback) {
     const socket = this.getSocket();
     socket.on('action_error', callback);
@@ -123,3 +152,4 @@ class SocketService {
 }
 
 export const socketService = new SocketService();
+

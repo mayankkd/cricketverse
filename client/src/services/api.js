@@ -159,7 +159,7 @@ export const api = {
   },
 
   async placeBid(roomCode, data) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/bid`, {
+    const res = await fetch(`${API_BASE}/auction/${roomCode}/bid`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data || {})
@@ -168,10 +168,67 @@ export const api = {
   },
 
   async nominatePlayer(roomCode, data) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/nominate`, {
+    const res = await fetch(`${API_BASE}/auction/${roomCode}/nominate`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data || {})
+    });
+    return await res.json();
+  },
+
+  async getAuctionState(roomCode) {
+    const res = await fetch(`${API_BASE}/auction/${roomCode}/state`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async initAuction(roomCode, data) {
+    const res = await fetch(`${API_BASE}/auction/${roomCode}/init`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data || {})
+    });
+    return await res.json();
+  },
+
+  async nominateRandomAuctionPlayer(roomCode) {
+    const res = await fetch(`${API_BASE}/auction/${roomCode}/nominate-random`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async useT2Veto(roomCode) {
+    const res = await fetch(`${API_BASE}/auction/${roomCode}/veto`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async hammerAuctionLot(roomCode) {
+    const res = await fetch(`${API_BASE}/auction/${roomCode}/hammer`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async startUnsoldRound(roomCode) {
+    const res = await fetch(`${API_BASE}/auction/${roomCode}/unsold-round`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async updateAuctionSettings(roomCode, settings) {
+    const res = await fetch(`${API_BASE}/auction/${roomCode}/settings`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(settings || {})
     });
     return await res.json();
   },

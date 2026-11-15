@@ -1,6 +1,14 @@
 const mongoose = require('mongoose');
 
 const playerSchema = new mongoose.Schema({
+  // Unique real-world cricketer identifier (e.g. 'cric_virat_kohli').
+  // Multiple card variants of the same cricketer share this exact playerId.
+  playerId: {
+    type: String,
+    required: true,
+    trim: true,
+    index: true
+  },
   name: {
     type: String,
     required: true,
@@ -240,14 +248,14 @@ const playerSchema = new mongoose.Schema({
     }
   },
 
-  // Economy & Auction Settings (OVR affects gameplay only, NEVER auction base price)
+  // Economy & Auction Settings: Every card starts at exactly 1 point regardless of OVR or variant
   basePrice: {
     type: Number,
-    default: 20000000 // In INR (e.g. 2.0 Cr)
+    default: 1
   },
   currentPrice: {
     type: Number,
-    default: 20000000
+    default: 1
   },
   franchise: {
     type: String,

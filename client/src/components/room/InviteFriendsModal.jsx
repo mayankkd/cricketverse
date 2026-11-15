@@ -288,3 +288,4 @@ export const InviteFriendsModal = ({ room, isHost, onClose, onRoomUpdated }) => 
     </div>
   );
 };
+

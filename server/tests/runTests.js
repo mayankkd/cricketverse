@@ -622,6 +622,604 @@ const runAllTests = async () => {
     assert.strictEqual(stateAfter.body.room.activePlayersCount, 6, 'Active players must strictly not exceed 6');
   });
 
+  // ==========================================
+  // PHASE 4: LIVE AUCTION SYSTEM TESTS
+  // ==========================================
+  console.log('\n--- PHASE 4: LIVE AUCTION SYSTEM TESTS ---');
+
+  // Helper setup for fresh test auction room
+  const setupAuctionRoom = async (format = 'T20', playerCount = 2) => {
+    const host = await createTestUser(`AucHost_${format}_${Date.now()}`);
+    const createRes = await callApp({
+      method: 'POST',
+      url: '/api/rooms',
+      body: { name: `${format} Arena`, format },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    const roomCode = createRes.body.room.roomCode;
+    const players = [host];
+
+    for (let i = 2; i <= playerCount; i++) {
+      const p = await createTestUser(`AucPlayer_${i}_${Date.now()}`);
+      await callApp({
+        method: 'POST',
+        url: `/api/rooms/${roomCode}/join`,
+        body: { role: 'player', teamName: `Franchise ${i}` },
+        headers: { authorization: `Bearer ${p.token}` }
+      });
+      players.push(p);
+    }
+
+    // Launch game into auction status
+    await callApp({
+      method: 'POST',
+      url: `/api/rooms/${roomCode}/start`,
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    return { host, players, roomCode };
+  };
+
+  // 1. Base price = 1 point
+  await test('Phase 4 - 1. Base price = 1 point (regardless of OVR, variant, popularity)', async () => {
+    const { host, roomCode } = await setupAuctionRoom('T20', 2);
+    // Nominate Peak Virat Kohli (ply_01, T20 OVR: 115)
+    const nomRes = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_01' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(nomRes.status, 200);
+    assert.strictEqual(nomRes.body.currentLot.startingPrice, 1, 'Starting price must strictly be 1 point');
+    assert.strictEqual(nomRes.body.currentLot.currentBid, 1, 'Initial opening bid must strictly be 1 point');
+    assert.strictEqual(nomRes.body.currentLot.ovr, 115, 'High tier OVR is 115, but starting price remains 1 point');
+  });
+
+  // 2. Test purse = 50 points
+  await test('Phase 4 - 2. Test purse = 50 points per team', async () => {
+    const { host, players, roomCode } = await setupAuctionRoom('Test', 2);
+    const stateRes = await callApp({ method: 'GET', url: `/api/auction/${roomCode}/state` });
+    assert.strictEqual(stateRes.status, 200);
+    assert.strictEqual(stateRes.body.auctionState.initialPurse, 50, 'Test format purse must be 50 points');
+    const p1 = stateRes.body.auctionState.participants.find(p => p.userId === host._id);
+    assert.strictEqual(p1.budgetRemaining, 50, 'Test team budget must be initialized to 50 points');
+  });
+
+  // 3. ODI purse = 40 points
+  await test('Phase 4 - 3. ODI purse = 40 points per team', async () => {
+    const { host, players, roomCode } = await setupAuctionRoom('ODI', 2);
+    const stateRes = await callApp({ method: 'GET', url: `/api/auction/${roomCode}/state` });
+    assert.strictEqual(stateRes.status, 200);
+    assert.strictEqual(stateRes.body.auctionState.initialPurse, 40, 'ODI format purse must be 40 points');
+    const p1 = stateRes.body.auctionState.participants.find(p => p.userId === host._id);
+    assert.strictEqual(p1.budgetRemaining, 40, 'ODI team budget must be initialized to 40 points');
+  });
+
+  // 4. T20 purse = 30 points
+  await test('Phase 4 - 4. T20 purse = 30 points per team', async () => {
+    const { host, players, roomCode } = await setupAuctionRoom('T20', 2);
+    const stateRes = await callApp({ method: 'GET', url: `/api/auction/${roomCode}/state` });
+    assert.strictEqual(stateRes.status, 200);
+    assert.strictEqual(stateRes.body.auctionState.initialPurse, 30, 'T20 format purse must be 30 points');
+    const p1 = stateRes.body.auctionState.participants.find(p => p.userId === host._id);
+    assert.strictEqual(p1.budgetRemaining, 30, 'T20 team budget must be initialized to 30 points');
+  });
+
+  // 5. Bid increments
+  await test('Phase 4 - 5. Bid increments enforced (bids below required increment rejected)', async () => {
+    const { host, players, roomCode } = await setupAuctionRoom('T20', 2);
+    const p2 = players[1];
+
+    // Nominate player (ply_02, Jasprit Bumrah)
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_02' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // Opening bid at 1 point by Player 2
+    const bid1 = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/bid`,
+      body: { amount: 1 },
+      headers: { authorization: `Bearer ${p2.token}` }
+    });
+    assert.strictEqual(bid1.status, 200);
+    assert.strictEqual(bid1.body.currentLot.currentBid, 1);
+
+    // Host attempts to bid 1 point again (must fail because increment is 1 -> min bid is 2)
+    const bidFail = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/bid`,
+      body: { amount: 1 },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(bidFail.status, 400);
+    assert.strictEqual(bidFail.body.code, 'BID_TOO_LOW');
+
+    // Host bids 2 points (succeeds)
+    const bid2 = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/bid`,
+      body: { amount: 2 },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(bid2.status, 200);
+    assert.strictEqual(bid2.body.currentLot.currentBid, 2);
+  });
+
+  // 6. Budget validation
+  await test('Phase 4 - 6. Budget validation (bids exceeding remaining purse rejected)', async () => {
+    const { host, players, roomCode } = await setupAuctionRoom('T20', 2);
+    const p2 = players[1];
+
+    // Nominate player
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_03' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // p2 has 30 points purse. Attempt to bid 35 points:
+    const overBid = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/bid`,
+      body: { amount: 35 },
+      headers: { authorization: `Bearer ${p2.token}` }
+    });
+    assert.strictEqual(overBid.status, 400);
+    assert.strictEqual(overBid.body.code, 'INSUFFICIENT_BUDGET');
+  });
+
+  // 7. Concurrent bidding (atomic handling under race conditions)
+  await test('Phase 4 - 7. Concurrent bidding (atomic handling under race condition)', async () => {
+    const { host, players, roomCode } = await setupAuctionRoom('T20', 3);
+    const p2 = players[1];
+    const p3 = players[2];
+
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_04' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // Two players submit bid for 5 points at the exact same millisecond
+    const [res1, res2] = await Promise.all([
+      callApp({
+        method: 'POST',
+        url: `/api/auction/${roomCode}/bid`,
+        body: { amount: 5 },
+        headers: { authorization: `Bearer ${p2.token}` }
+      }),
+      callApp({
+        method: 'POST',
+        url: `/api/auction/${roomCode}/bid`,
+        body: { amount: 5 },
+        headers: { authorization: `Bearer ${p3.token}` }
+      })
+    ]);
+
+    const successes = [res1, res2].filter(r => r.status === 200);
+    const failures = [res1, res2].filter(r => r.status === 400);
+
+    assert.strictEqual(successes.length, 1, 'Only one racer can place the bid at 5 points');
+    assert.strictEqual(failures.length, 1, 'Second racer must fail with BID_TOO_LOW');
+  });
+
+  // 8. Player ownership & atomic sale
+  await test('Phase 4 - 8. Player ownership & atomic sale (points deducted, card added to winner squad)', async () => {
+    const { host, players, roomCode } = await setupAuctionRoom('T20', 2);
+    const p2 = players[1];
+
+    // Nominate ply_05 (Shane Warne)
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_05' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // P2 bids 4 points
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/bid`,
+      body: { amount: 4 },
+      headers: { authorization: `Bearer ${p2.token}` }
+    });
+
+    // Hammer down sold!
+    const hammerRes = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/hammer`,
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(hammerRes.status, 200);
+    assert.strictEqual(hammerRes.body.currentLot.status, 'sold');
+
+    // Verify P2 squad and budget
+    const stateRes = await callApp({ method: 'GET', url: `/api/auction/${roomCode}/state` });
+    const p2State = stateRes.body.auctionState.participants.find(p => p.userId === p2._id);
+    assert.strictEqual(p2State.budgetRemaining, 26, 'P2 purse must be 30 - 4 = 26 points');
+    assert.strictEqual(p2State.squad.length, 1, 'P2 squad must now have acquired player');
+    assert.strictEqual(p2State.squad[0].cardId, 'ply_05');
+    assert.strictEqual(p2State.squad[0].acquiredPrice, 4);
+  });
+
+  // 9. Unique player nomination (one cricketer only once per auction)
+  await test('Phase 4 - 9. Unique player nomination (same cricketer cannot be nominated twice)', async () => {
+    const { host, roomCode } = await setupAuctionRoom('T20', 2);
+
+    // Nominate ply_06 (Sir Viv Richards)
+    const nom1 = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_06' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(nom1.status, 200);
+
+    // Resolve lot (sold or hammer)
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/hammer`,
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // Attempt to nominate ply_06 again in same auction:
+    const nom2 = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_06' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(nom2.status, 400);
+    assert.strictEqual(nom2.body.code, 'CRICKETER_ALREADY_NOMINATED');
+  });
+
+  // 10. Different OVR duplicate rejection
+  await test('Phase 4 - 10. Different OVR duplicate rejection (Peak 120 OVR nominated -> Best 105 OVR rejected)', async () => {
+    const { host, roomCode } = await setupAuctionRoom('T20', 2);
+
+    // 1. Nominate Virat Kohli Peak 120 OVR (ply_01, playerId: 'cric_virat_kohli')
+    const nomPeak = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_01' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(nomPeak.status, 200);
+
+    // Hammer down
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/hammer`,
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // 2. Attempt to nominate Virat Kohli Best 105 OVR (ply_01_best, playerId: 'cric_virat_kohli')
+    const nomBest = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_01_best' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(nomBest.status, 400);
+    assert.strictEqual(nomBest.body.code, 'CRICKETER_ALREADY_NOMINATED');
+    assert.ok(nomBest.body.message.includes('already been nominated'));
+  });
+
+  // 11. Different card variant duplicate rejection
+  await test('Phase 4 - 11. Different card variant duplicate rejection (Peak nominated -> Average rejected)', async () => {
+    const { host, roomCode } = await setupAuctionRoom('T20', 2);
+
+    // 1. Nominate Virat Kohli Peak (ply_01)
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_01' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // Hammer down
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/hammer`,
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // 2. Attempt to nominate Virat Kohli Average variant (ply_01_avg)
+    const nomAvg = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_01_avg' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(nomAvg.status, 400);
+    assert.strictEqual(nomAvg.body.code, 'CRICKETER_ALREADY_NOMINATED');
+  });
+
+  // 12. Sold duplicate rejection
+  await test('Phase 4 - 12. Sold duplicate rejection (if card was sold, same cricketer cannot return)', async () => {
+    const { host, players, roomCode } = await setupAuctionRoom('T20', 2);
+    const p2 = players[1];
+
+    // Nominate ply_02 (Jasprit Bumrah Peak)
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_02' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // P2 bids and wins
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/bid`,
+      body: { amount: 3 },
+      headers: { authorization: `Bearer ${p2.token}` }
+    });
+
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/hammer`,
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // Attempt to nominate Clutch variant ply_02_clutch (same cricketer)
+    const nomClutch = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_02_clutch' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(nomClutch.status, 400);
+    assert.strictEqual(nomClutch.body.code, 'CRICKETER_ALREADY_NOMINATED');
+  });
+
+  // 13. Unsold duplicate rejection
+  await test('Phase 4 - 13. Unsold duplicate rejection (cannot re-nominate before unsold round)', async () => {
+    const { host, roomCode } = await setupAuctionRoom('T20', 2);
+
+    // Nominate ply_07 (Wasim Akram)
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_07' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // No bids placed -> hammer down as unsold
+    const unsoldHam = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/hammer`,
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(unsoldHam.body.currentLot.status, 'unsold');
+
+    // Try immediately to nominate again before unsold round:
+    const reNom = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_07' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(reNom.status, 400);
+    assert.strictEqual(reNom.body.code, 'CRICKETER_ALREADY_NOMINATED');
+
+    // Now host starts Unsold Round
+    const roundRes = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/unsold-round`,
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(roundRes.status, 200);
+
+    // Now ply_07 (which was unsold, not vetoed) CAN be nominated in unsold round!
+    const reNomAllowed = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_07' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(reNomAllowed.status, 200);
+    assert.strictEqual(reNomAllowed.body.currentLot.cardId, 'ply_07');
+  });
+
+  // 14. Vetoed duplicate rejection
+  await test('Phase 4 - 14. Vetoed duplicate rejection (vetoed cricketer can NEVER return, even in unsold round)', async () => {
+    const { host, players, roomCode } = await setupAuctionRoom('T20', 2);
+    const p2 = players[1];
+
+    // Nominate ply_08 (Ben Stokes)
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_08' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // P2 uses T2 Veto!
+    const vetoRes = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/veto`,
+      headers: { authorization: `Bearer ${p2.token}` }
+    });
+    assert.strictEqual(vetoRes.status, 200);
+    assert.strictEqual(vetoRes.body.remainingTokens, 1);
+
+    // Try immediately to nominate Ben Stokes: rejected!
+    const reNom1 = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_08' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(reNom1.status, 400);
+
+    // Host starts unsold round
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/unsold-round`,
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // Ben Stokes must STILL be permanently barred!
+    const reNom2 = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_08' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    assert.strictEqual(reNom2.status, 400);
+    assert.ok(reNom2.body.code === 'CRICKETER_ALREADY_NOMINATED' || reNom2.body.code === 'VETOED_PLAYER_CANNOT_RETURN');
+  });
+
+  // 15. Exactly 2 T2 Veto tokens
+  await test('Phase 4 - 15. Exactly 2 T2 Veto tokens (third veto attempt rejected)', async () => {
+    const { host, players, roomCode } = await setupAuctionRoom('T20', 2);
+    const p2 = players[1];
+
+    // Veto 1: Nominate ply_09 (Pat Cummins) and veto
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_09' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    const v1 = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/veto`,
+      headers: { authorization: `Bearer ${p2.token}` }
+    });
+    assert.strictEqual(v1.status, 200);
+    assert.strictEqual(v1.body.remainingTokens, 1);
+
+    // Veto 2: Nominate ply_10 (Rashid Khan) and veto
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_10' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    const v2 = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/veto`,
+      headers: { authorization: `Bearer ${p2.token}` }
+    });
+    assert.strictEqual(v2.status, 200);
+    assert.strictEqual(v2.body.remainingTokens, 0);
+
+    // Veto 3: Nominate ply_11 (AB de Villiers) and attempt 3rd veto
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_11' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+    const v3 = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/veto`,
+      headers: { authorization: `Bearer ${p2.token}` }
+    });
+    assert.strictEqual(v3.status, 400);
+    assert.strictEqual(v3.body.code, 'INSUFFICIENT_VETO_TOKENS');
+  });
+
+  // 16. Simultaneous veto attempts
+  await test('Phase 4 - 16. Simultaneous veto attempts (second one does not lose token, returns error)', async () => {
+    const { host, players, roomCode } = await setupAuctionRoom('T20', 3);
+    const p2 = players[1];
+    const p3 = players[2];
+
+    // Nominate ply_12 (Glenn Maxwell)
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_12' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // P2 and P3 hit Veto at the exact same millisecond
+    const [vRes2, vRes3] = await Promise.all([
+      callApp({
+        method: 'POST',
+        url: `/api/auction/${roomCode}/veto`,
+        headers: { authorization: `Bearer ${p2.token}` }
+      }),
+      callApp({
+        method: 'POST',
+        url: `/api/auction/${roomCode}/veto`,
+        headers: { authorization: `Bearer ${p3.token}` }
+      })
+    ]);
+
+    const successes = [vRes2, vRes3].filter(r => r.status === 200);
+    const failures = [vRes2, vRes3].filter(r => r.status === 400);
+
+    assert.strictEqual(successes.length, 1, 'Only first veto request succeeds');
+    assert.strictEqual(failures.length, 1, 'Second veto request rejected');
+
+    // Check tokens of the one who failed: MUST STILL HAVE 2 TOKENS!
+    const failedUser = (vRes2.status === 400) ? p2 : p3;
+    const stateRes = await callApp({ method: 'GET', url: `/api/auction/${roomCode}/state` });
+    const failedParticipant = stateRes.body.auctionState.participants.find(p => p.userId === failedUser._id);
+    assert.strictEqual(failedParticipant.t2VetoTokens, 2, 'Failed racer must NOT lose their token');
+  });
+
+  // 17. Spectator permissions in auction
+  await test('Phase 4 - 17. Spectator permissions (cannot bid, nominate, or veto)', async () => {
+    const { host, roomCode } = await setupAuctionRoom('T20', 2);
+    const spectator = await createTestUser(`Spectator_${Date.now()}`);
+
+    // Join room as spectator
+    const specJoin = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${roomCode}/join`,
+      body: { role: 'spectator' },
+      headers: { authorization: `Bearer ${spectator.token}` }
+    });
+    assert.strictEqual(specJoin.status, 200);
+    assert.strictEqual(specJoin.body.participant.role, 'spectator');
+
+    // Attempt to nominate as spectator -> 403
+    const specNom = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_13' },
+      headers: { authorization: `Bearer ${spectator.token}` }
+    });
+    assert.strictEqual(specNom.status, 403);
+
+    // Host nominates ply_13 (Dale Steyn)
+    await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/nominate`,
+      body: { cardId: 'ply_13' },
+      headers: { authorization: `Bearer ${host.token}` }
+    });
+
+    // Attempt to bid as spectator -> 403
+    const specBid = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/bid`,
+      body: { amount: 2 },
+      headers: { authorization: `Bearer ${spectator.token}` }
+    });
+    assert.strictEqual(specBid.status, 403);
+
+    // Attempt to veto as spectator -> 403
+    const specVeto = await callApp({
+      method: 'POST',
+      url: `/api/auction/${roomCode}/veto`,
+      headers: { authorization: `Bearer ${spectator.token}` }
+    });
+    assert.strictEqual(specVeto.status, 403);
+  });
+
   // Match Center & Simulation
   await test('GET /api/matches returns live match data', async () => {
     const res = await callApp({ method: 'GET', url: '/api/matches' });

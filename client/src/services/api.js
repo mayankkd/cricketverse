@@ -102,6 +102,89 @@ export const api = {
     return await res.json();
   },
 
+  async previewInvitation(token) {
+    const res = await fetch(`${API_BASE}/rooms/invitation/${token}`);
+    return await res.json();
+  },
+
+  async joinByInvite(token, data) {
+    const res = await fetch(`${API_BASE}/rooms/join-invite/${token}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data || {})
+    });
+    return await res.json();
+  },
+
+  async generateInvitation(roomCode, data) {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/invitations`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data || {})
+    });
+    return await res.json();
+  },
+
+  async revokeInvitation(roomCode) {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/invitations/revoke`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async updateRoomSettings(roomCode, settings) {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/settings`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(settings || {})
+    });
+    return await res.json();
+  },
+
+  async kickParticipant(roomCode, userId) {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/participants/${userId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async startRoomGame(roomCode) {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/start`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async placeBid(roomCode, data) {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/bid`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data || {})
+    });
+    return await res.json();
+  },
+
+  async nominatePlayer(roomCode, data) {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/nominate`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data || {})
+    });
+    return await res.json();
+  },
+
+  async updateRoomLineup(roomCode, data) {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/lineup`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data || {})
+    });
+    return await res.json();
+  },
+
   // Players
   async getPlayers(params = {}) {
     const query = new URLSearchParams(params).toString();

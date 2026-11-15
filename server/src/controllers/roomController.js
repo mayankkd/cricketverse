@@ -45,7 +45,17 @@ const getRoom = async (req, res, next) => {
 // @access  Private
 const createRoom = async (req, res, next) => {
   try {
-    const { name, format, maxTeams, budgetPerTeam, isPrivate, password, teamName } = req.body;
+    const {
+      name,
+      format,
+      budgetPerTeam,
+      isPrivate,
+      password,
+      teamName,
+      allowSpectators,
+      allowPlayerJoining,
+      spectatorChatEnabled
+    } = req.body;
     const user = req.user;
 
     const roomCode = `CRIC-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -57,17 +67,24 @@ const createRoom = async (req, res, next) => {
       hostUsername: user.username,
       status: 'waiting',
       format: format || 'T20',
-      maxTeams: maxTeams || 8,
+      minPlayers: 2,
+      maxPlayers: 6,
+      maxTeams: 6,
       budgetPerTeam: budgetPerTeam || 1000000000,
       isPrivate: Boolean(isPrivate),
       password: password || '',
+      allowSpectators: allowSpectators !== undefined ? Boolean(allowSpectators) : true,
+      allowPlayerJoining: allowPlayerJoining !== undefined ? Boolean(allowPlayerJoining) : true,
+      spectatorChatEnabled: spectatorChatEnabled !== undefined ? Boolean(spectatorChatEnabled) : true,
       participants: [
         {
           userId: user._id,
           username: user.username,
+          role: 'player',
           teamName: teamName || `${user.username}'s XI`,
           isReady: true,
           isHost: true,
+          isConnected: true,
           budgetRemaining: budgetPerTeam || 1000000000,
           squad: []
         }
@@ -76,7 +93,8 @@ const createRoom = async (req, res, next) => {
         {
           id: `msg_${Date.now()}`,
           sender: 'System',
-          text: `Room created by ${user.username}. Waiting for managers to join.`,
+          senderRole: 'system',
+          text: `Arena created by ${user.username}. Waiting for franchise managers to assemble (Min 2, Max 6).`,
           timestamp: new Date()
         }
       ]
@@ -92,75 +110,257 @@ const createRoom = async (req, res, next) => {
   }
 };
 
-// @desc    Join existing room
+// @desc    Join existing room as Player or Spectator
 // @route   POST /api/rooms/:roomCode/join
 // @access  Private
 const joinRoom = async (req, res, next) => {
   try {
     const { roomCode } = req.params;
-    const { password, teamName } = req.body;
+    const { role = 'player', teamName, password, inviteToken } = req.body;
     const user = req.user;
 
-    const room = await storeService.getRoomByCode(roomCode);
-    if (!room) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room not found.'
-      });
-    }
-
-    if (room.isPrivate && room.password && room.password !== password) {
-      return res.status(403).json({
-        success: false,
-        message: 'Incorrect room password.'
-      });
-    }
-
-    const existingParticipant = room.participants.find(p => p.userId === user._id);
-    if (existingParticipant) {
-      return res.status(200).json({
-        success: true,
-        message: 'Already joined this room.',
-        room
-      });
-    }
-
-    if (room.participants.length >= room.maxTeams) {
-      return res.status(400).json({
-        success: false,
-        message: 'This room is currently full.'
-      });
-    }
-
-    const newParticipant = {
-      userId: user._id,
-      username: user.username,
-      teamName: teamName || `${user.username}'s XI`,
-      isReady: false,
-      isHost: false,
-      budgetRemaining: room.budgetPerTeam,
-      squad: []
-    };
-
-    const updatedParticipants = [...room.participants, newParticipant];
-    const updatedMessages = [
-      ...(room.chatMessages || []),
-      {
-        id: `msg_${Date.now()}`,
-        sender: 'System',
-        text: `${user.username} entered the dugout.`,
-        timestamp: new Date()
-      }
-    ];
-
-    const updated = await storeService.updateRoom(roomCode, {
-      participants: updatedParticipants,
-      chatMessages: updatedMessages
+    const result = await storeService.joinRoomWithRole({
+      roomCode,
+      user,
+      role,
+      teamName,
+      password,
+      inviteToken
     });
 
     res.status(200).json({
       success: true,
-      message: 'Successfully entered room.',
+      message: result.message,
+      room: result.room,
+      participant: result.participant,
+      reconnected: result.reconnected
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        code: err.code || 'JOIN_ERROR',
+        message: err.message,
+        canJoinAsSpectator: err.canJoinAsSpectator !== undefined ? err.canJoinAsSpectator : true
+      });
+    }
+    next(err);
+  }
+};
+
+// @desc    Preview room via Invitation Token
+// @route   GET /api/rooms/invitation/:token
+// @access  Public
+const previewInvitation = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const preview = await storeService.getRoomByInviteToken(token);
+    res.status(200).json({
+      success: true,
+      room: preview
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        code: err.code || 'INVITE_ERROR',
+        message: err.message
+      });
+    }
+    next(err);
+  }
+};
+
+// @desc    Join room via Invitation Token
+// @route   POST /api/rooms/join-invite/:token
+// @access  Private
+const joinByInvite = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { role = 'player', teamName, password } = req.body;
+    const user = req.user;
+
+    const preview = await storeService.getRoomByInviteToken(token);
+    const result = await storeService.joinRoomWithRole({
+      roomCode: preview.roomCode,
+      user,
+      role,
+      teamName,
+      password,
+      inviteToken: token
+    });
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      room: result.room,
+      participant: result.participant,
+      reconnected: result.reconnected
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        code: err.code || 'JOIN_ERROR',
+        message: err.message,
+        canJoinAsSpectator: err.canJoinAsSpectator !== undefined ? err.canJoinAsSpectator : true
+      });
+    }
+    next(err);
+  }
+};
+
+// @desc    Generate / Regenerate invitation link
+// @route   POST /api/rooms/:roomCode/invitations
+// @access  Private (Host only)
+const generateInvitation = async (req, res, next) => {
+  try {
+    const { roomCode } = req.params;
+    const { expiresInHours, password } = req.body;
+    const result = await storeService.generateInvitation(roomCode, req.user._id, {
+      expiresInHours: expiresInHours ? Number(expiresInHours) : null,
+      password: password || ''
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Invitation generated successfully.',
+      invitation: result.invitation,
+      room: result.room
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Revoke active invitation link
+// @route   POST /api/rooms/:roomCode/invitations/revoke
+// @access  Private (Host only)
+const revokeInvitation = async (req, res, next) => {
+  try {
+    const { roomCode } = req.params;
+    const result = await storeService.revokeInvitation(roomCode, req.user._id);
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      room: result.room
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Update host room settings
+// @route   PUT /api/rooms/:roomCode/settings
+// @access  Private (Host only)
+const updateRoomSettings = async (req, res, next) => {
+  try {
+    const { roomCode } = req.params;
+    const updated = await storeService.updateRoomSettings(roomCode, req.user._id, req.body);
+
+    res.status(200).json({
+      success: true,
+      message: 'Room settings updated.',
+      room: updated
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Kick / Remove participant
+// @route   DELETE /api/rooms/:roomCode/participants/:userId
+// @access  Private (Host only)
+const kickParticipant = async (req, res, next) => {
+  try {
+    const { roomCode, userId } = req.params;
+    const updated = await storeService.kickParticipant(roomCode, req.user._id, userId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Participant removed from arena.',
+      room: updated
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Start auction or match (strictly validates minimum 2 active players)
+// @route   POST /api/rooms/:roomCode/start
+// @access  Private (Host only)
+const startRoomGame = async (req, res, next) => {
+  try {
+    const { roomCode } = req.params;
+    const updated = await storeService.startRoomGame(roomCode, req.user._id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Arena game launched successfully!',
+      room: updated
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        code: err.code || 'START_ERROR',
+        message: err.message
+      });
+    }
+    next(err);
+  }
+};
+
+// @desc    Toggle participant ready status (players only)
+// @route   PUT /api/rooms/:roomCode/ready
+// @access  Private
+const toggleReady = async (req, res, next) => {
+  try {
+    const { roomCode } = req.params;
+    const user = req.user;
+
+    const room = await storeService.getRoomByCode(roomCode);
+    if (!room) {
+      return res.status(404).json({ success: false, message: 'Room not found.' });
+    }
+
+    const participant = (room.participants || []).find(p => p.userId === user._id);
+    if (!participant) {
+      return res.status(404).json({ success: false, message: 'You are not in this room.' });
+    }
+
+    if (participant.role === 'spectator') {
+      return res.status(403).json({
+        success: false,
+        code: 'SPECTATOR_ACTION_FORBIDDEN',
+        message: 'Spectators do not have ready status.'
+      });
+    }
+
+    const participants = room.participants.map(p => {
+      if (p.userId === user._id) {
+        return { ...p, isReady: !p.isReady };
+      }
+      return p;
+    });
+
+    const updated = await storeService.updateRoom(roomCode, { participants });
+
+    res.status(200).json({
+      success: true,
       room: updated
     });
   } catch (err) {
@@ -183,8 +383,25 @@ const sendChatMessage = async (req, res, next) => {
       });
     }
 
+    const room = await storeService.getRoomByCode(roomCode);
+    if (!room) {
+      return res.status(404).json({ success: false, message: 'Room not found.' });
+    }
+
+    const participant = (room.participants || []).find(p => p.userId === req.user._id);
+    if (participant?.role === 'spectator' && room.spectatorChatEnabled === false) {
+      return res.status(403).json({
+        success: false,
+        code: 'SPECTATOR_CHAT_DISABLED',
+        message: 'Spectator chat has been disabled by the host.'
+      });
+    }
+
+    const senderRole = participant ? participant.role : 'spectator';
+
     const updatedRoom = await storeService.addRoomChatMessage(roomCode, {
       sender: req.user.username,
+      senderRole,
       text: text.trim()
     });
 
@@ -197,33 +414,93 @@ const sendChatMessage = async (req, res, next) => {
   }
 };
 
-// @desc    Toggle participant ready status
-// @route   PUT /api/rooms/:roomCode/ready
+// @desc    Place Bid (Player role only)
+// @route   POST /api/rooms/:roomCode/bid
 // @access  Private
-const toggleReady = async (req, res, next) => {
+const placeBidAction = async (req, res, next) => {
   try {
     const { roomCode } = req.params;
-    const user = req.user;
+    const { amount, playerId } = req.body;
 
-    const room = await storeService.getRoomByCode(roomCode);
-    if (!room) {
-      return res.status(404).json({ success: false, message: 'Room not found.' });
-    }
-
-    const participants = room.participants.map(p => {
-      if (p.userId === user._id) {
-        return { ...p, isReady: !p.isReady };
-      }
-      return p;
-    });
-
-    const updated = await storeService.updateRoom(roomCode, { participants });
+    // SPECTATOR PERMISSION ENFORCEMENT:
+    await storeService.verifyPlayerActionPermission(roomCode, req.user._id, 'place bid');
 
     res.status(200).json({
       success: true,
-      room: updated
+      message: 'Bid placed successfully.',
+      bid: {
+        userId: req.user._id,
+        username: req.user.username,
+        amount,
+        playerId,
+        timestamp: new Date()
+      }
     });
   } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        code: err.code || 'ACTION_ERROR',
+        message: err.message
+      });
+    }
+    next(err);
+  }
+};
+
+// @desc    Nominate Player (Player role only)
+// @route   POST /api/rooms/:roomCode/nominate
+// @access  Private
+const nominateAction = async (req, res, next) => {
+  try {
+    const { roomCode } = req.params;
+    const { playerId } = req.body;
+
+    // SPECTATOR PERMISSION ENFORCEMENT:
+    await storeService.verifyPlayerActionPermission(roomCode, req.user._id, 'nominate player');
+
+    res.status(200).json({
+      success: true,
+      message: 'Player nominated for auction.',
+      playerId
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        code: err.code || 'ACTION_ERROR',
+        message: err.message
+      });
+    }
+    next(err);
+  }
+};
+
+// @desc    Update Lineup / Tactics (Player role only)
+// @route   PUT /api/rooms/:roomCode/lineup
+// @access  Private
+const lineupAction = async (req, res, next) => {
+  try {
+    const { roomCode } = req.params;
+    const { playingXI, captainId } = req.body;
+
+    // SPECTATOR PERMISSION ENFORCEMENT:
+    await storeService.verifyPlayerActionPermission(roomCode, req.user._id, 'modify lineup or tactics');
+
+    res.status(200).json({
+      success: true,
+      message: 'Lineup updated successfully.',
+      playingXI,
+      captainId
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        code: err.code || 'ACTION_ERROR',
+        message: err.message
+      });
+    }
     next(err);
   }
 };
@@ -233,7 +510,16 @@ module.exports = {
   getRoom,
   createRoom,
   joinRoom,
+  previewInvitation,
+  joinByInvite,
+  generateInvitation,
+  revokeInvitation,
+  updateRoomSettings,
+  kickParticipant,
+  startRoomGame,
+  toggleReady,
   sendChatMessage,
-  toggleReady
+  placeBidAction,
+  nominateAction,
+  lineupAction
 };
-

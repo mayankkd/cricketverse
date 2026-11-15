@@ -1,6 +1,7 @@
 const assert = require('assert');
 const { Readable, Duplex } = require('stream');
 const http = require('http');
+const jwt = require('jsonwebtoken');
 const { app } = require('../src/server');
 
 // In-process HTTP request mock dispatcher for Express in Node v24
@@ -259,33 +260,369 @@ const runAllTests = async () => {
   });
 
   // 10. Rooms (Create & Join)
-  let createdRoomCode;
-  await test('POST /api/rooms creates a new multiplayer room', async () => {
+  // ==========================================
+  // PHASE 3: MULTIPLAYER ROOMS & SPECTATORS
+  // ==========================================
+  console.log('\n--- PHASE 3: MULTIPLAYER ROOMS & SPECTATOR TESTS ---');
+
+  const { signToken } = require('../src/config/jwt');
+  const storeService = require('../src/services/storeService');
+
+  const createTestUser = async (username) => {
+    const user = await storeService.createUser({
+      username,
+      email: `${username.toLowerCase()}_${Date.now()}@cricketverse.com`,
+      password: 'password123'
+    });
+    const token = signToken({ id: user._id });
+    return { ...user, token };
+  };
+
+  const uHost = await createTestUser('HostCaptain');
+  const uPlayer2 = await createTestUser('PlayerTwo');
+  const uPlayer3 = await createTestUser('PlayerThree');
+  const uPlayer4 = await createTestUser('PlayerFour');
+  const uPlayer5 = await createTestUser('PlayerFive');
+  const uPlayer6 = await createTestUser('PlayerSix');
+  const uCandidate7 = await createTestUser('PersonSeven');
+  const uSpectator8 = await createTestUser('ScoutEight');
+  const uSpectator9 = await createTestUser('ScoutNine');
+
+  let testRoomCode;
+  let testInviteToken;
+
+  // 1. First player joins
+  await test('Phase 3 - 1. First player joins: room initializes with host and 1 active player', async () => {
     const res = await callApp({
       method: 'POST',
       url: '/api/rooms',
       body: {
-        name: 'Super Over Champions Arena',
-        format: 'Super Over',
-        maxTeams: 4,
-        budgetPerTeam: 800000000,
-        isPrivate: false
+        name: 'Phase 3 Arena Challenge',
+        format: 'T20',
+        teamName: 'Host Strikers XI'
       },
-      headers: { authorization: `Bearer ${authToken}` }
+      headers: { authorization: `Bearer ${uHost.token}` }
     });
     assert.strictEqual(res.status, 201);
     assert.strictEqual(res.body.success, true);
     assert.ok(res.body.room.roomCode);
-    createdRoomCode = res.body.room.roomCode;
+    testRoomCode = res.body.room.roomCode;
+    testInviteToken = res.body.room.invitation?.token;
+
+    assert.strictEqual(res.body.room.activePlayersCount, 1);
+    assert.strictEqual(res.body.room.spectatorsCount, 0);
+    assert.strictEqual(res.body.room.availablePlayerSlots, 5);
+    assert.strictEqual(res.body.room.participants[0].role, 'player');
+    assert.strictEqual(res.body.room.participants[0].isHost, true);
   });
 
-  await test('GET /api/rooms/:roomCode retrieves room details', async () => {
-    const res = await callApp({ method: 'GET', url: `/api/rooms/${createdRoomCode}` });
+  // 2. Game cannot start with one player
+  await test('Phase 3 - 2. Game cannot start with one player (1 player + 100 spectators = cannot start)', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${testRoomCode}/start`,
+      headers: { authorization: `Bearer ${uHost.token}` }
+    });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.code, 'INSUFFICIENT_PLAYERS');
+    assert.ok(res.body.message.includes('Minimum 2 active players'));
+
+    const roomDetails = await callApp({ method: 'GET', url: `/api/rooms/${testRoomCode}` });
+    assert.strictEqual(roomDetails.body.room.canStart, false);
+  });
+
+  // 3. Second player joins
+  await test('Phase 3 - 3. Second player joins: capacity reaches 2 active players', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${testRoomCode}/join`,
+      body: { role: 'player', teamName: 'Warriors XI' },
+      headers: { authorization: `Bearer ${uPlayer2.token}` }
+    });
     assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body.room.roomCode, createdRoomCode);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.participant.role, 'player');
+    assert.strictEqual(res.body.room.activePlayersCount, 2);
   });
 
-  // 11. Match Center & Simulation
+  // 4. Game becomes eligible to start
+  await test('Phase 3 - 4. Game becomes eligible to start once 2 active players have joined', async () => {
+    const roomDetails = await callApp({ method: 'GET', url: `/api/rooms/${testRoomCode}` });
+    assert.strictEqual(roomDetails.status, 200);
+    assert.strictEqual(roomDetails.body.room.canStart, true);
+    assert.strictEqual(roomDetails.body.room.activePlayersCount, 2);
+
+    // Host can now successfully launch the room
+    const res = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${testRoomCode}/start`,
+      headers: { authorization: `Bearer ${uHost.token}` }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.room.status, 'auction');
+  });
+
+  // 5. Six players join
+  await test('Phase 3 - 5. Six players join: fills all 6 active player slots', async () => {
+    // Add Players 3, 4, 5, 6
+    for (const player of [uPlayer3, uPlayer4, uPlayer5, uPlayer6]) {
+      const res = await callApp({
+        method: 'POST',
+        url: `/api/rooms/${testRoomCode}/join`,
+        body: { role: 'player', teamName: `${player.username}'s XI` },
+        headers: { authorization: `Bearer ${player.token}` }
+      });
+      assert.strictEqual(res.status, 200);
+    }
+
+    const roomDetails = await callApp({ method: 'GET', url: `/api/rooms/${testRoomCode}` });
+    assert.strictEqual(roomDetails.body.room.activePlayersCount, 6);
+    assert.strictEqual(roomDetails.body.room.availablePlayerSlots, 0);
+    assert.strictEqual(roomDetails.body.room.canJoinAsPlayer, false);
+  });
+
+  // 6. Seventh person cannot join as player
+  await test('Phase 3 - 6. Seventh person cannot join as player (Fixed capacity 6 enforced)', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${testRoomCode}/join`,
+      body: { role: 'player', teamName: 'Seventh Challengers' },
+      headers: { authorization: `Bearer ${uCandidate7.token}` }
+    });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.code, 'PLAYER_SLOTS_FULL');
+    assert.strictEqual(res.body.canJoinAsSpectator, true);
+    assert.ok(res.body.message.includes('All 6 player slots are occupied'));
+  });
+
+  // 7. Seventh person can join as spectator
+  await test('Phase 3 - 7. Seventh person can join as spectator (Seventh Person Rule)', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${testRoomCode}/join`,
+      body: { role: 'spectator' },
+      headers: { authorization: `Bearer ${uCandidate7.token}` }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.participant.role, 'spectator');
+    assert.strictEqual(res.body.room.activePlayersCount, 6, 'Active players must remain strictly 6');
+    assert.strictEqual(res.body.room.spectatorsCount, 1);
+  });
+
+  // 8. More spectators join
+  await test('Phase 3 - 8. More spectators join: spectator count scales without taking player slots', async () => {
+    for (const spec of [uSpectator8, uSpectator9]) {
+      const res = await callApp({
+        method: 'POST',
+        url: `/api/rooms/${testRoomCode}/join`,
+        body: { role: 'spectator' },
+        headers: { authorization: `Bearer ${spec.token}` }
+      });
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.participant.role, 'spectator');
+    }
+
+    const roomDetails = await callApp({ method: 'GET', url: `/api/rooms/${testRoomCode}` });
+    assert.strictEqual(roomDetails.body.room.activePlayersCount, 6);
+    assert.strictEqual(roomDetails.body.room.spectatorsCount, 3);
+  });
+
+  // 9. Spectators cannot perform player actions
+  await test('Phase 3 - 9. Spectators cannot perform player actions (bid, nominate, lineup, ready rejected)', async () => {
+    // Attempt bid as spectator
+    const bidRes = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${testRoomCode}/bid`,
+      body: { amount: 50000000, playerId: 'ply_01' },
+      headers: { authorization: `Bearer ${uCandidate7.token}` }
+    });
+    assert.strictEqual(bidRes.status, 403);
+    assert.strictEqual(bidRes.body.code, 'SPECTATOR_ACTION_FORBIDDEN');
+
+    // Attempt nominate as spectator
+    const nomRes = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${testRoomCode}/nominate`,
+      body: { playerId: 'ply_02' },
+      headers: { authorization: `Bearer ${uCandidate7.token}` }
+    });
+    assert.strictEqual(nomRes.status, 403);
+    assert.strictEqual(nomRes.body.code, 'SPECTATOR_ACTION_FORBIDDEN');
+
+    // Attempt modify lineup as spectator
+    const lineupRes = await callApp({
+      method: 'PUT',
+      url: `/api/rooms/${testRoomCode}/lineup`,
+      body: { playingXI: ['ply_01'], captainId: 'ply_01' },
+      headers: { authorization: `Bearer ${uCandidate7.token}` }
+    });
+    assert.strictEqual(lineupRes.status, 403);
+    assert.strictEqual(lineupRes.body.code, 'SPECTATOR_ACTION_FORBIDDEN');
+
+    // Attempt toggle ready as spectator
+    const readyRes = await callApp({
+      method: 'PUT',
+      url: `/api/rooms/${testRoomCode}/ready`,
+      headers: { authorization: `Bearer ${uCandidate7.token}` }
+    });
+    assert.strictEqual(readyRes.status, 403);
+    assert.strictEqual(readyRes.body.code, 'SPECTATOR_ACTION_FORBIDDEN');
+  });
+
+  // 10. Invitation links work
+  let freshInviteToken;
+  await test('Phase 3 - 10. Invitation links work: valid token allows preview and joining', async () => {
+    const invRes = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${testRoomCode}/invitations`,
+      body: { expiresInHours: 24 },
+      headers: { authorization: `Bearer ${uHost.token}` }
+    });
+    assert.strictEqual(invRes.status, 200);
+    assert.ok(invRes.body.invitation.token);
+    freshInviteToken = invRes.body.invitation.token;
+
+    // Public preview endpoint
+    const previewRes = await callApp({
+      method: 'GET',
+      url: `/api/rooms/invitation/${freshInviteToken}`
+    });
+    assert.strictEqual(previewRes.status, 200);
+    assert.strictEqual(previewRes.body.room.roomCode, testRoomCode);
+    assert.strictEqual(previewRes.body.room.canJoinAsSpectator, true);
+
+    // Join via invitation
+    const uInvGuest = await createTestUser('InviteGuest');
+    const joinInvRes = await callApp({
+      method: 'POST',
+      url: `/api/rooms/join-invite/${freshInviteToken}`,
+      body: { role: 'spectator' },
+      headers: { authorization: `Bearer ${uInvGuest.token}` }
+    });
+    assert.strictEqual(joinInvRes.status, 200);
+    assert.strictEqual(joinInvRes.body.participant.role, 'spectator');
+  });
+
+  // 11. Revoked invitations fail
+  await test('Phase 3 - 11. Revoked invitations fail: host revocation blocks invite link', async () => {
+    const revokeRes = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${testRoomCode}/invitations/revoke`,
+      headers: { authorization: `Bearer ${uHost.token}` }
+    });
+    assert.strictEqual(revokeRes.status, 200);
+
+    // Calling preview on revoked token fails
+    const previewRes = await callApp({
+      method: 'GET',
+      url: `/api/rooms/invitation/${freshInviteToken}`
+    });
+    assert.strictEqual(previewRes.status, 410);
+    assert.strictEqual(previewRes.body.code, 'INVITE_REVOKED');
+
+    // Attempting to join on revoked token fails
+    const uRevGuest = await createTestUser('RevokedGuest');
+    const joinRes = await callApp({
+      method: 'POST',
+      url: `/api/rooms/join-invite/${freshInviteToken}`,
+      body: { role: 'spectator' },
+      headers: { authorization: `Bearer ${uRevGuest.token}` }
+    });
+    assert.strictEqual(joinRes.status, 410);
+    assert.strictEqual(joinRes.body.code, 'INVITE_REVOKED');
+  });
+
+  // 12. Reconnection restores the original role
+  await test('Phase 3 - 12. Reconnection restores original role without duplicating slots', async () => {
+    // Player 2 reconnects
+    const reconPlayer = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${testRoomCode}/join`,
+      body: { role: 'player' },
+      headers: { authorization: `Bearer ${uPlayer2.token}` }
+    });
+    assert.strictEqual(reconPlayer.status, 200);
+    assert.strictEqual(reconPlayer.body.reconnected, true);
+    assert.strictEqual(reconPlayer.body.participant.role, 'player');
+
+    // Spectator User 7 reconnects
+    const reconSpectator = await callApp({
+      method: 'POST',
+      url: `/api/rooms/${testRoomCode}/join`,
+      body: { role: 'spectator' },
+      headers: { authorization: `Bearer ${uCandidate7.token}` }
+    });
+    assert.strictEqual(reconSpectator.status, 200);
+    assert.strictEqual(reconSpectator.body.reconnected, true);
+    assert.strictEqual(reconSpectator.body.participant.role, 'spectator');
+
+    // Verify room has no duplicate participant slots
+    const roomDetails = await callApp({ method: 'GET', url: `/api/rooms/${testRoomCode}` });
+    const p2Count = roomDetails.body.room.participants.filter(p => p.userId === uPlayer2._id).length;
+    const c7Count = roomDetails.body.room.participants.filter(p => p.userId === uCandidate7._id).length;
+    assert.strictEqual(p2Count, 1, 'Player 2 must not have duplicate slot');
+    assert.strictEqual(c7Count, 1, 'Spectator 7 must not have duplicate slot');
+    assert.strictEqual(roomDetails.body.room.activePlayersCount, 6);
+  });
+
+  // 13. Concurrent joins cannot exceed six active players
+  await test('Phase 3 - 13. Concurrent joins cannot exceed six active players (Atomic lock)', async () => {
+    // Create new room with 5 active players (1 slot remaining)
+    const hostInit = await createTestUser('ConcHost');
+    const createRes = await callApp({
+      method: 'POST',
+      url: '/api/rooms',
+      body: { name: 'Concurrency Arena', format: 'T20' },
+      headers: { authorization: `Bearer ${hostInit.token}` }
+    });
+    assert.strictEqual(createRes.status, 201);
+    const concCode = createRes.body.room.roomCode;
+
+    // Add 4 more players so exactly 5 active players exist (1 slot left)
+    for (let i = 2; i <= 5; i++) {
+      const uTok = await createTestUser(`ConcPlayer${i}`);
+      await callApp({
+        method: 'POST',
+        url: `/api/rooms/${concCode}/join`,
+        body: { role: 'player' },
+        headers: { authorization: `Bearer ${uTok.token}` }
+      });
+    }
+
+    const stateBefore = await callApp({ method: 'GET', url: `/api/rooms/${concCode}` });
+    assert.strictEqual(stateBefore.body.room.activePlayersCount, 5);
+    assert.strictEqual(stateBefore.body.room.availablePlayerSlots, 1);
+
+    // Now fire 5 SIMULTANEOUS concurrent join requests as 'player'
+    const concurrentUsers = await Promise.all(
+      [6, 7, 8, 9, 10].map(idx => createTestUser(`Racer${idx}`))
+    );
+
+    const results = await Promise.all(
+      concurrentUsers.map(u =>
+        callApp({
+          method: 'POST',
+          url: `/api/rooms/${concCode}/join`,
+          body: { role: 'player', teamName: `Racer XI` },
+          headers: { authorization: `Bearer ${u.token}` }
+        })
+      )
+    );
+
+    const successfulJoins = results.filter(r => r.status === 200);
+    const rejectedJoins = results.filter(r => r.status === 400 && r.body.code === 'PLAYER_SLOTS_FULL');
+
+    assert.strictEqual(successfulJoins.length, 1, 'Exactly one concurrent racer must succeed as the 6th player');
+    assert.strictEqual(rejectedJoins.length, 4, 'All excess concurrent racers must be rejected with 400 PLAYER_SLOTS_FULL');
+
+    const stateAfter = await callApp({ method: 'GET', url: `/api/rooms/${concCode}` });
+    assert.strictEqual(stateAfter.body.room.activePlayersCount, 6, 'Active players must strictly not exceed 6');
+  });
+
+  // Match Center & Simulation
   await test('GET /api/matches returns live match data', async () => {
     const res = await callApp({ method: 'GET', url: '/api/matches' });
     assert.strictEqual(res.status, 200);
@@ -300,7 +637,7 @@ const runAllTests = async () => {
     assert.ok(res.body.match.teamA.score > 0);
   });
 
-  // 12. Tournaments & Standings
+  // Tournaments & Standings
   await test('GET /api/tournaments returns tournament standings & fixtures', async () => {
     const res = await callApp({ method: 'GET', url: '/api/tournaments' });
     assert.strictEqual(res.status, 200);

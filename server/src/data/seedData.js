@@ -1176,51 +1176,82 @@ const initialRooms = [
     hostUsername: 'cricket_legend',
     status: 'auction',
     format: 'T20',
-    maxTeams: 8,
+    minPlayers: 2,
+    maxPlayers: 6,
+    maxTeams: 6,
     budgetPerTeam: 1000000000,
     isPrivate: false,
+    allowSpectators: true,
+    allowPlayerJoining: true,
+    spectatorChatEnabled: true,
+    invitation: {
+      token: 'inv_ipl2026_demo',
+      createdAt: new Date(),
+      expiresAt: null,
+      isRevoked: false,
+      password: ''
+    },
     participants: [
       {
         userId: 'usr_demo_101',
         username: 'cricket_legend',
+        role: 'player',
         teamName: 'Bangalore Royal Titans',
         isReady: true,
         isHost: true,
+        isConnected: true,
         budgetRemaining: 790000000,
         squad: ['ply_01', 'ply_10']
       },
       {
         userId: 'usr_demo_102',
         username: 'rohit_hitman',
+        role: 'player',
         teamName: 'Mumbai Kings XI',
         isReady: true,
         isHost: false,
+        isConnected: true,
         budgetRemaining: 775000000,
         squad: ['ply_02', 'ply_09']
       },
       {
         userId: 'usr_guest_301',
         username: 'sam_curran_fan',
+        role: 'player',
         teamName: 'Chennai Super Vipers',
         isReady: true,
         isHost: false,
+        isConnected: true,
         budgetRemaining: 780000000,
         squad: ['ply_08']
       },
       {
         userId: 'usr_guest_302',
         username: 'david_warner_bull',
+        role: 'player',
         teamName: 'Hyderabad Sun Chargers',
         isReady: false,
         isHost: false,
+        isConnected: true,
         budgetRemaining: 645000000,
         squad: ['ply_10', 'ply_11']
+      },
+      {
+        userId: 'usr_guest_305',
+        username: 'cricket_scout_vip',
+        role: 'spectator',
+        teamName: 'Spectator Dugout',
+        isReady: false,
+        isHost: false,
+        isConnected: true,
+        budgetRemaining: 0,
+        squad: []
       }
     ],
     chatMessages: [
-      { id: 'm1', sender: 'cricket_legend', text: 'Welcome to the Mega Auction room! Good luck managers.', timestamp: new Date(Date.now() - 3600000) },
-      { id: 'm2', sender: 'rohit_hitman', text: 'Targeting top tier death bowlers today.', timestamp: new Date(Date.now() - 1800000) },
-      { id: 'm3', sender: 'david_warner_bull', text: 'Ready for bidding round 2!', timestamp: new Date(Date.now() - 600000) }
+      { id: 'm1', sender: 'cricket_legend', senderRole: 'host', text: 'Welcome to the Mega Auction room! Good luck managers.', timestamp: new Date(Date.now() - 3600000) },
+      { id: 'm2', sender: 'rohit_hitman', senderRole: 'player', text: 'Targeting top tier death bowlers today.', timestamp: new Date(Date.now() - 1800000) },
+      { id: 'm3', sender: 'david_warner_bull', senderRole: 'player', text: 'Ready for bidding round 2!', timestamp: new Date(Date.now() - 600000) }
     ]
   },
   {
@@ -1231,31 +1262,47 @@ const initialRooms = [
     hostUsername: 'rohit_hitman',
     status: 'waiting',
     format: 'The Hundred',
+    minPlayers: 2,
+    maxPlayers: 6,
     maxTeams: 6,
     budgetPerTeam: 800000000,
     isPrivate: false,
+    allowSpectators: true,
+    allowPlayerJoining: true,
+    spectatorChatEnabled: true,
+    invitation: {
+      token: 'inv_wtc_demo',
+      createdAt: new Date(),
+      expiresAt: null,
+      isRevoked: false,
+      password: ''
+    },
     participants: [
       {
         userId: 'usr_demo_102',
         username: 'rohit_hitman',
+        role: 'player',
         teamName: 'Mumbai Kings XI',
         isReady: true,
         isHost: true,
+        isConnected: true,
         budgetRemaining: 800000000,
         squad: []
       },
       {
         userId: 'usr_guest_303',
         username: 'aussie_speedster',
+        role: 'player',
         teamName: 'Melbourne Strikers',
         isReady: true,
         isHost: false,
+        isConnected: true,
         budgetRemaining: 800000000,
         squad: []
       }
     ],
     chatMessages: [
-      { id: 'm1', sender: 'rohit_hitman', text: 'Room opened! Waiting for 4 more managers.', timestamp: new Date(Date.now() - 900000) }
+      { id: 'm1', sender: 'rohit_hitman', senderRole: 'host', text: 'Room opened! Waiting for 4 more managers.', timestamp: new Date(Date.now() - 900000) }
     ]
   },
   {
@@ -1266,17 +1313,31 @@ const initialRooms = [
     hostUsername: 'sam_curran_fan',
     status: 'waiting',
     format: 'Super Over',
-    maxTeams: 2,
+    minPlayers: 2,
+    maxPlayers: 6,
+    maxTeams: 6,
     budgetPerTeam: 500000000,
     isPrivate: true,
     password: 'secretclash',
+    allowSpectators: true,
+    allowPlayerJoining: true,
+    spectatorChatEnabled: true,
+    invitation: {
+      token: 'inv_clasico_demo',
+      createdAt: new Date(),
+      expiresAt: null,
+      isRevoked: false,
+      password: 'secretclash'
+    },
     participants: [
       {
         userId: 'usr_guest_301',
         username: 'sam_curran_fan',
+        role: 'player',
         teamName: 'Chennai Super Vipers',
         isReady: true,
         isHost: true,
+        isConnected: true,
         budgetRemaining: 500000000,
         squad: []
       }

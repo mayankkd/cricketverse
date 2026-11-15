@@ -67,8 +67,8 @@ const validateCreateRoom = (req, res, next) => {
     errors.push(`Format must be one of: ${validFormats.join(', ')}`);
   }
 
-  if (maxTeams && (maxTeams < 2 || maxTeams > 10)) {
-    errors.push('Max teams must be between 2 and 10.');
+  if (maxTeams && (maxTeams < 2 || maxTeams > 6)) {
+    errors.push('Max active players must be between 2 and 6.');
   }
 
   if (errors.length > 0) {

@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, Search, Lock, Globe, ArrowRight, PlusCircle, Flame, Activity } from 'lucide-react';
+import { Users, Search, Lock, Globe, ArrowRight, PlusCircle, Flame, Activity, Eye, Trophy } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { sound } from '../services/sound';
+import { JoinRoleModal } from '../components/room/JoinRoleModal';
 
 export const JoinRoom = () => {
   const [rooms, setRooms] = useState([]);
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
   const [selectedFormat, setSelectedFormat] = useState('All');
+  const [selectedRoomForJoin, setSelectedRoomForJoin] = useState(null);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { addToast } = useNotification();
@@ -41,33 +43,38 @@ export const JoinRoom = () => {
     const code = roomCodeInput.trim().toUpperCase();
 
     try {
-      const res = await api.joinRoom(code, { teamName: user ? `${user.username}'s XI` : 'Challengers XI' });
-      if (res.success) {
-        addToast({
-          type: 'success',
-          title: 'ACCESS GRANTED',
-          message: `Entering room ${code}`
-        });
-        navigate(`/rooms/${code}`);
+      const res = await api.getRoom(code);
+      if (res.success && res.room) {
+        setSelectedRoomForJoin(res.room);
       } else {
-        addToast({
-          type: 'error',
-          title: 'ROOM NOT FOUND',
-          message: res.message || 'Could not join room'
-        });
+        navigate(`/rooms/${code}`);
       }
     } catch {
       navigate(`/rooms/${code}`);
     }
   };
 
-  const handle1ClickJoin = async (room) => {
+  const handle1ClickJoin = (room) => {
     sound.playClick();
-    try {
-      const res = await api.joinRoom(room.roomCode, { teamName: user ? `${user.username}'s XI` : 'Challengers XI' });
-      navigate(`/rooms/${room.roomCode}`);
-    } catch {
-      navigate(`/rooms/${room.roomCode}`);
+    setSelectedRoomForJoin(room);
+  };
+
+  const handleRoleJoinSuccess = async ({ role, teamName, password }) => {
+    if (!selectedRoomForJoin) return;
+    const res = await api.joinRoom(selectedRoomForJoin.roomCode, {
+      role,
+      teamName,
+      password
+    });
+    if (res.success) {
+      addToast({
+        type: 'success',
+        title: 'ACCESS GRANTED',
+        message: `Entering room ${selectedRoomForJoin.roomCode} as ${role.toUpperCase()}`
+      });
+      navigate(`/rooms/${selectedRoomForJoin.roomCode}`);
+    } else {
+      throw new Error(res.message || 'Could not join room');
     }
   };
 
@@ -223,16 +230,15 @@ export const JoinRoom = () => {
               <div className="mt-6 pt-4 border-t border-stadium-800">
                 <button
                   onClick={() => handle1ClickJoin(room)}
-                  disabled={isFull}
-                  className={`w-full font-display uppercase font-bold text-xs py-3 rounded-xl transition-transform active:scale-95 flex items-center justify-center gap-2 ${
-                    isFull
-                      ? 'bg-stadium-800 text-slate-500 cursor-not-allowed'
-                      : 'bg-gold-500 hover:bg-gold-400 text-slate-950 shadow-gold-glow'
-                  }`}
+                  className="w-full font-display uppercase font-bold text-xs py-3 rounded-xl transition-transform active:scale-95 flex items-center justify-center gap-2 bg-gold-500 hover:bg-gold-400 text-slate-950 shadow-gold-glow"
                 >
-                  {isFull ? 'ROOM AT FULL CAPACITY' : (
+                  {isFull ? (
                     <>
-                      JOIN FRANCHISE DUGOUT <ArrowRight className="w-4 h-4" />
+                      <Eye className="w-4 h-4" /> WATCH AS SPECTATOR
+                    </>
+                  ) : (
+                    <>
+                      ENTER ARENA / SPECTATE <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
@@ -241,6 +247,15 @@ export const JoinRoom = () => {
           );
         })}
       </div>
+
+      {/* Role Selection Modal */}
+      {selectedRoomForJoin && (
+        <JoinRoleModal
+          room={selectedRoomForJoin}
+          onClose={() => setSelectedRoomForJoin(null)}
+          onJoinSuccess={handleRoleJoinSuccess}
+        />
+      )}
     </div>
   );
 };

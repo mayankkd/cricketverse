@@ -401,3 +401,4 @@ export const PlayerProfileModal = ({ player, onClose, onSelectCompare = null }) 
     </div>
   );
 };
+

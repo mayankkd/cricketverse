@@ -18,6 +18,7 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { FutCard } from '../components/common/FutCard';
+import { socketService } from '../services/socket';
 import { sound } from '../services/sound';
 
 export const AuctionDashboard = () => {
@@ -29,12 +30,54 @@ export const AuctionDashboard = () => {
   const [currentBid, setCurrentBid] = useState(200000000); // 20 Cr
   const [highestBidder, setHighestBidder] = useState('Bangalore Royal Titans');
   const [timeLeft, setTimeLeft] = useState(15);
+  const [isSpectator, setIsSpectator] = useState(false);
+  const [roomData, setRoomData] = useState(null);
   const [bidHistory, setBidHistory] = useState([
     { id: '1', manager: 'Mumbai Kings XI', amount: 180000000, time: '30s ago' },
     { id: '2', manager: 'Bangalore Royal Titans', amount: 200000000, time: '12s ago' }
   ]);
   const [userPurse, setUserPurse] = useState(user?.budget || 885000000);
   const [isSold, setIsSold] = useState(false);
+
+  useEffect(() => {
+    // Check room query param if present
+    const params = new URLSearchParams(window.location.search);
+    const roomCode = params.get('room');
+
+    if (roomCode) {
+      api.getRoom(roomCode).then((res) => {
+        if (res.success && res.room) {
+          setRoomData(res.room);
+          const p = (res.room.participants || []).find(
+            part => part.userId === user?._id || part.username === user?.username
+          );
+          if (p && p.role === 'spectator') {
+            setIsSpectator(true);
+          }
+        }
+      }).catch(console.error);
+
+      // Listen to socket bid updates
+      const unsubBid = socketService.onBidUpdated((bidData) => {
+        if (bidData) {
+          setCurrentBid(bidData.amount);
+          setHighestBidder(bidData.username || bidData.teamName || 'Challengers');
+          setTimeLeft(15);
+          setBidHistory(prev => [
+            {
+              id: `bid_${Date.now()}`,
+              manager: bidData.username || bidData.teamName || 'Manager',
+              amount: bidData.amount,
+              time: 'Just now'
+            },
+            ...prev
+          ]);
+        }
+      });
+
+      return () => unsubBid();
+    }
+  }, [user]);
 
   useEffect(() => {
     const fetchQueue = async () => {
@@ -88,6 +131,15 @@ export const AuctionDashboard = () => {
   };
 
   const handlePlaceBid = (increment) => {
+    if (isSpectator) {
+      addToast({
+        type: 'warning',
+        title: 'SPECTATOR MODE',
+        message: 'Spectators cannot place bids. Bidding is restricted to active franchise managers.'
+      });
+      return;
+    }
+
     sound.playBidChime();
     const newBidAmount = currentBid + increment;
 
@@ -103,6 +155,19 @@ export const AuctionDashboard = () => {
     setCurrentBid(newBidAmount);
     setHighestBidder(user?.username ? `${user.username}'s XI` : 'Bangalore Royal Titans');
     setTimeLeft(15); // Reset clock to 15s on new bid
+
+    // Emit socket bid
+    const params = new URLSearchParams(window.location.search);
+    const roomCode = params.get('room');
+    if (roomCode) {
+      socketService.placeBid(roomCode, {
+        amount: newBidAmount,
+        username: user?.username || 'You',
+        teamName: user ? `${user.username}'s XI` : 'Challengers XI',
+        userId: user?._id
+      });
+      api.placeBid(roomCode, { amount: newBidAmount, playerId: playersQueue[currentPlayerIndex]?._id }).catch(console.error);
+    }
 
     setBidHistory((prev) => [
       {
@@ -237,23 +302,30 @@ export const AuctionDashboard = () => {
             <span className="text-[11px] font-mono text-slate-400 uppercase font-bold block mb-2">
               RAISE BID INCREMENT
             </span>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: '+₹25 Lakh', inc: 2500000 },
-                { label: '+₹50 Lakh', inc: 5000000 },
-                { label: '+₹1.00 Cr', inc: 10000000 },
-                { label: '+₹2.00 Cr', inc: 20000000 }
-              ].map((btn, i) => (
-                <button
-                  key={i}
-                  disabled={isSold}
-                  onClick={() => handlePlaceBid(btn.inc)}
-                  className="bg-stadium-950 hover:bg-gold-500 hover:text-slate-950 border border-gold-500/40 text-gold-300 font-display font-bold uppercase text-xs py-3.5 rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-                >
-                  <Zap className="w-3.5 h-3.5 fill-current" /> {btn.label}
-                </button>
-              ))}
-            </div>
+            {isSpectator ? (
+              <div className="p-4 rounded-2xl bg-electric-500/10 border border-electric-500/30 text-electric-300 text-xs font-mono text-center leading-relaxed">
+                <span className="font-bold block uppercase mb-1">👁 Spectator Mode Active</span>
+                You are observing the gavel live. Live bidding is reserved for active franchise managers.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: '+₹25 Lakh', inc: 2500000 },
+                  { label: '+₹50 Lakh', inc: 5000000 },
+                  { label: '+₹1.00 Cr', inc: 10000000 },
+                  { label: '+₹2.00 Cr', inc: 20000000 }
+                ].map((btn, i) => (
+                  <button
+                    key={i}
+                    disabled={isSold}
+                    onClick={() => handlePlaceBid(btn.inc)}
+                    className="bg-stadium-950 hover:bg-gold-500 hover:text-slate-950 border border-gold-500/40 text-gold-300 font-display font-bold uppercase text-xs py-3.5 rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                  >
+                    <Zap className="w-3.5 h-3.5 fill-current" /> {btn.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

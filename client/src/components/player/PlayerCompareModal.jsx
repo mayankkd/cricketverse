@@ -253,3 +253,4 @@ export const PlayerCompareModal = ({ player1, player2, onClose, allPlayers = [],
     </div>
   );
 };
+

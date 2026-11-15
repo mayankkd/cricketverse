@@ -15,10 +15,12 @@ export const CreateRoom = () => {
   const [formData, setFormData] = useState({
     name: 'Mega IPL Auction & Super League',
     format: 'T20',
-    maxTeams: 8,
+    maxTeams: 6,
     budgetPerTeam: 1000000000,
     isPrivate: false,
     password: '',
+    allowSpectators: true,
+    spectatorChatEnabled: true,
     teamName: user ? `${user.username}'s XI` : 'Bangalore Royal Titans'
   });
   const [loading, setLoading] = useState(false);
@@ -152,19 +154,22 @@ export const CreateRoom = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-mono font-bold uppercase text-slate-300 mb-1.5">
-              Maximum Manager Slots
+              Active Player Capacity (Fixed Min 2, Max 6)
             </label>
             <select
               value={formData.maxTeams}
               onChange={(e) => setFormData({ ...formData, maxTeams: Number(e.target.value) })}
-              className="w-full bg-stadium-950 border border-stadium-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-pitch-500"
+              className="w-full bg-stadium-950 border border-stadium-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-pitch-500 font-mono"
             >
-              {[2, 4, 6, 8, 10].map((num) => (
+              {[2, 3, 4, 5, 6].map((num) => (
                 <option key={num} value={num}>
-                  {num} Teams ({num === 8 ? 'Official 8-Franchise League' : `${num} Managers`})
+                  {num} Active Players {num === 6 ? '(Official Arena Max: 6)' : ''}
                 </option>
               ))}
             </select>
+            <span className="text-[10px] font-mono text-slate-400 mt-1 block">
+              Additional spectators can watch live without taking a player seat.
+            </span>
           </div>
 
           <div>

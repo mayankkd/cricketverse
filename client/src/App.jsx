@@ -15,6 +15,7 @@ import { Profile } from './pages/Profile';
 import { CreateRoom } from './pages/CreateRoom';
 import { JoinRoom } from './pages/JoinRoom';
 import { RoomLobby } from './pages/RoomLobby';
+import { RoomInvite } from './pages/RoomInvite';
 import { PlayerDatabase } from './pages/PlayerDatabase';
 import { AuctionDashboard } from './pages/AuctionDashboard';
 import { TeamDashboard } from './pages/TeamDashboard';
@@ -72,6 +73,7 @@ export function App() {
 
                 {/* 7. Join room */}
                 <Route path="/rooms/join" element={<JoinRoom />} />
+                <Route path="/rooms/invite/:token" element={<RoomInvite />} />
 
                 {/* 8. Room lobby */}
                 <Route path="/rooms/:roomCode" element={<RoomLobby />} />

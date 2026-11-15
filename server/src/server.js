@@ -9,6 +9,8 @@ const { connectDB, getDBStatus } = require('./config/db');
 const { seedMongoIfEmpty } = require('./services/storeService');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
+const { initMultiplayerSockets } = require('./sockets/multiplayerSocket');
+
 // Route imports
 const authRoutes = require('./routes/authRoutes');
 const roomRoutes = require('./routes/roomRoutes');
@@ -27,6 +29,9 @@ const io = new Server(server, {
     methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
 });
+
+// Initialize Socket.IO Real-time Multiplayer & Spectator Architecture
+initMultiplayerSockets(io);
 
 // Middleware
 app.use(cors({ origin: '*' }));
@@ -60,36 +65,6 @@ app.use('/api/players', playerRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/tournaments', tournamentRoutes);
-
-// Socket.io Real-time Multiplayer Handlers
-io.on('connection', (socket) => {
-  console.log(`[Socket] Client connected: ${socket.id}`);
-
-  // Join room lobby channel
-  socket.on('join_room', ({ roomCode, username }) => {
-    socket.join(roomCode);
-    console.log(`[Socket] ${username || socket.id} joined channel ${roomCode}`);
-    io.to(roomCode).emit('room_notification', {
-      type: 'USER_JOINED',
-      text: `${username || 'A manager'} entered the lobby.`
-    });
-  });
-
-  // Room chat
-  socket.on('send_chat', ({ roomCode, message }) => {
-    io.to(roomCode).emit('receive_chat', message);
-  });
-
-  // Auction bid broadcast
-  socket.on('place_bid', ({ roomCode, bidData }) => {
-    console.log(`[Socket] New bid placed in ${roomCode}:`, bidData);
-    io.to(roomCode).emit('bid_updated', bidData);
-  });
-
-  socket.on('disconnect', () => {
-    console.log(`[Socket] Client disconnected: ${socket.id}`);
-  });
-});
 
 // Error handling
 app.use(notFound);

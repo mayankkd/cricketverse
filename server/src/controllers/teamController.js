@@ -147,11 +147,58 @@ const configureSquadLimits = async (req, res, next) => {
   }
 };
 
+// @desc    Get franchise team tactics (Public / Private)
+// @route   GET /api/teams/:id/tactics
+// @access  Public / Private
+const getTeamTactics = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const tactics = await storeService.getTeamTactics(id);
+    res.status(200).json({
+      success: true,
+      tactics
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Update franchise team tactics (Owner or Host only, Spectators read-only)
+// @route   PUT /api/teams/:id/tactics
+// @access  Private (Owner or Host only)
+const updateTeamTactics = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const tacticsData = req.body;
+    const updated = await storeService.updateTeamTactics(id, req.user._id, tacticsData);
+    res.status(200).json({
+      success: true,
+      message: 'Franchise tactics updated successfully.',
+      team: updated,
+      tactics: updated.tactics
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        code: err.code || 'TACTICS_ERROR',
+        message: err.message
+      });
+    }
+    next(err);
+  }
+};
+
 module.exports = {
   getMyTeam,
   getTeamsByRoom,
   getTeamById,
   updateTeam,
   swapPlayer,
-  configureSquadLimits
+  configureSquadLimits,
+  getTeamTactics,
+  updateTeamTactics
 };

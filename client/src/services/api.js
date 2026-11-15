@@ -334,6 +334,39 @@ export const api = {
     return await res.json();
   },
 
+  // Tactical Management
+  async getTeamTactics(teamId) {
+    const res = await fetch(`${API_BASE}/teams/${teamId}/tactics`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async updateTeamTactics(teamId, data) {
+    const res = await fetch(`${API_BASE}/teams/${teamId}/tactics`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return await res.json();
+  },
+
+  async getMatchTactics(matchId) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/tactics`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async updateMatchTactics(matchId, data) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/tactics`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return await res.json();
+  },
+
   // Matches
   async getMatches() {
     const res = await fetch(`${API_BASE}/matches`, {

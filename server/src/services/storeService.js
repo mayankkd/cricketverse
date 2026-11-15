@@ -1734,6 +1734,334 @@ const calculateSquadMetrics = (populatedXI, populatedBench = [], format = 'T20')
   };
 };
 
+// ==========================================
+// PHASE 6: TACTICAL MANAGEMENT CONSTANTS & ENGINE
+// ==========================================
+
+// 18 Official Fielding Positions with metadata
+const OFFICIAL_FIELD_POSITIONS = {
+  'Slip': { name: 'Slip', side: 'off', ring: 'inner', isBehindSquare: true, isDeep: false },
+  'Second Slip': { name: 'Second Slip', side: 'off', ring: 'inner', isBehindSquare: true, isDeep: false },
+  'Third Slip': { name: 'Third Slip', side: 'off', ring: 'inner', isBehindSquare: true, isDeep: false },
+  'Gully': { name: 'Gully', side: 'off', ring: 'inner', isBehindSquare: true, isDeep: false },
+  'Point': { name: 'Point', side: 'off', ring: 'inner', isBehindSquare: false, isDeep: false },
+  'Cover': { name: 'Cover', side: 'off', ring: 'inner', isBehindSquare: false, isDeep: false },
+  'Extra Cover': { name: 'Extra Cover', side: 'off', ring: 'inner', isBehindSquare: false, isDeep: false },
+  'Mid-off': { name: 'Mid-off', side: 'off', ring: 'inner', isBehindSquare: false, isDeep: false },
+  'Mid-on': { name: 'Mid-on', side: 'leg', ring: 'inner', isBehindSquare: false, isDeep: false },
+  'Midwicket': { name: 'Midwicket', side: 'leg', ring: 'inner', isBehindSquare: false, isDeep: false },
+  'Square Leg': { name: 'Square Leg', side: 'leg', ring: 'inner', isBehindSquare: false, isDeep: false },
+  'Fine Leg': { name: 'Fine Leg', side: 'leg', ring: 'inner', isBehindSquare: true, isDeep: false },
+  'Third Man': { name: 'Third Man', side: 'off', ring: 'deep', isBehindSquare: true, isDeep: true },
+  'Long-off': { name: 'Long-off', side: 'off', ring: 'deep', isBehindSquare: false, isDeep: true },
+  'Long-on': { name: 'Long-on', side: 'leg', ring: 'deep', isBehindSquare: false, isDeep: true },
+  'Deep Cover': { name: 'Deep Cover', side: 'off', ring: 'deep', isBehindSquare: false, isDeep: true },
+  'Deep Midwicket': { name: 'Deep Midwicket', side: 'leg', ring: 'deep', isBehindSquare: false, isDeep: true },
+  'Deep Square Leg': { name: 'Deep Square Leg', side: 'leg', ring: 'deep', isBehindSquare: true, isDeep: true }
+};
+
+const BATTING_STRATEGIES = [
+  'Aggressive',
+  'Balanced',
+  'Defensive',
+  'Anchor',
+  'Power Hitter',
+  'Rotating Strike'
+];
+
+const BOWLER_ROLES = [
+  'Opening bowlers',
+  'First-change bowlers',
+  'Middle-over specialists',
+  'Death-over specialists'
+];
+
+const DELIVERY_TACTICS = [
+  'Yorker',
+  'Bouncer',
+  'Swing',
+  'Seam',
+  'Slower ball',
+  'Off-spin',
+  'Leg-spin'
+];
+
+const FIELD_PRESETS = [
+  'Attacking',
+  'Defensive',
+  'Powerplay',
+  'Spin',
+  'Death overs',
+  'Custom'
+];
+
+// Format-specific maximum overs allowed per bowler
+const getFormatMaxBowlerOvers = (format = 'T20') => {
+  const fmt = (format || '').trim().toUpperCase();
+  if (fmt === 'TEST') return 99; // Unlimited in Test
+  if (fmt === 'ODI') return 10;
+  if (fmt === 'T20') return 4;
+  if (fmt === 'THE HUNDRED') return 4; // 20 balls = 4 sets of 5
+  if (fmt === 'SUPER OVER') return 1;
+  return 4;
+};
+
+// Preset positions generator
+const getFieldPresetPositions = (preset = 'Powerplay', fielders = []) => {
+  const name = (preset || 'Powerplay');
+  let selectedPositions = [];
+  if (name === 'Attacking') {
+    selectedPositions = ['Slip', 'Second Slip', 'Third Slip', 'Gully', 'Point', 'Cover', 'Mid-off', 'Mid-on', 'Third Man'];
+  } else if (name === 'Defensive') {
+    selectedPositions = ['Point', 'Cover', 'Midwicket', 'Square Leg', 'Third Man', 'Deep Cover', 'Long-off', 'Long-on', 'Deep Midwicket'];
+  } else if (name === 'Spin') {
+    selectedPositions = ['Slip', 'Gully', 'Point', 'Cover', 'Mid-off', 'Mid-on', 'Midwicket', 'Deep Midwicket', 'Long-on'];
+  } else if (name === 'Death overs') {
+    selectedPositions = ['Point', 'Cover', 'Mid-off', 'Mid-on', 'Third Man', 'Deep Cover', 'Long-off', 'Long-on', 'Deep Midwicket'];
+  } else {
+    // Powerplay or Custom default (max 2 outside circle)
+    selectedPositions = ['Slip', 'Point', 'Cover', 'Extra Cover', 'Mid-off', 'Mid-on', 'Midwicket', 'Third Man', 'Long-on'];
+  }
+
+  return selectedPositions.map((pos, idx) => ({
+    position: pos,
+    fielderId: fielders[idx]?.playerId || fielders[idx]?._id || fielders[idx] || `fld_${idx}`,
+    fielderName: fielders[idx]?.name || fielders[idx]?.shortName || `Fielder ${idx + 1}`,
+    side: OFFICIAL_FIELD_POSITIONS[pos].side,
+    ring: OFFICIAL_FIELD_POSITIONS[pos].ring,
+    isBehindSquare: OFFICIAL_FIELD_POSITIONS[pos].isBehindSquare,
+    isDeep: OFFICIAL_FIELD_POSITIONS[pos].isDeep
+  }));
+};
+
+// Validate field placement against official cricket laws
+const validateFieldPlacement = (positions = [], format = 'T20', isPowerplay = false) => {
+  if (!Array.isArray(positions) || positions.length !== 9) {
+    const err = new Error(`Field placement requires exactly 9 fielders on the field (currently ${positions ? positions.length : 0}/9). Bowler and Wicketkeeper are positioned automatically.`);
+    err.status = 400;
+    err.code = 'INVALID_FIELDER_COUNT';
+    throw err;
+  }
+
+  const seenPositions = new Set();
+  const seenFielders = new Set();
+  let legSideCount = 0;
+  let behindSquareLegCount = 0;
+  let deepCount = 0;
+
+  for (const item of positions) {
+    const posName = item.position;
+    const fielderId = item.fielderId;
+
+    if (!OFFICIAL_FIELD_POSITIONS[posName]) {
+      const err = new Error(`Position '${posName}' is not an official cricket fielding position.`);
+      err.status = 400;
+      err.code = 'INVALID_FIELD_POSITION';
+      throw err;
+    }
+
+    if (seenPositions.has(posName)) {
+      const err = new Error(`Duplicate position violation: Only one fielder can occupy '${posName}'.`);
+      err.status = 400;
+      err.code = 'DUPLICATE_FIELD_POSITION';
+      throw err;
+    }
+    seenPositions.add(posName);
+
+    if (fielderId) {
+      if (seenFielders.has(fielderId)) {
+        const err = new Error(`Duplicate fielder violation: Fielder '${fielderId}' is placed in multiple positions.`);
+        err.status = 400;
+        err.code = 'DUPLICATE_FIELDER';
+        throw err;
+      }
+      seenFielders.add(fielderId);
+    }
+
+    const meta = OFFICIAL_FIELD_POSITIONS[posName];
+    if (meta.side === 'leg') {
+      legSideCount++;
+      if (meta.isBehindSquare) {
+        behindSquareLegCount++;
+      }
+    }
+    if (meta.isDeep) {
+      deepCount++;
+    }
+  }
+
+  // ICC Law 28.4: At the instant of the bowler's delivery there shall not be more than 5 fielders on the leg side
+  if (legSideCount > 5) {
+    const err = new Error(`Official Fielding Restriction Violation (ICC Law 28.4): Maximum 5 fielders permitted on the leg side (currently ${legSideCount}/5).`);
+    err.status = 400;
+    err.code = 'EXCESS_LEG_SIDE_FIELDERS';
+    throw err;
+  }
+
+  // ICC Law 28.4.1: At the instant of the bowler's delivery there shall not be more than 2 fielders behind square on the leg side
+  if (behindSquareLegCount > 2) {
+    const err = new Error(`Official Fielding Restriction Violation (ICC Law 28.4.1): Maximum 2 fielders permitted behind square on the leg side (currently ${behindSquareLegCount}/2).`);
+    err.status = 400;
+    err.code = 'EXCESS_BEHIND_SQUARE_FIELDERS';
+    throw err;
+  }
+
+  // Powerplay Fielding Restriction
+  if (isPowerplay && deepCount > 2) {
+    const err = new Error(`Powerplay Restriction Violation: Maximum 2 fielders permitted outside the 30-yard circle during Powerplay (currently ${deepCount}/2).`);
+    err.status = 400;
+    err.code = 'POWERPLAY_RESTRICTION_EXCEEDED';
+    throw err;
+  }
+
+  // Non-powerplay white-ball restriction: max 5 outside circle
+  const fmt = (format || '').toUpperCase();
+  if (fmt !== 'TEST' && !isPowerplay && deepCount > 5) {
+    const err = new Error(`Outfield Restriction Violation: Maximum 5 fielders permitted outside the 30-yard circle (currently ${deepCount}/5).`);
+    err.status = 400;
+    err.code = 'OUTFIELD_RESTRICTION_EXCEEDED';
+    throw err;
+  }
+
+  return {
+    valid: true,
+    deepFieldersCount: deepCount,
+    legSideFieldersCount: legSideCount,
+    behindSquareLegCount,
+    restrictionsValid: true
+  };
+};
+
+// Validate bowler over allocations
+const validateBowlerOvers = (format = 'T20', bowlerAssignments = []) => {
+  const maxOvers = getFormatMaxBowlerOvers(format);
+  const fmt = (format || '').toUpperCase();
+
+  if (fmt === 'TEST') return true; // Unlimited in Test
+
+  for (const b of bowlerAssignments) {
+    if (b.oversAllocated !== undefined && Number(b.oversAllocated) > maxOvers) {
+      const err = new Error(`Format Bowling Restriction: Maximum ${maxOvers} overs per bowler allowed in ${format} format (allocated ${b.oversAllocated} overs to '${b.playerName || b.playerId}').`);
+      err.status = 400;
+      err.code = 'BOWLER_OVER_LIMIT_EXCEEDED';
+      throw err;
+    }
+  }
+  return true;
+};
+
+// Build default comprehensive tactics for a team
+const getDefaultTeamTactics = (team, format = 'T20') => {
+  const playingXI = team.playingXI || (team.squad || []).slice(0, 11);
+  const battingOrder = team.battingOrder || playingXI;
+  const bowlingOrder = team.bowlingOrder || playingXI.slice(4, 9);
+
+  // Batting instructions: 11 batters
+  const batterInstructions = battingOrder.map((pId, idx) => {
+    let strat = 'Balanced';
+    let aggression = 50;
+    let intent = 'Standard';
+    if (idx === 0 || idx === 1) {
+      strat = 'Aggressive';
+      aggression = 75;
+      intent = 'Exploit Powerplay';
+    } else if (idx === 2) {
+      strat = 'Anchor';
+      aggression = 55;
+      intent = 'Control Innings';
+    } else if (idx === 3 || idx === 4) {
+      strat = 'Balanced';
+      aggression = 60;
+      intent = 'Consolidate & Accelerate';
+    } else if (idx === 5 || idx === 6) {
+      strat = 'Power Hitter';
+      aggression = 85;
+      intent = 'Death Overs Maximization';
+    } else if (idx === 7) {
+      strat = 'Rotating Strike';
+      aggression = 50;
+      intent = 'Keep Scoreboard Ticking';
+    } else {
+      strat = 'Defensive';
+      aggression = 35;
+      intent = 'Support Set Batter';
+    }
+    return {
+      playerId: pId,
+      battingPosition: idx + 1,
+      strategy: strat,
+      aggressionLevel: aggression,
+      intent
+    };
+  });
+
+  // Bowling assignments: 5 bowlers
+  const maxOversPerBowler = getFormatMaxBowlerOvers(format);
+  const bowlerAssignments = bowlingOrder.slice(0, 5).map((pId, idx) => {
+    let role = 'Middle-over specialists';
+    let tactic = 'Seam';
+    if (idx === 0) {
+      role = 'Opening bowlers';
+      tactic = 'Swing';
+    } else if (idx === 1) {
+      role = 'Opening bowlers';
+      tactic = 'Seam';
+    } else if (idx === 2) {
+      role = 'First-change bowlers';
+      tactic = 'Bouncer';
+    } else if (idx === 3) {
+      role = 'Middle-over specialists';
+      tactic = 'Off-spin';
+    } else {
+      role = 'Death-over specialists';
+      tactic = 'Yorker';
+    }
+    return {
+      playerId: pId,
+      role,
+      deliveryTactic: tactic,
+      oversAllocated: maxOversPerBowler,
+      oversBowled: 0,
+      maxOvers: maxOversPerBowler
+    };
+  });
+
+  // Field Placement: 9 fielders
+  const nonWkFielders = playingXI.filter(id => id !== team.wicketKeeperId);
+  const selected9 = nonWkFielders.slice(0, 9);
+  while (selected9.length < 9 && playingXI.length >= 9) {
+    for (const id of playingXI) {
+      if (!selected9.includes(id)) selected9.push(id);
+      if (selected9.length === 9) break;
+    }
+  }
+
+  const positions = getFieldPresetPositions('Powerplay', selected9);
+
+  return {
+    batting: {
+      teamStrategy: 'Balanced',
+      batterInstructions
+    },
+    bowling: {
+      bowlerAssignments,
+      plannedPhases: {
+        powerplayBowlers: bowlerAssignments.slice(0, 2).map(b => b.playerId),
+        middleOversBowlers: bowlerAssignments.slice(2, 4).map(b => b.playerId),
+        deathOversBowlers: [bowlerAssignments[0]?.playerId, bowlerAssignments[4]?.playerId].filter(Boolean)
+      }
+    },
+    fieldPlacement: {
+      preset: 'Powerplay',
+      positions,
+      deepFieldersCount: 2,
+      legSideFieldersCount: 3,
+      behindSquareLegCount: 0,
+      restrictionsValid: true
+    }
+  };
+};
+
 // Populate player details from IDs
 const populateTeamSquad = async (team, format = 'T20') => {
   if (!team) return null;
@@ -1812,6 +2140,7 @@ const populateTeamSquad = async (team, format = 'T20') => {
     populatedPlayingXI,
     populatedBench,
     ...metrics,
+    tactics: doc.tactics || getDefaultTeamTactics(doc, doc.format || format),
     totalSpending: doc.totalSpending || 0,
     remainingPurse: doc.remainingPurse !== undefined ? doc.remainingPurse : (doc.budgetRemaining || 30)
   };
@@ -2281,6 +2610,448 @@ const getMatchById = async (id) => {
   return memoryStore.matches.find(m => m.matchId === id || m._id === id) || null;
 };
 
+const updateMatch = async (matchId, updateFields) => {
+  if (isMongoConnected()) {
+    return await Match.findOneAndUpdate({ matchId }, { $set: updateFields }, { new: true });
+  }
+  const idx = memoryStore.matches.findIndex(m => m.matchId === matchId || m._id === matchId);
+  if (idx === -1) return null;
+  memoryStore.matches[idx] = { ...memoryStore.matches[idx], ...updateFields, updatedAt: new Date() };
+  return memoryStore.matches[idx];
+};
+
+// ==========================================
+// PHASE 6: TACTICAL MANAGEMENT SERVICE
+// ==========================================
+
+const getTeamTactics = async (teamId) => {
+  const team = await getTeamById(teamId);
+  if (!team) {
+    const err = new Error('Team not found.');
+    err.status = 404;
+    throw err;
+  }
+  return team.tactics || getDefaultTeamTactics(team, team.format || 'T20');
+};
+
+const updateTeamTactics = async (teamId, userId, tacticsData = {}) => {
+  const team = await getTeamById(teamId);
+  if (!team) {
+    const err = new Error('Franchise team not found.');
+    err.status = 404;
+    throw err;
+  }
+
+  // Authorization check
+  let isHost = false;
+  let room = null;
+  if (team.roomCode) {
+    room = await getRoomByCode(team.roomCode);
+    if (room && room.hostId === userId) isHost = true;
+    const participant = (room?.participants || []).find(p => p.userId === userId);
+    if (participant && participant.role === 'spectator') {
+      const err = new Error('Forbidden: Spectators have read-only access and cannot modify team tactics.');
+      err.status = 403;
+      err.code = 'SPECTATOR_READ_ONLY';
+      throw err;
+    }
+  }
+
+  if (team.ownerId !== userId && !isHost) {
+    const err = new Error('Forbidden: Only the team owner or authorized room host can modify tactics.');
+    err.status = 403;
+    err.code = 'UNAUTHORIZED_TACTICS_EDIT';
+    throw err;
+  }
+
+  const existingTactics = team.tactics || getDefaultTeamTactics(team, team.format);
+  const updatedTactics = { ...existingTactics };
+
+  // Validate Batting Tactics
+  if (tacticsData.batting) {
+    if (tacticsData.batting.teamStrategy && !BATTING_STRATEGIES.includes(tacticsData.batting.teamStrategy)) {
+      const err = new Error(`Invalid batting strategy '${tacticsData.batting.teamStrategy}'. Valid strategies: ${BATTING_STRATEGIES.join(', ')}.`);
+      err.status = 400;
+      err.code = 'INVALID_BATTING_STRATEGY';
+      throw err;
+    }
+    if (tacticsData.batting.batterInstructions && Array.isArray(tacticsData.batting.batterInstructions)) {
+      for (const instr of tacticsData.batting.batterInstructions) {
+        if (instr.strategy && !BATTING_STRATEGIES.includes(instr.strategy)) {
+          const err = new Error(`Invalid individual batter strategy '${instr.strategy}'.`);
+          err.status = 400;
+          err.code = 'INVALID_BATTING_STRATEGY';
+          throw err;
+        }
+      }
+    }
+    updatedTactics.batting = {
+      ...updatedTactics.batting,
+      ...tacticsData.batting
+    };
+  }
+
+  // Validate Bowling Tactics
+  if (tacticsData.bowling) {
+    if (tacticsData.bowling.bowlerAssignments && Array.isArray(tacticsData.bowling.bowlerAssignments)) {
+      for (const b of tacticsData.bowling.bowlerAssignments) {
+        if (b.deliveryTactic && !DELIVERY_TACTICS.includes(b.deliveryTactic)) {
+          const err = new Error(`Invalid delivery tactic '${b.deliveryTactic}'. Valid tactics: ${DELIVERY_TACTICS.join(', ')}.`);
+          err.status = 400;
+          err.code = 'INVALID_DELIVERY_TACTIC';
+          throw err;
+        }
+        if (b.role && !BOWLER_ROLES.includes(b.role)) {
+          const err = new Error(`Invalid bowling role '${b.role}'. Valid roles: ${BOWLER_ROLES.join(', ')}.`);
+          err.status = 400;
+          err.code = 'INVALID_BOWLER_ROLE';
+          throw err;
+        }
+      }
+      validateBowlerOvers(team.format || 'T20', tacticsData.bowling.bowlerAssignments);
+    }
+    updatedTactics.bowling = {
+      ...updatedTactics.bowling,
+      ...tacticsData.bowling
+    };
+  }
+
+  // Validate Field Placement
+  if (tacticsData.fieldPlacement) {
+    const isPowerplay = tacticsData.fieldPlacement.preset === 'Powerplay';
+    const validation = validateFieldPlacement(tacticsData.fieldPlacement.positions, team.format || 'T20', isPowerplay);
+    updatedTactics.fieldPlacement = {
+      preset: tacticsData.fieldPlacement.preset || 'Custom',
+      positions: tacticsData.fieldPlacement.positions,
+      deepFieldersCount: validation.deepFieldersCount,
+      legSideFieldersCount: validation.legSideFieldersCount,
+      behindSquareLegCount: validation.behindSquareLegCount,
+      restrictionsValid: true
+    };
+  }
+
+  const updatedTeam = await updateTeam(team._id, { tactics: updatedTactics });
+  return await populateTeamSquad(updatedTeam, updatedTeam.format || 'T20');
+};
+
+const getMatchTactics = async (matchId) => {
+  const match = await getMatchById(matchId);
+  if (!match) {
+    const err = new Error(`Match '${matchId}' not found.`);
+    err.status = 404;
+    throw err;
+  }
+  return {
+    matchId: match.matchId,
+    tacticalBreak: match.tacticalBreak || 'live',
+    teamATactics: match.teamATactics,
+    teamBTactics: match.teamBTactics
+  };
+};
+
+const updateMatchTactics = async (matchId, userId, { teamKey = 'teamA', tactics, tacticalBreak }) => {
+  const match = await getMatchById(matchId);
+  if (!match) {
+    const err = new Error(`Match '${matchId}' not found.`);
+    err.status = 404;
+    throw err;
+  }
+
+  if (tactics) {
+    if (tactics.fieldPlacement && tactics.fieldPlacement.positions) {
+      const isPowerplay = tactics.fieldPlacement.preset === 'Powerplay' || (match.teamA?.overs || 0) <= 6;
+      validateFieldPlacement(tactics.fieldPlacement.positions, match.format || 'T20', isPowerplay);
+    }
+    if (tactics.bowling && tactics.bowling.bowlerAssignments) {
+      validateBowlerOvers(match.format || 'T20', tactics.bowling.bowlerAssignments);
+    }
+  }
+
+  const updates = {};
+  if (tacticalBreak) updates.tacticalBreak = tacticalBreak;
+  if (teamKey === 'teamA') {
+    updates.teamATactics = { ...(match.teamATactics || {}), ...(tactics || {}) };
+  } else {
+    updates.teamBTactics = { ...(match.teamBTactics || {}), ...(tactics || {}) };
+  }
+
+  return await updateMatch(match.matchId, updates);
+};
+
+// Tactical Ball Simulation Engine
+const simulateTacticalBall = async (matchId) => {
+  const match = await getMatchById(matchId);
+  if (!match) {
+    const err = new Error(`Match '${matchId}' not found.`);
+    err.status = 404;
+    throw err;
+  }
+
+  const isChasing = match.currentInnings === 2;
+  const battingTactics = isChasing ? match.teamATactics : match.teamBTactics;
+  const bowlingTactics = isChasing ? match.teamBTactics : match.teamATactics;
+
+  const strikerName = match.currentStriker?.name || 'Batter';
+  const bowlerName = match.currentBowler?.name || 'Bowler';
+
+  // Find striker instruction
+  const strikerInstruction = (battingTactics?.batting?.batterInstructions || []).find(b =>
+    b.playerName === strikerName || b.playerId === match.currentStriker?.playerId
+  ) || { strategy: battingTactics?.batting?.teamStrategy || 'Balanced', aggressionLevel: 55 };
+
+  // Find bowler assignment
+  const bowlerAssignment = (bowlingTactics?.bowling?.bowlerAssignments || []).find(b =>
+    b.playerName === bowlerName || b.playerId === match.currentBowler?.playerId
+  ) || { role: 'Middle-over specialists', deliveryTactic: 'Seam' };
+
+  // Field Placement analysis
+  const fieldPlacement = bowlingTactics?.fieldPlacement || { preset: 'Powerplay', positions: [] };
+  const positions = (fieldPlacement.positions || []).map(p => p.position);
+  const positionSet = new Set(positions);
+
+  const hasSlips = positionSet.has('Slip') || positionSet.has('Second Slip') || positionSet.has('Third Slip');
+  const hasDeepCover = positionSet.has('Deep Cover');
+  const hasLongOff = positionSet.has('Long-off');
+  const hasLongOn = positionSet.has('Long-on');
+  const hasDeepMidwicket = positionSet.has('Deep Midwicket');
+
+  const deepCount = positions.filter(pos => OFFICIAL_FIELD_POSITIONS[pos]?.isDeep).length;
+  const ringCount = 9 - deepCount;
+
+  const batStrategy = strikerInstruction.strategy || 'Balanced';
+  const deliveryTactic = bowlerAssignment.deliveryTactic || 'Seam';
+
+  // Base probabilities
+  let wDot = 25;
+  let wSingle = 30;
+  let wTwo = 12;
+  let wFour = 15;
+  let wSix = 8;
+  let wWicket = 10;
+
+  // 1. Batting Strategy Impact
+  if (batStrategy === 'Aggressive') {
+    wFour += 8;
+    wSix += 6;
+    wWicket += 5;
+    wDot -= 8;
+  } else if (batStrategy === 'Power Hitter') {
+    wSix += 12;
+    wFour += 6;
+    wWicket += 8;
+    wSingle -= 10;
+    wDot -= 6;
+  } else if (batStrategy === 'Defensive') {
+    wDot += 20;
+    wWicket -= 6;
+    wFour -= 10;
+    wSix -= 7;
+    wSingle -= 5;
+  } else if (batStrategy === 'Anchor') {
+    wSingle += 10;
+    wTwo += 6;
+    wWicket -= 4;
+    wDot -= 5;
+    wSix -= 4;
+  } else if (batStrategy === 'Rotating Strike') {
+    wSingle += 15;
+    wTwo += 8;
+    wDot -= 10;
+    wFour -= 5;
+    wSix -= 5;
+  }
+
+  // 2. Bowling Delivery Tactic Impact
+  if (deliveryTactic === 'Yorker') {
+    wDot += 12;
+    wWicket += 8;
+    wFour -= 8;
+    wSix -= 7;
+  } else if (deliveryTactic === 'Bouncer') {
+    wDot += 8;
+    wWicket += 6;
+    wSix += 4;
+  } else if (deliveryTactic === 'Swing') {
+    wWicket += 8;
+    wDot += 6;
+    wTwo -= 4;
+  } else if (deliveryTactic === 'Slower ball') {
+    wDot += 8;
+    wWicket += 7;
+    wSix -= 4;
+  } else if (deliveryTactic === 'Off-spin') {
+    wDot += 8;
+    wWicket += 6;
+    wTwo -= 3;
+  } else if (deliveryTactic === 'Leg-spin') {
+    wWicket += 7;
+    wDot += 6;
+  }
+
+  // 3. Field Placement Influence
+  if (ringCount >= 7) {
+    wSingle -= 8;
+    wDot += 8;
+  }
+  if (deepCount >= 4) {
+    wFour -= 6;
+    wSix -= 5;
+    wSingle += 4;
+    wTwo += 3;
+  } else if (deepCount <= 2) {
+    wFour += 8;
+    wSix += 4;
+  }
+
+  wDot = Math.max(5, wDot);
+  wSingle = Math.max(5, wSingle);
+  wTwo = Math.max(3, wTwo);
+  wFour = Math.max(3, wFour);
+  wSix = Math.max(1, wSix);
+  wWicket = Math.max(2, wWicket);
+
+  const totalWeight = wDot + wSingle + wTwo + wFour + wSix + wWicket;
+  const rand = Math.random() * totalWeight;
+
+  let chosenOutcome = null;
+
+  if (rand < wDot) {
+    let comm = '';
+    if (deliveryTactic === 'Yorker') {
+      comm = `${bowlerName}'s pinpoint Yorker thumps into the toe of the bat! Defensive block, no run.`;
+    } else if (deliveryTactic === 'Bouncer') {
+      comm = `Fierce Bouncer whistling past the helmet! ${strikerName} sways out of the way just in time.`;
+    } else if (deliveryTactic === 'Swing') {
+      comm = `Sensational late outswing! Beats the outside edge with Slips waiting eagerly!`;
+    } else if (ringCount >= 7) {
+      comm = `Punched into the off-side, but the packed 30-yard ring field at Point prevents the single.`;
+    } else {
+      comm = `Good length delivery on off stump, defended solidly into the covers. Dot ball.`;
+    }
+    chosenOutcome = { ball: '0', runs: 0, isWicket: false, badge: 'DOT', commentary: comm };
+  } else if (rand < wDot + wSingle) {
+    let comm = '';
+    if (batStrategy === 'Rotating Strike') {
+      comm = `Classic strike rotation! ${strikerName} drops it softly at Mid-on and scampers through for a sharp single.`;
+    } else if (positionSet.has('Midwicket')) {
+      comm = `Turned off the hips toward Midwicket for a comfortable single.`;
+    } else {
+      comm = `Pushed into the vacant gap on the off side, easily jogged through for one.`;
+    }
+    chosenOutcome = { ball: '1', runs: 1, isWicket: false, badge: 'SINGLE', commentary: comm };
+  } else if (rand < wDot + wSingle + wTwo) {
+    let comm = '';
+    if (!hasDeepCover && !hasDeepMidwicket) {
+      comm = `Found the big vacant gap between deep fielders! Hard running between wickets yields a comfortable brace!`;
+    } else {
+      comm = `Driven wide of Long-on, good fielding in the deep keeps it down to TWO.`;
+    }
+    chosenOutcome = { ball: '2', runs: 2, isWicket: false, badge: 'TWO', commentary: comm };
+  } else if (rand < wDot + wSingle + wTwo + wFour) {
+    let comm = '';
+    if (!hasSlips && (deliveryTactic === 'Swing' || deliveryTactic === 'Seam')) {
+      comm = `Thick outside edge! No slips in place and the ball races away past third man for FOUR!`;
+    } else if (!hasDeepCover && batStrategy === 'Aggressive') {
+      comm = `CRACK! Aggressive cover drive pierces the inner ring and whistles away to the vacant Deep Cover boundary!`;
+    } else if (deepCount <= 2) {
+      comm = `Powerplay exploited! Lofted cleanly over Mid-off's head, one bounce and over the rope for FOUR!`;
+    } else {
+      comm = `GLORIOUS SHOT! Timed to absolute perfection through the gap between Extra Cover and Mid-off for FOUR!`;
+    }
+    chosenOutcome = { ball: '4', runs: 4, isWicket: false, badge: 'FOUR', commentary: comm };
+  } else if (rand < wDot + wSingle + wTwo + wFour + wSix) {
+    let comm = '';
+    if (batStrategy === 'Power Hitter') {
+      comm = `STAND AND DELIVER! Power Hitter flexes his muscles, sending a colossal 105m blast into the top tier for SIX!`;
+    } else if (!hasLongOn) {
+      comm = `Smoked straight back down the ground! No Long-on to protect the rope and that sails high and handsome for SIX!`;
+    } else {
+      comm = `HIGH, HANDSOME AND GONE! Dispatched into the Kolkata night sky over deep square leg for a monstrous SIX!`;
+    }
+    chosenOutcome = { ball: '6', runs: 6, isWicket: false, badge: 'SIX', commentary: comm };
+  } else {
+    let comm = '';
+    if (hasSlips && (deliveryTactic === 'Swing' || deliveryTactic === 'Seam' || deliveryTactic === 'Leg-spin')) {
+      const slipPos = positionSet.has('Second Slip') ? 'Second Slip' : 'First Slip';
+      comm = `OUT! Edged and taken at ${slipPos}! Brilliant swing bowling combined with attacking slip cordon produces the breakthrough!`;
+    } else if ((hasDeepMidwicket || hasLongOn || hasLongOff) && (batStrategy === 'Aggressive' || batStrategy === 'Power Hitter' || deliveryTactic === 'Slower ball')) {
+      const deepPos = hasDeepMidwicket ? 'Deep Midwicket' : (hasLongOn ? 'Long-on' : 'Long-off');
+      comm = `CAUGHT! Batter went for the big heave against the ${deliveryTactic}, but ${deepPos} was placed right on the boundary cushion to swallow it!`;
+    } else if (deliveryTactic === 'Yorker') {
+      comm = `OUT! TIMBER! Blistering 145km/h Yorker crashes through the defense and uproots middle stump!`;
+    } else if (ringCount >= 7 && batStrategy === 'Rotating Strike') {
+      comm = `RUN OUT! Desperate call for a single against the packed ring field, Mid-off scores a direct hit at the bowler's end!`;
+    } else {
+      comm = `WICKET! Clean bowled! Fiery seam delivery nips back through the gate to end ${strikerName}'s innings!`;
+    }
+    chosenOutcome = { ball: 'W', runs: 0, isWicket: true, badge: 'WICKET', commentary: comm };
+  }
+
+  // Update match overs
+  const currentOvers = match.teamA.overs;
+  const wholeOvers = Math.floor(currentOvers);
+  const ballsInOver = Math.round((currentOvers - wholeOvers) * 10);
+
+  let newOvers;
+  if (ballsInOver >= 5) {
+    newOvers = wholeOvers + 1.0;
+  } else {
+    newOvers = Number((wholeOvers + (ballsInOver + 1) * 0.1).toFixed(1));
+  }
+
+  match.teamA.overs = newOvers;
+  match.teamA.score += chosenOutcome.runs;
+  if (chosenOutcome.isWicket) {
+    match.teamA.wickets = Math.min(10, match.teamA.wickets + 1);
+  }
+
+  if (match.currentStriker) {
+    match.currentStriker.runs += chosenOutcome.runs;
+    match.currentStriker.balls += 1;
+    if (chosenOutcome.badge === 'FOUR') match.currentStriker.fours += 1;
+    if (chosenOutcome.badge === 'SIX') match.currentStriker.sixes += 1;
+  }
+
+  if (match.currentBowler) {
+    match.currentBowler.runs += chosenOutcome.runs;
+    if (chosenOutcome.isWicket) match.currentBowler.wickets += 1;
+  }
+
+  match.recentBalls = match.recentBalls || [];
+  match.recentBalls.unshift(chosenOutcome.ball);
+  if (match.recentBalls.length > 8) match.recentBalls.pop();
+
+  match.commentary = match.commentary || [];
+  match.commentary.unshift({
+    id: `comm_${Date.now()}`,
+    over: newOvers.toFixed(1),
+    text: `${strikerName} vs ${bowlerName}: ${chosenOutcome.commentary}`,
+    badge: chosenOutcome.badge,
+    timestamp: new Date()
+  });
+  if (match.commentary.length > 25) match.commentary.pop();
+
+  // Check victory / conclusion
+  if (match.teamA.score > match.teamB.score) {
+    match.status = 'completed';
+    match.result = `${match.teamA.name} won by ${10 - match.teamA.wickets} wickets!`;
+  } else if (match.teamA.wickets >= 10 || newOvers >= match.teamA.maxOvers) {
+    match.status = 'completed';
+    if (match.teamA.score === match.teamB.score) {
+      match.result = 'Match Tied! Heading to Super Over!';
+    } else {
+      match.result = `${match.teamB.name} won by ${match.teamB.score - match.teamA.score} runs!`;
+    }
+  }
+
+  const updatedMatch = await updateMatch(match.matchId, match);
+  return {
+    success: true,
+    outcome: chosenOutcome,
+    match: updatedMatch
+  };
+};
+
 // Tournament operations
 const getTournaments = async () => {
   if (isMongoConnected()) {
@@ -2349,6 +3120,22 @@ module.exports = {
   getFranchiseTeamsByRoom,
   updateTeamSelection,
   swapTeamPlayers,
-  updateRoomSquadLimits
+  updateRoomSquadLimits,
+  // Phase 6: Tactical Management
+  OFFICIAL_FIELD_POSITIONS,
+  BATTING_STRATEGIES,
+  BOWLER_ROLES,
+  DELIVERY_TACTICS,
+  FIELD_PRESETS,
+  getFormatMaxBowlerOvers,
+  getFieldPresetPositions,
+  validateFieldPlacement,
+  validateBowlerOvers,
+  getDefaultTeamTactics,
+  getTeamTactics,
+  updateTeamTactics,
+  getMatchTactics,
+  updateMatchTactics,
+  simulateTacticalBall
 };
 

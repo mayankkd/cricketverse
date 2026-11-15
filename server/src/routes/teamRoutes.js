@@ -6,7 +6,9 @@ const {
   getTeamById,
   updateTeam,
   swapPlayer,
-  configureSquadLimits
+  configureSquadLimits,
+  getTeamTactics,
+  updateTeamTactics
 } = require('../controllers/teamController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -23,5 +25,9 @@ router.put('/room/:roomCode/squad-limits', protect, configureSquadLimits);
 router.get('/:id', getTeamById);
 router.put('/:id', protect, updateTeam);
 router.post('/:id/swap', protect, swapPlayer);
+
+// Team Tactics routes
+router.get('/:id/tactics', getTeamTactics);
+router.put('/:id/tactics', protect, updateTeamTactics);
 
 module.exports = router;

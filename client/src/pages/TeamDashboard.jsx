@@ -31,6 +31,7 @@ import { PlayerComparisonModal } from '../components/team/PlayerComparisonModal'
 import { SquadAnalyticsModal } from '../components/team/SquadAnalyticsModal';
 import { EditTeamIdentityModal } from '../components/team/EditTeamIdentityModal';
 import { ConfigureSquadLimitsModal } from '../components/team/ConfigureSquadLimitsModal';
+import { TacticalManagementModal } from '../components/tactics/TacticalManagementModal';
 import { sound } from '../services/sound';
 
 export const TeamDashboard = () => {
@@ -61,6 +62,7 @@ export const TeamDashboard = () => {
   const [analyticsModalOpen, setAnalyticsModalOpen] = useState(false);
   const [identityModalOpen, setIdentityModalOpen] = useState(false);
   const [limitsModalOpen, setLimitsModalOpen] = useState(false);
+  const [tacticsModalOpen, setTacticsModalOpen] = useState(false);
 
   // Swap bench target
   const [swapTargetPlayerId, setSwapTargetPlayerId] = useState(null);
@@ -376,6 +378,13 @@ export const TeamDashboard = () => {
             className="bg-stadium-950 hover:bg-stadium-850 border border-white/10 text-slate-300 hover:text-white font-mono text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors"
           >
             <ArrowRightLeft className="w-4 h-4 text-cyan-400" /> COMPARE PLAYERS
+          </button>
+
+          <button
+            onClick={() => setTacticsModalOpen(true)}
+            className="bg-stadium-950 hover:bg-stadium-850 border border-gold-500/40 text-gold-400 hover:text-white font-mono text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors shadow-gold-glow"
+          >
+            <Shield className="w-4 h-4 text-gold-400" /> TACTICAL SETUP
           </button>
 
           {!isReadOnly && (
@@ -796,6 +805,23 @@ export const TeamDashboard = () => {
         onClose={() => setLimitsModalOpen(false)}
         currentLimits={team?.squadLimits || roomData?.squadLimits}
         onSave={handleSaveSquadLimits}
+      />
+
+      {/* Tactical Management Center Modal */}
+      <TacticalManagementModal
+        isOpen={tacticsModalOpen}
+        onClose={() => setTacticsModalOpen(false)}
+        teamId={team?._id}
+        playingXI={populatedXI}
+        format={team?.format || 'T20'}
+        initialTactics={team?.tactics}
+        isReadOnly={isReadOnly}
+        onSaveSuccess={(newTactics) => {
+          setTeam(prev => ({
+            ...prev,
+            tactics: newTactics
+          }));
+        }}
       />
     </div>
   );

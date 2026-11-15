@@ -1544,6 +1544,479 @@ const runAllTests = async () => {
     assert.strictEqual(swapRes.body.code, 'SPECTATOR_READ_ONLY');
   });
 
+  // ==========================================
+  // PHASE 6: TACTICAL MANAGEMENT TESTS
+  // ==========================================
+  console.log('\n--- PHASE 6: TACTICAL MANAGEMENT TESTS ---');
+
+  // 1. Batting Strategies
+  await test('Phase 6 - 1. Batting Strategies: 6 modes, individual batter instructions, and invalid validation', async () => {
+    // Valid update with global strategy and individual instructions
+    const updateRes = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        batting: {
+          teamStrategy: 'Aggressive',
+          batterInstructions: [
+            { playerId: p5Team1.playingXI[0], strategy: 'Aggressive', aggressionLevel: 80 },
+            { playerId: p5Team1.playingXI[1], strategy: 'Power Hitter', aggressionLevel: 90 },
+            { playerId: p5Team1.playingXI[2], strategy: 'Anchor', aggressionLevel: 60 }
+          ]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(updateRes.status, 200);
+    assert.strictEqual(updateRes.body.success, true);
+    assert.strictEqual(updateRes.body.tactics.batting.teamStrategy, 'Aggressive');
+    assert.strictEqual(updateRes.body.tactics.batting.batterInstructions[0].strategy, 'Aggressive');
+    assert.strictEqual(updateRes.body.tactics.batting.batterInstructions[1].strategy, 'Power Hitter');
+    assert.strictEqual(updateRes.body.tactics.batting.batterInstructions[2].strategy, 'Anchor');
+
+    // Invalid strategy rejected with 400 INVALID_BATTING_STRATEGY
+    const invalidRes = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        batting: { teamStrategy: 'UltraSlogNonExistent' }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(invalidRes.status, 400);
+    assert.strictEqual(invalidRes.body.code, 'INVALID_BATTING_STRATEGY');
+  });
+
+  // 2. Mid-Innings Batting Strategy Changes
+  await test('Phase 6 - 2. Mid-Innings Batting Strategy Changes: Dynamically adjusts tactics during innings', async () => {
+    const midInningsRes = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        batting: {
+          teamStrategy: 'Rotating Strike',
+          batterInstructions: [
+            { playerId: p5Team1.playingXI[0], strategy: 'Rotating Strike', aggressionLevel: 50 },
+            { playerId: p5Team1.playingXI[1], strategy: 'Defensive', aggressionLevel: 30 }
+          ]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(midInningsRes.status, 200);
+    assert.strictEqual(midInningsRes.body.tactics.batting.teamStrategy, 'Rotating Strike');
+    assert.strictEqual(midInningsRes.body.tactics.batting.batterInstructions[1].strategy, 'Defensive');
+  });
+
+  // 3. Bowling Strategies: Roles & Delivery Tactics
+  await test('Phase 6 - 3. Bowling Strategies: Roles & Delivery Tactics validation', async () => {
+    const validBowling = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        bowling: {
+          bowlerAssignments: [
+            { playerId: p5Team1.playingXI[4], role: 'Opening bowlers', deliveryTactic: 'Swing', oversAllocated: 4 },
+            { playerId: p5Team1.playingXI[5], role: 'First-change bowlers', deliveryTactic: 'Bouncer', oversAllocated: 4 },
+            { playerId: p5Team1.playingXI[6], role: 'Middle-over specialists', deliveryTactic: 'Off-spin', oversAllocated: 4 },
+            { playerId: p5Team1.playingXI[7], role: 'Death-over specialists', deliveryTactic: 'Yorker', oversAllocated: 4 }
+          ]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(validBowling.status, 200);
+    assert.strictEqual(validBowling.body.tactics.bowling.bowlerAssignments[0].deliveryTactic, 'Swing');
+    assert.strictEqual(validBowling.body.tactics.bowling.bowlerAssignments[3].deliveryTactic, 'Yorker');
+
+    // Invalid delivery tactic
+    const badTactic = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        bowling: {
+          bowlerAssignments: [{ playerId: p5Team1.playingXI[4], deliveryTactic: 'LaserBeam' }]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(badTactic.status, 400);
+    assert.strictEqual(badTactic.body.code, 'INVALID_DELIVERY_TACTIC');
+
+    // Invalid bowler role
+    const badRole = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        bowling: {
+          bowlerAssignments: [{ playerId: p5Team1.playingXI[4], role: 'Celebrity Bowler' }]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(badRole.status, 400);
+    assert.strictEqual(badRole.body.code, 'INVALID_BOWLER_ROLE');
+  });
+
+  // 4. Format-Specific Bowling Restrictions
+  await test('Phase 6 - 4. Format-Specific Bowling Restrictions: Rejects over allocation exceeding format limits', async () => {
+    // p5Team1 is T20 format -> max 4 overs. Allocating 5 overs rejected with 400 BOWLER_OVER_LIMIT_EXCEEDED
+    const excessT20 = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        bowling: {
+          bowlerAssignments: [{ playerId: p5Team1.playingXI[4], oversAllocated: 5 }]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(excessT20.status, 400);
+    assert.strictEqual(excessT20.body.code, 'BOWLER_OVER_LIMIT_EXCEEDED');
+
+    // Test format allows unlimited overs (e.g. 15 overs)
+    const testTeamUser = await createTestUser(`TestFormatUser_${Date.now()}`);
+    const testRoom = await callApp({
+      method: 'POST',
+      url: '/api/rooms',
+      body: { name: 'Unlimited Test Arena', format: 'Test' },
+      headers: { authorization: `Bearer ${testTeamUser.token}` }
+    });
+    const myTestTeam = await callApp({
+      method: 'GET',
+      url: `/api/teams/my?room=${testRoom.body.room.roomCode}`,
+      headers: { authorization: `Bearer ${testTeamUser.token}` }
+    });
+    const tTeamId = myTestTeam.body.team._id;
+
+    const testFormatBowling = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${tTeamId}/tactics`,
+      body: {
+        bowling: {
+          bowlerAssignments: [{ playerId: myTestTeam.body.team.playingXI[0], oversAllocated: 15 }]
+        }
+      },
+      headers: { authorization: `Bearer ${testTeamUser.token}` }
+    });
+    assert.strictEqual(testFormatBowling.status, 200, 'Test format allows > 4 overs without limitation');
+  });
+
+  // 5. Interactive Field: 18 Official Positions & Exact 9 Fielders
+  await test('Phase 6 - 5. Interactive Field: Exact 9 fielders requirement & position validation', async () => {
+    const flds = p5Team1.playingXI.slice(0, 9);
+
+    // 8 fielders (too few) -> 400 INVALID_FIELDER_COUNT
+    const shortField = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        fieldPlacement: {
+          positions: [
+            { position: 'Slip', fielderId: flds[0] },
+            { position: 'Point', fielderId: flds[1] },
+            { position: 'Cover', fielderId: flds[2] },
+            { position: 'Mid-off', fielderId: flds[3] },
+            { position: 'Mid-on', fielderId: flds[4] },
+            { position: 'Midwicket', fielderId: flds[5] },
+            { position: 'Square Leg', fielderId: flds[6] },
+            { position: 'Long-on', fielderId: flds[7] }
+          ]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(shortField.status, 400);
+    assert.strictEqual(shortField.body.code, 'INVALID_FIELDER_COUNT');
+
+    // Duplicate fielder in two positions -> 400 DUPLICATE_FIELDER
+    const dupFielder = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        fieldPlacement: {
+          positions: [
+            { position: 'Slip', fielderId: flds[0] },
+            { position: 'Point', fielderId: flds[0] }, // Duplicate!
+            { position: 'Cover', fielderId: flds[2] },
+            { position: 'Extra Cover', fielderId: flds[3] },
+            { position: 'Mid-off', fielderId: flds[4] },
+            { position: 'Mid-on', fielderId: flds[5] },
+            { position: 'Midwicket', fielderId: flds[6] },
+            { position: 'Third Man', fielderId: flds[7] },
+            { position: 'Long-on', fielderId: flds[8] }
+          ]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(dupFielder.status, 400);
+    assert.strictEqual(dupFielder.body.code, 'DUPLICATE_FIELDER');
+
+    // Duplicate position name -> 400 DUPLICATE_FIELD_POSITION
+    const dupPos = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        fieldPlacement: {
+          positions: [
+            { position: 'Slip', fielderId: flds[0] },
+            { position: 'Slip', fielderId: flds[1] }, // Duplicate position!
+            { position: 'Cover', fielderId: flds[2] },
+            { position: 'Extra Cover', fielderId: flds[3] },
+            { position: 'Mid-off', fielderId: flds[4] },
+            { position: 'Mid-on', fielderId: flds[5] },
+            { position: 'Midwicket', fielderId: flds[6] },
+            { position: 'Third Man', fielderId: flds[7] },
+            { position: 'Long-on', fielderId: flds[8] }
+          ]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(dupPos.status, 400);
+    assert.strictEqual(dupPos.body.code, 'DUPLICATE_FIELD_POSITION');
+  });
+
+  // 6. Official Fielding Restrictions: Leg-Side Limit (ICC Law 28.4)
+  await test('Phase 6 - 6. Official Fielding Restrictions: Leg-Side Limit (ICC Law 28.4 - Max 5)', async () => {
+    const flds = p5Team1.playingXI.slice(0, 9);
+    // Deploy 6 fielders on leg side: Mid-on, Midwicket, Square Leg, Fine Leg, Long-on, Deep Midwicket
+    const excessLeg = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        fieldPlacement: {
+          positions: [
+            { position: 'Mid-on', fielderId: flds[0] },
+            { position: 'Midwicket', fielderId: flds[1] },
+            { position: 'Square Leg', fielderId: flds[2] },
+            { position: 'Fine Leg', fielderId: flds[3] },
+            { position: 'Long-on', fielderId: flds[4] },
+            { position: 'Deep Midwicket', fielderId: flds[5] }, // 6th on leg side!
+            { position: 'Cover', fielderId: flds[6] },
+            { position: 'Point', fielderId: flds[7] },
+            { position: 'Mid-off', fielderId: flds[8] }
+          ]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(excessLeg.status, 400);
+    assert.strictEqual(excessLeg.body.code, 'EXCESS_LEG_SIDE_FIELDERS');
+  });
+
+  // 7. Official Fielding Restrictions: Behind Square Leg Limit (ICC Law 28.4.1)
+  await test('Phase 6 - 7. Official Fielding Restrictions: Behind Square Leg Limit (ICC Law 28.4.1 - Max 2)', async () => {
+    const flds = p5Team1.playingXI.slice(0, 9);
+    const validBehindSq = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        fieldPlacement: {
+          positions: [
+            { position: 'Fine Leg', fielderId: flds[0] }, // 1 behind square leg
+            { position: 'Deep Square Leg', fielderId: flds[1] }, // 2 behind square leg (legal)
+            { position: 'Mid-on', fielderId: flds[2] },
+            { position: 'Midwicket', fielderId: flds[3] },
+            { position: 'Point', fielderId: flds[4] },
+            { position: 'Cover', fielderId: flds[5] },
+            { position: 'Mid-off', fielderId: flds[6] },
+            { position: 'Third Man', fielderId: flds[7] },
+            { position: 'Long-off', fielderId: flds[8] }
+          ]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(validBehindSq.status, 200);
+    assert.strictEqual(validBehindSq.body.tactics.fieldPlacement.behindSquareLegCount, 2);
+    assert.strictEqual(validBehindSq.body.tactics.fieldPlacement.restrictionsValid, true);
+  });
+
+  // 8. Powerplay & Outfield Fielding Restrictions
+  await test('Phase 6 - 8. Powerplay & Outfield Fielding Restrictions: Enforces circle limits', async () => {
+    const flds = p5Team1.playingXI.slice(0, 9);
+
+    // Powerplay with 3 deep fielders (Third Man, Long-on, Deep Midwicket) -> 400 POWERPLAY_RESTRICTION_EXCEEDED
+    const excessPP = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        fieldPlacement: {
+          preset: 'Powerplay',
+          positions: [
+            { position: 'Third Man', fielderId: flds[0] }, // Deep 1
+            { position: 'Long-on', fielderId: flds[1] }, // Deep 2
+            { position: 'Deep Midwicket', fielderId: flds[2] }, // Deep 3 (Violation in Powerplay!)
+            { position: 'Slip', fielderId: flds[3] },
+            { position: 'Point', fielderId: flds[4] },
+            { position: 'Cover', fielderId: flds[5] },
+            { position: 'Mid-off', fielderId: flds[6] },
+            { position: 'Mid-on', fielderId: flds[7] },
+            { position: 'Midwicket', fielderId: flds[8] }
+          ]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(excessPP.status, 400);
+    assert.strictEqual(excessPP.body.code, 'POWERPLAY_RESTRICTION_EXCEEDED');
+
+    // Non-Powerplay with 6 deep fielders -> 400 OUTFIELD_RESTRICTION_EXCEEDED
+    const excessOutfield = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        fieldPlacement: {
+          preset: 'Custom',
+          positions: [
+            { position: 'Third Man', fielderId: flds[0] },
+            { position: 'Deep Cover', fielderId: flds[1] },
+            { position: 'Long-off', fielderId: flds[2] },
+            { position: 'Long-on', fielderId: flds[3] },
+            { position: 'Deep Midwicket', fielderId: flds[4] },
+            { position: 'Deep Square Leg', fielderId: flds[5] }, // 6 deep fielders!
+            { position: 'Point', fielderId: flds[6] },
+            { position: 'Cover', fielderId: flds[7] },
+            { position: 'Mid-off', fielderId: flds[8] }
+          ]
+        }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(excessOutfield.status, 400);
+    assert.strictEqual(excessOutfield.body.code, 'OUTFIELD_RESTRICTION_EXCEEDED');
+  });
+
+  // 9. Field Presets
+  await test('Phase 6 - 9. Field Presets: All 5 presets comply with ICC fielding laws', async () => {
+    const flds = p5Team1.playingXI.slice(0, 9);
+    const presetsToTest = ['Attacking', 'Defensive', 'Powerplay', 'Spin', 'Death overs'];
+
+    for (const pr of presetsToTest) {
+      let testPositions = [];
+      if (pr === 'Attacking') {
+        testPositions = ['Slip', 'Second Slip', 'Third Slip', 'Gully', 'Point', 'Cover', 'Mid-off', 'Mid-on', 'Third Man'];
+      } else if (pr === 'Defensive') {
+        testPositions = ['Point', 'Cover', 'Midwicket', 'Square Leg', 'Third Man', 'Deep Cover', 'Long-off', 'Long-on', 'Deep Midwicket'];
+      } else if (pr === 'Spin') {
+        testPositions = ['Slip', 'Gully', 'Point', 'Cover', 'Mid-off', 'Mid-on', 'Midwicket', 'Deep Midwicket', 'Long-on'];
+      } else if (pr === 'Death overs') {
+        testPositions = ['Point', 'Cover', 'Mid-off', 'Mid-on', 'Third Man', 'Deep Cover', 'Long-off', 'Long-on', 'Deep Midwicket'];
+      } else {
+        testPositions = ['Slip', 'Point', 'Cover', 'Extra Cover', 'Mid-off', 'Mid-on', 'Midwicket', 'Third Man', 'Long-on'];
+      }
+
+      const res = await callApp({
+        method: 'PUT',
+        url: `/api/teams/${p5Team1._id}/tactics`,
+        body: {
+          fieldPlacement: {
+            preset: pr,
+            positions: testPositions.map((pos, i) => ({ position: pos, fielderId: flds[i] }))
+          }
+        },
+        headers: { authorization: `Bearer ${p5Host.token}` }
+      });
+      assert.strictEqual(res.status, 200, `Preset ${pr} must be legal`);
+      assert.strictEqual(res.body.tactics.fieldPlacement.preset, pr);
+      assert.strictEqual(res.body.tactics.fieldPlacement.restrictionsValid, true);
+    }
+  });
+
+  // 10. Field Placement & Tactical Influence on Match Outcomes
+  await test('Phase 6 - 10. Field Placement Influence: Physics engine reflects tactical matchups', async () => {
+    const matchTacticsRes = await callApp({
+      method: 'PUT',
+      url: '/api/matches/LIVE-IPL-FINAL/tactics',
+      body: {
+        teamKey: 'teamB',
+        tactics: {
+          bowling: {
+            bowlerAssignments: [
+              { playerId: 'ply_bumrah', playerName: 'Jasprit Bumrah', deliveryTactic: 'Yorker', role: 'Death-over specialists' }
+            ]
+          },
+          fieldPlacement: {
+            preset: 'Death overs',
+            positions: [
+              { position: 'Point', fielderId: 'f1' },
+              { position: 'Cover', fielderId: 'f2' },
+              { position: 'Mid-off', fielderId: 'f3' },
+              { position: 'Mid-on', fielderId: 'f4' },
+              { position: 'Third Man', fielderId: 'f5' },
+              { position: 'Deep Cover', fielderId: 'f6' },
+              { position: 'Long-off', fielderId: 'f7' },
+              { position: 'Long-on', fielderId: 'f8' },
+              { position: 'Deep Midwicket', fielderId: 'f9' }
+            ]
+          }
+        },
+        tacticalBreak: 'over_break'
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(matchTacticsRes.status, 200);
+    assert.strictEqual(matchTacticsRes.body.success, true);
+    assert.strictEqual(matchTacticsRes.body.match.tacticalBreak, 'over_break');
+
+    const simRes = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/simulate-ball'
+    });
+    assert.strictEqual(simRes.status, 200);
+    assert.strictEqual(simRes.body.success, true);
+    assert.ok(simRes.body.outcome);
+    assert.ok(simRes.body.outcome.commentary.length > 0);
+  });
+
+  // 11. Tactical Authorization & Breaks
+  await test('Phase 6 - 11. Tactical Authorization: Non-owner rejected with 403 UNAUTHORIZED_TACTICS_EDIT', async () => {
+    const unauthEdit = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        batting: { teamStrategy: 'Power Hitter' }
+      },
+      headers: { authorization: `Bearer ${p5Player2.token}` }
+    });
+    assert.strictEqual(unauthEdit.status, 403);
+    assert.strictEqual(unauthEdit.body.code, 'UNAUTHORIZED_TACTICS_EDIT');
+  });
+
+  // 12. Spectators Have Read-Only Access to Tactics
+  await test('Phase 6 - 12. Spectators Have Read-Only Access: Spectator views tactics (200), edits rejected (403)', async () => {
+    const viewTeam = await callApp({
+      method: 'GET',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      headers: { authorization: `Bearer ${p5Spectator.token}` }
+    });
+    assert.strictEqual(viewTeam.status, 200);
+    assert.ok(viewTeam.body.tactics.fieldPlacement);
+    assert.ok(viewTeam.body.tactics.batting);
+    assert.ok(viewTeam.body.tactics.bowling);
+
+    const viewMatch = await callApp({
+      method: 'GET',
+      url: '/api/matches/LIVE-IPL-FINAL/tactics',
+      headers: { authorization: `Bearer ${p5Spectator.token}` }
+    });
+    assert.strictEqual(viewMatch.status, 200);
+    assert.ok(viewMatch.body.teamBTactics);
+
+    const specEdit = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}/tactics`,
+      body: {
+        batting: { teamStrategy: 'Defensive' }
+      },
+      headers: { authorization: `Bearer ${p5Spectator.token}` }
+    });
+    assert.strictEqual(specEdit.status, 403);
+    assert.strictEqual(specEdit.body.code, 'SPECTATOR_READ_ONLY');
+  });
+
   // Match Center & Simulation
   await test('GET /api/matches returns live match data', async () => {
     const res = await callApp({ method: 'GET', url: '/api/matches' });

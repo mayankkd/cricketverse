@@ -89,6 +89,19 @@ const matchSchema = new mongoose.Schema({
   result: {
     type: String,
     default: ''
+  },
+  tacticalBreak: {
+    type: String,
+    enum: ['pre_match', 'over_break', 'innings_break', 'tactical_break', 'live'],
+    default: 'live'
+  },
+  teamATactics: {
+    type: mongoose.Schema.Types.Mixed,
+    default: () => ({})
+  },
+  teamBTactics: {
+    type: mongoose.Schema.Types.Mixed,
+    default: () => ({})
   }
 }, {
   timestamps: true

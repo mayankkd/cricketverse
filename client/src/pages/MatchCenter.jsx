@@ -11,7 +11,9 @@ import {
   Sparkles,
   Zap,
   TrendingUp,
-  Award
+  Award,
+  Sliders,
+  Target
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -25,11 +27,13 @@ import {
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
 import { sound } from '../services/sound';
+import { TacticalManagementModal } from '../components/tactics/TacticalManagementModal';
 
 export const MatchCenter = () => {
   const [match, setMatch] = useState(null);
   const [autoPlay, setAutoPlay] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isTacticsOpen, setIsTacticsOpen] = useState(false);
 
   useEffect(() => {
     const fetchMatch = async () => {
@@ -115,6 +119,16 @@ export const MatchCenter = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                sound.playClick();
+                setIsTacticsOpen(true);
+              }}
+              className="px-4 py-2 rounded-xl text-xs font-display uppercase font-bold flex items-center gap-1.5 bg-stadium-900 border border-gold-500/40 text-gold-400 hover:bg-gold-500 hover:text-slate-950 transition-all shadow-gold-glow"
+            >
+              <Sliders className="w-3.5 h-3.5" /> TACTICAL SETUP
+            </button>
+
             <button
               onClick={() => {
                 sound.playClick();
@@ -211,6 +225,34 @@ export const MatchCenter = () => {
               </span>
             ))}
           </div>
+        </div>
+
+        {/* Live Broadcast Tactical Telemetry HUD */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-stadium-800 text-[11px] font-mono text-slate-400">
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-purple-400" />
+              <span>Field: <strong className="text-white uppercase">{match.teamBTactics?.fieldPlacement?.preset || 'Powerplay'}</strong> (9 Fielders)</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Flame className="w-3.5 h-3.5 text-gold-400" />
+              <span>Striker Tempo: <strong className="text-gold-400 uppercase">Anchor</strong></span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5 text-pitch-400" />
+              <span>Delivery Tactic: <strong className="text-pitch-400 uppercase">Yorker</strong></span>
+            </span>
+          </div>
+
+          <button
+            onClick={() => {
+              sound.playClick();
+              setIsTacticsOpen(true);
+            }}
+            className="text-[10px] uppercase font-bold text-gold-400 hover:text-gold-300 underline underline-offset-4 flex items-center gap-1"
+          >
+            Adjust Field & Strategies →
+          </button>
         </div>
       </div>
 
@@ -388,7 +430,52 @@ export const MatchCenter = () => {
             ))}
           </div>
         </div>
+
+        {/* Live Broadcast Tactical Telemetry HUD */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-stadium-800 text-[11px] font-mono text-slate-400">
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-purple-400" />
+              <span>Field: <strong className="text-white uppercase">{match.teamBTactics?.fieldPlacement?.preset || 'Powerplay'}</strong> (9 Fielders)</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Flame className="w-3.5 h-3.5 text-gold-400" />
+              <span>Striker Tempo: <strong className="text-gold-400 uppercase">Anchor</strong></span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5 text-pitch-400" />
+              <span>Delivery Tactic: <strong className="text-pitch-400 uppercase">Yorker</strong></span>
+            </span>
+          </div>
+
+          <button
+            onClick={() => {
+              sound.playClick();
+              setIsTacticsOpen(true);
+            }}
+            className="text-[10px] uppercase font-bold text-gold-400 hover:text-gold-300 underline underline-offset-4 flex items-center gap-1"
+          >
+            Adjust Field & Strategies →
+          </button>
+        </div>
       </div>
+
+      {/* Tactical Management Center Modal */}
+      <TacticalManagementModal
+        isOpen={isTacticsOpen}
+        onClose={() => setIsTacticsOpen(false)}
+        matchId="LIVE-IPL-FINAL"
+        teamKey="teamB"
+        format={match.format || 'T20'}
+        initialTactics={match.teamBTactics}
+        tacticalBreak={match.tacticalBreak || 'live'}
+        onSaveSuccess={(newTactics) => {
+          setMatch(prev => ({
+            ...prev,
+            teamBTactics: newTactics
+          }));
+        }}
+      />
     </div>
   );
 };

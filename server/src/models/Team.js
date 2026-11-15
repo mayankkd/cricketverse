@@ -109,6 +109,66 @@ const teamSchema = new mongoose.Schema({
   remainingPurse: {
     type: Number,
     default: 30
+  },
+  tactics: {
+    batting: {
+      teamStrategy: {
+        type: String,
+        enum: ['Aggressive', 'Balanced', 'Defensive', 'Anchor', 'Power Hitter', 'Rotating Strike'],
+        default: 'Balanced'
+      },
+      batterInstructions: [{
+        playerId: { type: String, required: true },
+        playerName: { type: String },
+        battingPosition: { type: Number },
+        strategy: {
+          type: String,
+          enum: ['Aggressive', 'Balanced', 'Defensive', 'Anchor', 'Power Hitter', 'Rotating Strike'],
+          default: 'Balanced'
+        },
+        aggressionLevel: { type: Number, default: 50 },
+        intent: { type: String, default: 'Standard' }
+      }]
+    },
+    bowling: {
+      bowlerAssignments: [{
+        playerId: { type: String, required: true },
+        playerName: { type: String },
+        role: {
+          type: String,
+          enum: ['Opening bowlers', 'First-change bowlers', 'Middle-over specialists', 'Death-over specialists'],
+          default: 'Middle-over specialists'
+        },
+        deliveryTactic: {
+          type: String,
+          enum: ['Yorker', 'Bouncer', 'Swing', 'Seam', 'Slower ball', 'Off-spin', 'Leg-spin'],
+          default: 'Seam'
+        },
+        oversAllocated: { type: Number, default: 4 },
+        oversBowled: { type: Number, default: 0 }
+      }],
+      plannedPhases: {
+        powerplayBowlers: [{ type: String }],
+        middleOversBowlers: [{ type: String }],
+        deathOversBowlers: [{ type: String }]
+      }
+    },
+    fieldPlacement: {
+      preset: {
+        type: String,
+        enum: ['Attacking', 'Defensive', 'Powerplay', 'Spin', 'Death overs', 'Custom'],
+        default: 'Powerplay'
+      },
+      positions: [{
+        position: { type: String, required: true },
+        fielderId: { type: String, required: true },
+        fielderName: { type: String }
+      }],
+      deepFieldersCount: { type: Number, default: 2 },
+      legSideFieldersCount: { type: Number, default: 3 },
+      behindSquareLegCount: { type: Number, default: 0 },
+      restrictionsValid: { type: Boolean, default: true }
+    }
   }
 }, {
   timestamps: true

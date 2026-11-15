@@ -141,3 +141,4 @@ const runStadiumAndSimplificationTests = async ({ callApp, test }) => {
 };
 
 module.exports = { runStadiumAndSimplificationTests };
+

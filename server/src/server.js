@@ -4,6 +4,8 @@ const express = require('express');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const morgan = require('morgan');
+const path = require('path');
+const fs = require('fs');
 
 const { connectDB, getDBStatus } = require('./config/db');
 const { seedMongoIfEmpty } = require('./services/storeService');
@@ -77,6 +79,18 @@ app.use('/api/matches', matchRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/stadiums', stadiumRoutes);
 app.use('/api/advanced', advancedSystemsRoutes);
+
+// Serve static client production build if available
+const clientDistPath = path.join(__dirname, '../../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
 
 // Error handling
 app.use(notFound);

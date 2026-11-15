@@ -142,3 +142,4 @@ export const HowToPlayModal = ({ isOpen, onClose }) => {
     </AnimatePresence>
   );
 };
+

@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Clock,
   Crown,
+  Trophy,
   Settings,
   Slash,
   AlertCircle,
@@ -33,6 +34,7 @@ import { InviteFriendsModal } from '../components/room/InviteFriendsModal';
 import { JoinRoleModal } from '../components/room/JoinRoleModal';
 import { StadiumSelectorModal } from '../components/room/StadiumSelectorModal';
 import { StadiumCard } from '../components/room/StadiumCard';
+import { getShareableInviteUrl } from '../utils/inviteUrl';
 
 export const RoomLobby = () => {
   const { roomCode } = useParams();
@@ -48,6 +50,7 @@ export const RoomLobby = () => {
   const [showRoleSelectModal, setShowRoleSelectModal] = useState(false);
   const [showStadiumModal, setShowStadiumModal] = useState(false);
   const [currentStadium, setCurrentStadium] = useState(null);
+  const [copiedInvite, setCopiedInvite] = useState(false);
 
   // Host settings state
   const [allowSpectators, setAllowSpectators] = useState(true);
@@ -190,6 +193,27 @@ export const RoomLobby = () => {
   const isPlayer = currentParticipant?.role === 'player';
   const canStartGame = activePlayers.length >= 2;
   const availableSlots = Math.max(0, 6 - activePlayers.length);
+
+  const inviteUrl = getShareableInviteUrl(room?.invitation?.token, roomCode);
+
+  const handleCopyDirectInvite = async () => {
+    sound.playClick();
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopiedInvite(true);
+      addToast({
+        type: 'success',
+        title: 'INVITE LINK COPIED',
+        message: 'Shareable invitation link copied to clipboard.'
+      });
+      setTimeout(() => setCopiedInvite(false), 2500);
+    } catch {
+      addToast({
+        type: 'error',
+        message: 'Failed to copy to clipboard.'
+      });
+    }
+  };
 
   const handleToggleReady = async () => {
     sound.playClick();
@@ -362,6 +386,27 @@ export const RoomLobby = () => {
           <p className="text-xs font-mono text-slate-400 mt-1">
             Host: <strong className="text-gold-400">{room.hostUsername}</strong> • Format: <strong className="text-white">{room.format}</strong> • Purse: <strong className="text-gold-300">{room.budgetPerTeam || (room.format === 'Test' ? 50 : room.format === 'ODI' ? 40 : 30)} Points</strong> per team
           </p>
+
+          {/* Shareable Invitation Link Bar with Quick Copy */}
+          <div className="mt-3 flex items-center gap-2 max-w-lg bg-stadium-950/90 border border-gold-500/30 rounded-2xl p-1.5 px-3 shadow-inner">
+            <span className="text-[10px] font-mono text-gold-400 uppercase font-bold shrink-0 flex items-center gap-1">
+              <Share2 className="w-3 h-3" /> INVITE LINK:
+            </span>
+            <input
+              type="text"
+              readOnly
+              value={inviteUrl}
+              className="bg-transparent text-xs font-mono text-slate-300 flex-1 outline-none select-all truncate"
+            />
+            <button
+              onClick={handleCopyDirectInvite}
+              className="text-xs font-mono font-bold px-3 py-1 rounded-xl bg-gold-500 text-slate-950 hover:bg-gold-400 flex items-center gap-1 shrink-0 transition-transform active:scale-95 shadow-gold-glow"
+              title="Copy shareable invitation link"
+            >
+              {copiedInvite ? <Check className="w-3.5 h-3.5 text-pitch-900" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedInvite ? 'COPIED' : 'COPY'}
+            </button>
+          </div>
         </div>
 
         {/* Action Controls & Invite Button */}
@@ -475,9 +520,18 @@ export const RoomLobby = () => {
 
         {/* Arena Status & Launch Controls */}
         <div className="bg-stadium-900 border border-stadium-800 p-4 rounded-3xl shadow-lg flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-mono text-slate-400 uppercase font-bold">Arena Status</span>
-            <span className={`w-2.5 h-2.5 rounded-full ${canStartGame ? 'bg-pitch-400 animate-ping' : 'bg-amber-400'}`} />
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-mono text-slate-400 uppercase font-bold">Arena Status</span>
+              <span className={`w-2.5 h-2.5 rounded-full ${canStartGame ? 'bg-pitch-400 animate-ping' : 'bg-amber-400'}`} />
+            </div>
+            <div className="font-display font-black text-xs uppercase mb-2">
+              {canStartGame ? (
+                <span className="text-pitch-400">READY TO LAUNCH</span>
+              ) : (
+                <span className="text-amber-400">WAITING FOR PLAYERS TO JOIN</span>
+              )}
+            </div>
           </div>
 
           {isHost ? (
@@ -491,7 +545,7 @@ export const RoomLobby = () => {
               }`}
             >
               <Flame className="w-3.5 h-3.5" />
-              {canStartGame ? 'LAUNCH AUCTION' : 'WAITING FOR 2 PLAYERS'}
+              {canStartGame ? 'START AUCTION' : 'START AUCTION (MIN 2 PLAYERS)'}
             </button>
           ) : isSpectator ? (
             <div className="bg-electric-500/10 border border-electric-500/30 p-2 rounded-xl text-center text-[10px] font-mono text-electric-300 font-bold">

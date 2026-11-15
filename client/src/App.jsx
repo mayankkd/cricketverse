@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 // 14 Core Pages
 import { Landing } from './pages/Landing';
@@ -32,47 +33,41 @@ export function App() {
           <div className="flex flex-col min-h-screen bg-stadium-950 text-slate-100 selection:bg-gold-500 selection:text-slate-950">
             <Navbar />
             <main className="flex-1">
-              <Routes>
-                {/* 1. Landing page */}
-                <Route path="/" element={<Landing />} />
+              <ErrorBoundary>
+                <Routes>
+                  {/* 1. Landing page */}
+                  <Route path="/" element={<Landing />} />
 
-                {/* 2. Login */}
-                <Route path="/login" element={<Login />} />
+                  {/* 2. Login */}
+                  <Route path="/login" element={<Login />} />
 
-                {/* 3. Registration */}
-                <Route path="/register" element={<Register />} />
+                  {/* 3. Registration */}
+                  <Route path="/register" element={<Register />} />
 
-                {/* 4. Main dashboard (Protected) */}
-                <Route
-                  path="/dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* 4. Main dashboard (Protected) */}
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <Dashboard />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* 5. User profile (Protected) */}
-                <Route
-                  path="/profile"
-                  element={
-                    <ProtectedRoute>
-                      <Profile />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* 5. User profile (Protected) */}
+                  <Route
+                    path="/profile"
+                    element={
+                      <ProtectedRoute>
+                        <Profile />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* 6. Create room (Protected) */}
-                <Route
-                  path="/rooms/create"
-                  element={
-                    <ProtectedRoute>
-                      <CreateRoom />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* 6. Create room (Open to all, auto-assigns host session) */}
+                  <Route path="/rooms/create" element={<CreateRoom />} />
 
-                {/* 7. Join room */}
+                  {/* 7. Join room */}
                 <Route path="/rooms/join" element={<JoinRoom />} />
                 <Route path="/rooms/invite/:token" element={<RoomInvite />} />
 
@@ -122,7 +117,8 @@ export function App() {
                 {/* Catch-all */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-            </main>
+            </ErrorBoundary>
+          </main>
             <Footer />
           </div>
         </AuthProvider>

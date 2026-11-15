@@ -25,6 +25,22 @@ const tournamentRoutes = require('./routes/tournamentRoutes');
 const stadiumRoutes = require('./routes/stadiumRoutes');
 const advancedSystemsRoutes = require('./routes/advancedSystemsRoutes');
 
+const os = require('os');
+
+const getLocalIpAddress = () => {
+  try {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name]) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          return iface.address;
+        }
+      }
+    }
+  } catch {}
+  return '127.0.0.1';
+};
+
 const app = express();
 const server = http.createServer(app);
 
@@ -32,15 +48,42 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE']
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
   }
 });
+
+// Provide io instance to Express app for realtime controller notifications
+app.set('io', io);
 
 // Initialize Socket.IO Real-time Multiplayer & Spectator Architecture
 initMultiplayerSockets(io);
 
-// Middleware
-app.use(cors({ origin: '*' }));
+// CORS configuration supporting Public URLs, LAN IPs, and localhost
+const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL;
+const allowedOrigins = [
+  clientUrl,
+  'http://localhost:5173',
+  'http://localhost:5001',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5001'
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (process.env.NODE_ENV !== 'production' || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // Allow local network IP origins (192.168.x.x, 10.x.x.x, 172.x.x.x)
+    if (/^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(origin)) {
+      return callback(null, true);
+    }
+    callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 if (process.env.NODE_ENV === 'development') {
@@ -61,6 +104,19 @@ app.get('/api/health', (req, res) => {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     database: getDBStatus()
+  });
+});
+
+// Network & Public URL discovery info for shareable multiplayer links
+app.get('/api/network-info', (req, res) => {
+  const lanIp = getLocalIpAddress();
+  res.status(200).json({
+    success: true,
+    lanIp,
+    serverPort: PORT,
+    clientPort: 5173,
+    appUrl: process.env.FRONTEND_URL || process.env.CLIENT_URL || `http://${lanIp}:5173`,
+    serverUrl: `http://${lanIp}:${PORT}`
   });
 });
 
@@ -103,11 +159,13 @@ const start = async () => {
   await connectDB();
   await seedMongoIfEmpty();
 
+  const lanIp = getLocalIpAddress();
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`=======================================================`);
     console.log(`🏏 CRICKETVERSE Server running on port ${PORT}`);
-    console.log(`📡 Health Check: http://localhost:${PORT}/api/health`);
-    console.log(`🎮 Environment:  ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📡 Local Health:   http://localhost:${PORT}/api/health`);
+    console.log(`🌐 Network Health: http://${lanIp}:${PORT}/api/health`);
+    console.log(`🎮 Environment:    ${process.env.NODE_ENV || 'development'}`);
     console.log(`=======================================================`);
   });
 };

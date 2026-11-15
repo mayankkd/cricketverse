@@ -9,8 +9,16 @@ class SocketService {
   getSocket() {
     if (!this.socket) {
       const token = localStorage.getItem('cricketverse_token');
-      // In Vite dev proxy or production, connect to current host origin
-      const socketUrl = window.location.origin;
+      // Resolve socket URL: VITE_SOCKET_URL -> VITE_API_URL -> LAN/Localhost (port 5001) in dev -> window.location.origin
+      let socketUrl = window.location.origin;
+      if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SOCKET_URL) {
+        socketUrl = import.meta.env.VITE_SOCKET_URL.replace(/\/$/, '');
+      } else if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+        socketUrl = import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '');
+      } else if (typeof window !== 'undefined' && window.location && window.location.port === '5173') {
+        const hostname = window.location.hostname || 'localhost';
+        socketUrl = `http://${hostname}:5001`;
+      }
 
       this.socket = io(socketUrl, {
         autoConnect: true,

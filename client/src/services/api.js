@@ -1,4 +1,16 @@
-const API_BASE = '/api';
+const getApiBase = () => {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL.replace(/\/$/, '');
+  }
+  // When running on Vite dev port 5173, talk directly to backend on port 5001 using the same host (localhost or LAN IP)
+  if (typeof window !== 'undefined' && window.location && window.location.port === '5173') {
+    const hostname = window.location.hostname || 'localhost';
+    return `http://${hostname}:5001/api`;
+  }
+  return '/api';
+};
+
+const API_BASE = getApiBase();
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('cricketverse_token');
@@ -8,10 +20,71 @@ const getAuthHeaders = () => {
   };
 };
 
+/**
+ * Universal safe request executor. Never blindly calls res.json() on empty responses.
+ * Guarantees a parsed JSON payload or meaningful structured response even when network drops or returns HTML.
+ */
+async function safeFetch(url, options = {}) {
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (netErr) {
+    if (url.startsWith('http://localhost:5001/api')) {
+      const fallbackUrl = url.replace('http://localhost:5001/api', '/api');
+      try {
+        response = await fetch(fallbackUrl, options);
+      } catch {
+        throw new Error(`Cannot connect to game server at ${url}. Please verify server is running.`);
+      }
+    } else {
+      throw new Error(`Network connection error: ${netErr.message}`);
+    }
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  const responseText = await response.text();
+
+  let data = null;
+  if (responseText.trim() && contentType.includes('application/json')) {
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      throw new Error('Server returned invalid JSON.');
+    }
+  } else if (responseText.trim()) {
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      if (!response.ok) {
+        throw new Error(`Server returned error (${response.status}): ${responseText.slice(0, 150)}`);
+      }
+    }
+  }
+
+  if (!response.ok) {
+    const errorMsg = data?.message || (data?.errors ? (Array.isArray(data.errors) ? data.errors.join(', ') : data.errors) : `Server error (${response.status})`);
+    return {
+      ok: false,
+      status: response.status,
+      headers: response.headers,
+      text: async () => responseText,
+      json: async () => (data || { success: false, message: errorMsg, status: response.status })
+    };
+  }
+
+  return {
+    ok: true,
+    status: response.status,
+    headers: response.headers,
+    text: async () => responseText,
+    json: async () => (data !== null ? data : { success: true, status: response.status })
+  };
+}
+
 export const api = {
   // Auth
   async register(data) {
-    const res = await fetch(`${API_BASE}/auth/register`, {
+    const res = await safeFetch(`${API_BASE}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -20,7 +93,7 @@ export const api = {
   },
 
   async login(data) {
-    const res = await fetch(`${API_BASE}/auth/login`, {
+    const res = await safeFetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -29,7 +102,7 @@ export const api = {
   },
 
   async demoLogin() {
-    const res = await fetch(`${API_BASE}/auth/demo`, {
+    const res = await safeFetch(`${API_BASE}/auth/demo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -37,14 +110,14 @@ export const api = {
   },
 
   async getMe() {
-    const res = await fetch(`${API_BASE}/auth/me`, {
+    const res = await safeFetch(`${API_BASE}/auth/me`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async updateProfile(data) {
-    const res = await fetch(`${API_BASE}/auth/profile`, {
+    const res = await safeFetch(`${API_BASE}/auth/profile`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
@@ -54,21 +127,21 @@ export const api = {
 
   // Rooms
   async getRooms() {
-    const res = await fetch(`${API_BASE}/rooms`, {
+    const res = await safeFetch(`${API_BASE}/rooms`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getRoom(roomCode) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}`, {
+    const res = await safeFetch(`${API_BASE}/rooms/${roomCode}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async createRoom(data) {
-    const res = await fetch(`${API_BASE}/rooms`, {
+    const res = await safeFetch(`${API_BASE}/rooms`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
@@ -77,7 +150,7 @@ export const api = {
   },
 
   async joinRoom(roomCode, data) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/join`, {
+    const res = await safeFetch(`${API_BASE}/rooms/${roomCode}/join`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data || {})
@@ -86,7 +159,7 @@ export const api = {
   },
 
   async sendRoomChat(roomCode, text) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/chat`, {
+    const res = await safeFetch(`${API_BASE}/rooms/${roomCode}/chat`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ text })
@@ -95,7 +168,7 @@ export const api = {
   },
 
   async toggleReady(roomCode) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/ready`, {
+    const res = await safeFetch(`${API_BASE}/rooms/${roomCode}/ready`, {
       method: 'PUT',
       headers: getAuthHeaders()
     });
@@ -103,12 +176,17 @@ export const api = {
   },
 
   async previewInvitation(token) {
-    const res = await fetch(`${API_BASE}/rooms/invitation/${token}`);
+    const res = await safeFetch(`${API_BASE}/rooms/invitation/${token}`);
+    return await res.json();
+  },
+
+  async getNetworkInfo() {
+    const res = await safeFetch(`${API_BASE}/network-info`);
     return await res.json();
   },
 
   async joinByInvite(token, data) {
-    const res = await fetch(`${API_BASE}/rooms/join-invite/${token}`, {
+    const res = await safeFetch(`${API_BASE}/rooms/join-invite/${token}`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data || {})
@@ -117,7 +195,7 @@ export const api = {
   },
 
   async generateInvitation(roomCode, data) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/invitations`, {
+    const res = await safeFetch(`${API_BASE}/rooms/${roomCode}/invitations`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data || {})
@@ -126,7 +204,7 @@ export const api = {
   },
 
   async revokeInvitation(roomCode) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/invitations/revoke`, {
+    const res = await safeFetch(`${API_BASE}/rooms/${roomCode}/invitations/revoke`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -134,7 +212,7 @@ export const api = {
   },
 
   async updateRoomSettings(roomCode, settings) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/settings`, {
+    const res = await safeFetch(`${API_BASE}/rooms/${roomCode}/settings`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(settings || {})
@@ -143,7 +221,7 @@ export const api = {
   },
 
   async kickParticipant(roomCode, userId) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/participants/${userId}`, {
+    const res = await safeFetch(`${API_BASE}/rooms/${roomCode}/participants/${userId}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
@@ -151,7 +229,7 @@ export const api = {
   },
 
   async startRoomGame(roomCode) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/start`, {
+    const res = await safeFetch(`${API_BASE}/rooms/${roomCode}/start`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -159,7 +237,7 @@ export const api = {
   },
 
   async placeBid(roomCode, data) {
-    const res = await fetch(`${API_BASE}/auction/${roomCode}/bid`, {
+    const res = await safeFetch(`${API_BASE}/auction/${roomCode}/bid`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data || {})
@@ -168,7 +246,7 @@ export const api = {
   },
 
   async nominatePlayer(roomCode, data) {
-    const res = await fetch(`${API_BASE}/auction/${roomCode}/nominate`, {
+    const res = await safeFetch(`${API_BASE}/auction/${roomCode}/nominate`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data || {})
@@ -177,14 +255,14 @@ export const api = {
   },
 
   async getAuctionState(roomCode) {
-    const res = await fetch(`${API_BASE}/auction/${roomCode}/state`, {
+    const res = await safeFetch(`${API_BASE}/auction/${roomCode}/state`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async initAuction(roomCode, data) {
-    const res = await fetch(`${API_BASE}/auction/${roomCode}/init`, {
+    const res = await safeFetch(`${API_BASE}/auction/${roomCode}/init`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data || {})
@@ -193,7 +271,7 @@ export const api = {
   },
 
   async nominateRandomAuctionPlayer(roomCode) {
-    const res = await fetch(`${API_BASE}/auction/${roomCode}/nominate-random`, {
+    const res = await safeFetch(`${API_BASE}/auction/${roomCode}/nominate-random`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -201,7 +279,7 @@ export const api = {
   },
 
   async useT2Veto(roomCode) {
-    const res = await fetch(`${API_BASE}/auction/${roomCode}/veto`, {
+    const res = await safeFetch(`${API_BASE}/auction/${roomCode}/veto`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -209,7 +287,7 @@ export const api = {
   },
 
   async hammerAuctionLot(roomCode) {
-    const res = await fetch(`${API_BASE}/auction/${roomCode}/hammer`, {
+    const res = await safeFetch(`${API_BASE}/auction/${roomCode}/hammer`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -217,7 +295,7 @@ export const api = {
   },
 
   async startUnsoldRound(roomCode) {
-    const res = await fetch(`${API_BASE}/auction/${roomCode}/unsold-round`, {
+    const res = await safeFetch(`${API_BASE}/auction/${roomCode}/unsold-round`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -225,7 +303,7 @@ export const api = {
   },
 
   async updateAuctionSettings(roomCode, settings) {
-    const res = await fetch(`${API_BASE}/auction/${roomCode}/settings`, {
+    const res = await safeFetch(`${API_BASE}/auction/${roomCode}/settings`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(settings || {})
@@ -234,7 +312,7 @@ export const api = {
   },
 
   async updateRoomLineup(roomCode, data) {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/lineup`, {
+    const res = await safeFetch(`${API_BASE}/rooms/${roomCode}/lineup`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data || {})
@@ -245,28 +323,28 @@ export const api = {
   // Players
   async getPlayers(params = {}) {
     const query = new URLSearchParams(params).toString();
-    const res = await fetch(`${API_BASE}/players${query ? `?${query}` : ''}`, {
+    const res = await safeFetch(`${API_BASE}/players${query ? `?${query}` : ''}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getPlayerById(id) {
-    const res = await fetch(`${API_BASE}/players/${id}`, {
+    const res = await safeFetch(`${API_BASE}/players/${id}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async comparePlayers(id1, id2) {
-    const res = await fetch(`${API_BASE}/players/compare/${id1}/${id2}`, {
+    const res = await safeFetch(`${API_BASE}/players/compare/${id1}/${id2}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getPlayerFilterMetadata() {
-    const res = await fetch(`${API_BASE}/players/meta/filters`, {
+    const res = await safeFetch(`${API_BASE}/players/meta/filters`, {
       headers: getAuthHeaders()
     });
     return await res.json();
@@ -275,21 +353,21 @@ export const api = {
   // Teams
   async getMyTeam(params = {}) {
     const query = new URLSearchParams(params).toString();
-    const res = await fetch(`${API_BASE}/teams/my${query ? `?${query}` : ''}`, {
+    const res = await safeFetch(`${API_BASE}/teams/my${query ? `?${query}` : ''}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getTeamById(id) {
-    const res = await fetch(`${API_BASE}/teams/${id}`, {
+    const res = await safeFetch(`${API_BASE}/teams/${id}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getTeamsByRoom(roomCode) {
-    const res = await fetch(`${API_BASE}/teams/room/${roomCode}`, {
+    const res = await safeFetch(`${API_BASE}/teams/room/${roomCode}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
@@ -299,7 +377,7 @@ export const api = {
     const teamId = typeof idOrData === 'string' ? idOrData : idOrData?._id;
     const payload = typeof idOrData === 'string' ? data : idOrData;
     const url = teamId ? `${API_BASE}/teams/${teamId}` : `${API_BASE}/teams/my`;
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload)
@@ -308,7 +386,7 @@ export const api = {
   },
 
   async updateTeam(id, data) {
-    const res = await fetch(`${API_BASE}/teams/${id}`, {
+    const res = await safeFetch(`${API_BASE}/teams/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
@@ -317,7 +395,7 @@ export const api = {
   },
 
   async swapTeamPlayer(teamId, data) {
-    const res = await fetch(`${API_BASE}/teams/${teamId}/swap`, {
+    const res = await safeFetch(`${API_BASE}/teams/${teamId}/swap`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
@@ -326,7 +404,7 @@ export const api = {
   },
 
   async configureRoomSquadLimits(roomCode, limits) {
-    const res = await fetch(`${API_BASE}/teams/room/${roomCode}/squad-limits`, {
+    const res = await safeFetch(`${API_BASE}/teams/room/${roomCode}/squad-limits`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(limits)
@@ -336,14 +414,14 @@ export const api = {
 
   // Tactical Management
   async getTeamTactics(teamId) {
-    const res = await fetch(`${API_BASE}/teams/${teamId}/tactics`, {
+    const res = await safeFetch(`${API_BASE}/teams/${teamId}/tactics`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async updateTeamTactics(teamId, data) {
-    const res = await fetch(`${API_BASE}/teams/${teamId}/tactics`, {
+    const res = await safeFetch(`${API_BASE}/teams/${teamId}/tactics`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
@@ -352,14 +430,14 @@ export const api = {
   },
 
   async getMatchTactics(matchId) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/tactics`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/tactics`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async updateMatchTactics(matchId, data) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/tactics`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/tactics`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
@@ -369,21 +447,21 @@ export const api = {
 
   // Matches
   async getMatches() {
-    const res = await fetch(`${API_BASE}/matches`, {
+    const res = await safeFetch(`${API_BASE}/matches`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getMatchById(id) {
-    const res = await fetch(`${API_BASE}/matches/${id}`, {
+    const res = await safeFetch(`${API_BASE}/matches/${id}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async simulateBall(matchId) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/simulate-ball`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/simulate-ball`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -391,7 +469,7 @@ export const api = {
   },
 
   async playDelivery(matchId, deliveryData = {}) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/play-delivery`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/play-delivery`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(deliveryData)
@@ -401,21 +479,21 @@ export const api = {
 
   // Phase 9: Stadiums & Match Formats
   async getStadiums() {
-    const res = await fetch(`${API_BASE}/stadiums`, {
+    const res = await safeFetch(`${API_BASE}/stadiums`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getStadiumById(id) {
-    const res = await fetch(`${API_BASE}/stadiums/${id}`, {
+    const res = await safeFetch(`${API_BASE}/stadiums/${id}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async declareInnings(matchId) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/declare`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/declare`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -423,7 +501,7 @@ export const api = {
   },
 
   async enforceFollowOn(matchId) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/follow-on`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/follow-on`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -431,7 +509,7 @@ export const api = {
   },
 
   async callTacticalTimeout(matchId) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/timeout`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/timeout`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -439,7 +517,7 @@ export const api = {
   },
 
   async resumeTacticalTimeout(matchId) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/timeout/resume`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/timeout/resume`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -447,7 +525,7 @@ export const api = {
   },
 
   async applyDLS(matchId, dlsData = {}) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/dls`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/dls`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(dlsData)
@@ -456,7 +534,7 @@ export const api = {
   },
 
   async setConditions(matchId, conditionsData = {}) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/conditions`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/conditions`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(conditionsData)
@@ -466,14 +544,14 @@ export const api = {
 
   // Phase 10: Broadcast & Telemetry Analytics
   async getMatchAnalytics(matchId) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/analytics`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/analytics`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async setCommentaryPersonality(matchId, personality) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/personality`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/personality`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ personality })
@@ -482,7 +560,7 @@ export const api = {
   },
 
   async compareMatchPlayers(matchId, player1Id, player2Id) {
-    const res = await fetch(`${API_BASE}/matches/${matchId}/compare-players?player1Id=${player1Id}&player2Id=${player2Id}`, {
+    const res = await safeFetch(`${API_BASE}/matches/${matchId}/compare-players?player1Id=${player1Id}&player2Id=${player2Id}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
@@ -490,14 +568,14 @@ export const api = {
 
   // Tournaments
   async getTournaments() {
-    const res = await fetch(`${API_BASE}/tournaments`, {
+    const res = await safeFetch(`${API_BASE}/tournaments`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getTournamentById(id) {
-    const res = await fetch(`${API_BASE}/tournaments/${id}`, {
+    const res = await safeFetch(`${API_BASE}/tournaments/${id}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
@@ -505,35 +583,35 @@ export const api = {
 
   // Phase 11: Tournaments & Game Modes
   async getGameModes() {
-    const res = await fetch(`${API_BASE}/tournaments/modes`, {
+    const res = await safeFetch(`${API_BASE}/tournaments/modes`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getHistoricalChallenges() {
-    const res = await fetch(`${API_BASE}/tournaments/historical-challenges`, {
+    const res = await safeFetch(`${API_BASE}/tournaments/historical-challenges`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getRivalries() {
-    const res = await fetch(`${API_BASE}/tournaments/rivalries`, {
+    const res = await safeFetch(`${API_BASE}/tournaments/rivalries`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getScenarios() {
-    const res = await fetch(`${API_BASE}/tournaments/scenarios`, {
+    const res = await safeFetch(`${API_BASE}/tournaments/scenarios`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async createCustomTournament(data = {}) {
-    const res = await fetch(`${API_BASE}/tournaments/custom`, {
+    const res = await safeFetch(`${API_BASE}/tournaments/custom`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
@@ -542,14 +620,14 @@ export const api = {
   },
 
   async getTournamentAwards(id) {
-    const res = await fetch(`${API_BASE}/tournaments/${id}/awards`, {
+    const res = await safeFetch(`${API_BASE}/tournaments/${id}/awards`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async simulateTournamentFixture(tournamentId, fixtureId) {
-    const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/matches/${fixtureId}/simulate`, {
+    const res = await safeFetch(`${API_BASE}/tournaments/${tournamentId}/matches/${fixtureId}/simulate`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -558,21 +636,21 @@ export const api = {
 
   // Phase 11: Franchise Legacy & Multi-Season Retention
   async getFranchiseLegacy(teamId) {
-    const res = await fetch(`${API_BASE}/teams/${teamId}/legacy`, {
+    const res = await safeFetch(`${API_BASE}/teams/${teamId}/legacy`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getSeasonRecap(teamId, seasonId) {
-    const res = await fetch(`${API_BASE}/teams/${teamId}/legacy/recap${seasonId ? `?seasonId=${seasonId}` : ''}`, {
+    const res = await safeFetch(`${API_BASE}/teams/${teamId}/legacy/recap${seasonId ? `?seasonId=${seasonId}` : ''}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async retainPlayers(teamId, retentions = []) {
-    const res = await fetch(`${API_BASE}/teams/${teamId}/legacy/retentions`, {
+    const res = await safeFetch(`${API_BASE}/teams/${teamId}/legacy/retentions`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ retentions })
@@ -581,7 +659,7 @@ export const api = {
   },
 
   async transferPlayer(data = {}) {
-    const res = await fetch(`${API_BASE}/teams/legacy/transfer`, {
+    const res = await safeFetch(`${API_BASE}/teams/legacy/transfer`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
@@ -590,7 +668,7 @@ export const api = {
   },
 
   async rolloverToNextSeason(teamId, data = {}) {
-    const res = await fetch(`${API_BASE}/teams/${teamId}/legacy/rollover`, {
+    const res = await safeFetch(`${API_BASE}/teams/${teamId}/legacy/rollover`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
@@ -600,7 +678,7 @@ export const api = {
 
   // Phase 12: Advanced Game Systems
   async trainPlayer(playerId, drillType = 'Batting') {
-    const res = await fetch(`${API_BASE}/advanced/players/${playerId}/train`, {
+    const res = await safeFetch(`${API_BASE}/advanced/players/${playerId}/train`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ drillType })
@@ -609,7 +687,7 @@ export const api = {
   },
 
   async recoverPlayer(playerId, method = 'physio') {
-    const res = await fetch(`${API_BASE}/advanced/players/${playerId}/recover`, {
+    const res = await safeFetch(`${API_BASE}/advanced/players/${playerId}/recover`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ method })
@@ -618,49 +696,49 @@ export const api = {
   },
 
   async getPlayerDevelopment(playerId) {
-    const res = await fetch(`${API_BASE}/advanced/players/${playerId}/development`, {
+    const res = await safeFetch(`${API_BASE}/advanced/players/${playerId}/development`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getTeamChemistry(teamId) {
-    const res = await fetch(`${API_BASE}/advanced/teams/${teamId}/chemistry`, {
+    const res = await safeFetch(`${API_BASE}/advanced/teams/${teamId}/chemistry`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getOpponentScouting(teamId, opponentId) {
-    const res = await fetch(`${API_BASE}/advanced/teams/${teamId}/scouting/${opponentId}`, {
+    const res = await safeFetch(`${API_BASE}/advanced/teams/${teamId}/scouting/${opponentId}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getMatchDocumentary(matchId) {
-    const res = await fetch(`${API_BASE}/advanced/matches/${matchId}/documentary`, {
+    const res = await safeFetch(`${API_BASE}/advanced/matches/${matchId}/documentary`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getDrsReview(matchId) {
-    const res = await fetch(`${API_BASE}/advanced/matches/${matchId}/drs-review`, {
+    const res = await safeFetch(`${API_BASE}/advanced/matches/${matchId}/drs-review`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getAuctionAwards(roomCode) {
-    const res = await fetch(`${API_BASE}/advanced/auction/${roomCode}/awards`, {
+    const res = await safeFetch(`${API_BASE}/advanced/auction/${roomCode}/awards`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
   async getVoiceChatToken(matchId, userData = {}) {
-    const res = await fetch(`${API_BASE}/advanced/matches/${matchId}/voice/token`, {
+    const res = await safeFetch(`${API_BASE}/advanced/matches/${matchId}/voice/token`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(userData)

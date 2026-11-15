@@ -1,4 +1,5 @@
 const storeService = require('../services/storeService');
+const { getStadiumById } = require('../data/stadiumsData');
 
 // @desc    Get all public rooms
 // @route   GET /api/rooms
@@ -52,6 +53,8 @@ const createRoom = async (req, res, next) => {
       isPrivate,
       password,
       teamName,
+      stadiumId,
+      stadium,
       allowSpectators,
       allowPlayerJoining,
       spectatorChatEnabled
@@ -61,6 +64,8 @@ const createRoom = async (req, res, next) => {
     const roomCode = `CRIC-${Math.floor(1000 + Math.random() * 9000)}`;
     const roomFormat = format || 'T20';
     const purse = budgetPerTeam !== undefined ? Number(budgetPerTeam) : storeService.getFormatPurse(roomFormat);
+    const selectedStadiumId = stadiumId || 'lords';
+    const selectedStadium = stadium || getStadiumById(selectedStadiumId);
 
     const newRoom = await storeService.createRoom({
       roomCode,
@@ -73,6 +78,8 @@ const createRoom = async (req, res, next) => {
       maxPlayers: 6,
       maxTeams: 6,
       budgetPerTeam: purse,
+      stadiumId: selectedStadiumId,
+      stadium: selectedStadium,
       isPrivate: Boolean(isPrivate),
       password: password || '',
       allowSpectators: allowSpectators !== undefined ? Boolean(allowSpectators) : true,
@@ -104,10 +111,24 @@ const createRoom = async (req, res, next) => {
       ]
     });
 
+    const roomPayload = {
+      ...newRoom,
+      _id: String(newRoom._id || newRoom.id),
+      roomCode: newRoom.roomCode,
+      name: newRoom.name,
+      format: newRoom.format,
+      auctionPurse: newRoom.auctionPurse || newRoom.budgetPerTeam || purse,
+      budgetPerTeam: newRoom.budgetPerTeam || purse,
+      stadium: newRoom.stadium,
+      stadiumId: newRoom.stadiumId,
+      minPlayers: newRoom.minPlayers || 2,
+      maxPlayers: newRoom.maxPlayers || 6
+    };
+
     res.status(201).json({
       success: true,
-      message: 'Multiplayer room established.',
-      room: newRoom
+      message: 'Room created successfully',
+      room: roomPayload
     });
   } catch (err) {
     next(err);
@@ -131,6 +152,16 @@ const joinRoom = async (req, res, next) => {
       password,
       inviteToken
     });
+
+    const io = req.app.get('io');
+    if (io) {
+      const code = (result.room?.roomCode || roomCode).toUpperCase();
+      io.to(code).emit('room_state', result.room);
+      io.to(code).emit('room_notification', {
+        type: 'USER_JOINED',
+        text: `${user.username} entered the arena as ${role.toUpperCase()}.`
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -193,6 +224,16 @@ const joinByInvite = async (req, res, next) => {
       password,
       inviteToken: token
     });
+
+    const io = req.app.get('io');
+    if (io) {
+      const code = (result.room?.roomCode || roomCode).toUpperCase();
+      io.to(code).emit('room_state', result.room);
+      io.to(code).emit('room_notification', {
+        type: 'USER_JOINED',
+        text: `${user.username} entered the arena as ${role.toUpperCase()}.`
+      });
+    }
 
     res.status(200).json({
       success: true,

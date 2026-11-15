@@ -22,7 +22,7 @@ import { sound } from '../services/sound';
 export const RoomInvite = () => {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { user, loginWithDemo } = useAuth();
+  const { user, demoLogin } = useAuth();
   const { addToast } = useNotification();
 
   const [room, setRoom] = useState(null);
@@ -65,10 +65,14 @@ export const RoomInvite = () => {
     }
 
     if (!user) {
-      // Store redirect URL and send to login
-      localStorage.setItem('cricketverse_redirect', `/rooms/invite/${token}`);
-      navigate(`/login?redirect=/rooms/invite/${token}`);
-      return;
+      try {
+        await demoLogin();
+      } catch {
+        // Fallback to login if automatic guest session fails
+        localStorage.setItem('cricketverse_redirect', `/rooms/invite/${token}`);
+        navigate(`/login?redirect=/rooms/invite/${token}`);
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -109,7 +113,7 @@ export const RoomInvite = () => {
   const handle1ClickDemo = async () => {
     sound.playClick();
     try {
-      await loginWithDemo();
+      await demoLogin();
       addToast({
         type: 'success',
         title: 'DEMO MANAGER LOGGED IN',

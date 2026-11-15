@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Share2,
@@ -10,39 +10,63 @@ import {
   Clock,
   Shield,
   X,
-  AlertCircle
+  AlertCircle,
+  Wifi,
+  Globe
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useNotification } from '../../context/NotificationContext';
 import { sound } from '../../services/sound';
+import { getShareableInviteUrl, buildLanInviteUrl } from '../../utils/inviteUrl';
 
 export const InviteFriendsModal = ({ room, isHost, onClose, onRoomUpdated }) => {
   const { addToast } = useNotification();
   const [copied, setCopied] = useState(false);
+  const [copiedLan, setCopiedLan] = useState(false);
   const [loading, setLoading] = useState(false);
   const [invitePassword, setInvitePassword] = useState('');
   const [expiryHours, setExpiryHours] = useState('24');
+  const [lanInfo, setLanInfo] = useState(null);
+  const [activeTab, setActiveTab] = useState('public'); // 'public' | 'lan'
 
   const invitation = room?.invitation;
   const inviteToken = invitation?.token;
-  const inviteUrl = inviteToken
-    ? `${window.location.origin}/rooms/invite/${inviteToken}`
-    : `${window.location.origin}/rooms/${room?.roomCode}`;
+
+  useEffect(() => {
+    let mounted = true;
+    api.getNetworkInfo().then(res => {
+      if (mounted && res && res.lanIp) {
+        setLanInfo(res);
+      }
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
+  const publicInviteUrl = getShareableInviteUrl(inviteToken, room?.roomCode);
+  const lanInviteUrl = lanInfo?.lanIp ? buildLanInviteUrl(lanInfo.lanIp, inviteToken, room?.roomCode) : null;
+  const currentInviteUrl = (activeTab === 'lan' && lanInviteUrl) ? lanInviteUrl : publicInviteUrl;
 
   const isRevoked = invitation?.isRevoked;
   const isExpired = invitation?.expiresAt && new Date() > new Date(invitation.expiresAt);
 
-  const handleCopy = async () => {
+  const handleCopy = async (urlToCopy = currentInviteUrl, isLan = false) => {
     sound.playClick();
     try {
-      await navigator.clipboard.writeText(inviteUrl);
-      setCopied(true);
+      await navigator.clipboard.writeText(urlToCopy);
+      if (isLan) {
+        setCopiedLan(true);
+        setTimeout(() => setCopiedLan(false), 2500);
+      } else {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
       addToast({
         type: 'success',
         title: 'INVITE LINK COPIED',
-        message: 'Share this link with friends to invite them to the room.'
+        message: isLan
+          ? 'Wi-Fi invite link copied! Friends on the same Wi-Fi can open this link to join.'
+          : 'Shareable invitation link copied to clipboard.'
       });
-      setTimeout(() => setCopied(false), 2500);
     } catch {
       addToast({
         type: 'error',
@@ -58,15 +82,15 @@ export const InviteFriendsModal = ({ room, isHost, onClose, onRoomUpdated }) => 
         await navigator.share({
           title: `Join ${room?.name} on CricketVerse`,
           text: `Enter the franchise arena! Room code: ${room?.roomCode}`,
-          url: inviteUrl
+          url: currentInviteUrl
         });
       } catch (err) {
         if (err.name !== 'AbortError') {
-          handleCopy();
+          handleCopy(currentInviteUrl);
         }
       }
     } else {
-      handleCopy();
+      handleCopy(currentInviteUrl);
     }
   };
 
@@ -166,31 +190,87 @@ export const InviteFriendsModal = ({ room, isHost, onClose, onRoomUpdated }) => 
           </div>
         ) : null}
 
+        {/* Mode Selector Tabs (Public vs Wi-Fi LAN) */}
+        {lanInviteUrl && (
+          <div className="flex rounded-2xl bg-stadium-950 p-1 border border-white/10 text-xs font-display uppercase font-bold">
+            <button
+              onClick={() => setActiveTab('public')}
+              className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                activeTab === 'public'
+                  ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" /> Public / Internet
+            </button>
+            <button
+              onClick={() => setActiveTab('lan')}
+              className={`flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all ${
+                activeTab === 'lan'
+                  ? 'bg-pitch-500 text-slate-950 shadow-pitch-glow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Wifi className="w-3.5 h-3.5" /> Same Wi-Fi (LAN)
+            </button>
+          </div>
+        )}
+
         {/* Shareable Link Box */}
         <div className="space-y-2">
-          <label className="text-xs font-mono text-slate-300 font-bold uppercase block">
-            Direct Shareable URL
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-mono text-slate-300 font-bold uppercase flex items-center gap-1.5">
+              {activeTab === 'lan' ? (
+                <>
+                  <Wifi className="w-3.5 h-3.5 text-pitch-400" /> Wi-Fi LAN Invitation Link
+                </>
+              ) : (
+                <>
+                  <Globe className="w-3.5 h-3.5 text-gold-400" /> Public Invitation Link
+                </>
+              )}
+            </label>
+            <span className="text-[10px] font-mono text-slate-400">
+              {activeTab === 'lan' ? 'For devices on your local Wi-Fi' : 'For WhatsApp / Internet friends'}
+            </span>
+          </div>
+
           <div className="flex items-center gap-2">
             <input
               type="text"
               readOnly
-              value={inviteUrl}
+              value={currentInviteUrl}
               className={`flex-1 bg-stadium-950 border rounded-xl px-4 py-3 text-xs font-mono select-all focus:outline-none ${
                 isRevoked || isExpired
                   ? 'border-red-500/30 text-slate-500 line-through'
+                  : activeTab === 'lan'
+                  ? 'border-pitch-500/40 text-pitch-300'
                   : 'border-gold-500/40 text-gold-400'
               }`}
             />
             <button
-              onClick={handleCopy}
+              onClick={() => handleCopy(currentInviteUrl, activeTab === 'lan')}
               disabled={isRevoked || isExpired}
-              className="bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-slate-950 font-display font-bold text-xs px-4 py-3 rounded-xl shadow-gold-glow flex items-center gap-1.5 flex-shrink-0"
+              className={`font-display font-bold text-xs px-4 py-3 rounded-xl flex items-center gap-1.5 flex-shrink-0 transition-transform active:scale-95 ${
+                activeTab === 'lan'
+                  ? 'bg-pitch-500 hover:bg-pitch-400 text-slate-950 shadow-pitch-glow'
+                  : 'bg-gold-500 hover:bg-gold-400 text-slate-950 shadow-gold-glow'
+              }`}
             >
-              {copied ? <Check className="w-4 h-4 text-emerald-950" /> : <Copy className="w-4 h-4" />}
-              {copied ? 'COPIED' : 'COPY'}
+              {(activeTab === 'lan' ? copiedLan : copied) ? (
+                <Check className="w-4 h-4 text-emerald-950" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+              {(activeTab === 'lan' ? copiedLan : copied) ? 'COPIED' : 'COPY'}
             </button>
           </div>
+
+          <p className="text-[10px] font-mono text-slate-400 italic">
+            {activeTab === 'lan'
+              ? 'Works on any mobile, tablet, or PC connected to the same Wi-Fi router.'
+              : 'Configurable via VITE_APP_URL for public domain / cloud deployment.'}
+          </p>
         </div>
 
         {/* Native Share Button */}
@@ -199,7 +279,7 @@ export const InviteFriendsModal = ({ room, isHost, onClose, onRoomUpdated }) => 
             onClick={handleNativeShare}
             className="w-full bg-stadium-850 hover:bg-stadium-800 border border-stadium-750 text-white font-display uppercase font-bold text-xs py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
           >
-            <Share2 className="w-4 h-4 text-gold-400" /> SHARE VIA APPS (WHATSAPP, DISCORD, TELEGRAM)
+            <Share2 className="w-4 h-4 text-gold-400" /> SHARE VIA WHATSAPP / TELEGRAM / APPS
           </button>
         )}
 

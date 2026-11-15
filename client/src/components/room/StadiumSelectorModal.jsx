@@ -5,6 +5,7 @@ import { api } from '../../services/api';
 import { socketService } from '../../services/socket';
 import { sound } from '../../services/sound';
 import { StadiumCard } from './StadiumCard';
+import { STADIUMS } from '../../data/stadiumsData';
 
 export const StadiumSelectorModal = ({
   isOpen,
@@ -14,9 +15,9 @@ export const StadiumSelectorModal = ({
   currentStadiumId = 'lords',
   onStadiumConfirmed
 }) => {
-  const [stadiums, setStadiums] = useState([]);
-  const [selectedStadium, setSelectedStadium] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [stadiums, setStadiums] = useState(STADIUMS);
+  const [selectedStadium, setSelectedStadium] = useState(() => STADIUMS.find(s => s.id === currentStadiumId) || STADIUMS[0]);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {

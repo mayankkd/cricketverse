@@ -15,6 +15,7 @@ const {
 } = require('../data/seedData');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const { getStadiumById } = require('../data/stadiumsData');
 
 // Room concurrency locks to prevent race conditions during joins
 const roomLocks = new Map();
@@ -49,8 +50,12 @@ const computeRoomMetrics = (room) => {
   doc.minPlayers = 2; // Fixed minimum: at least 2 active players to start
   doc.maxPlayers = 6; // Fixed capacity: never allow more than 6 active players
   doc.maxTeams = 6;
+  doc.auctionPurse = doc.budgetPerTeam !== undefined ? doc.budgetPerTeam : getFormatPurse(doc.format);
+  if (!doc._id && doc.id) doc._id = doc.id;
   doc.activePlayersCount = activePlayers.length;
+  doc.activePlayerCount = activePlayers.length;
   doc.spectatorsCount = spectators.length;
+  doc.spectatorCount = spectators.length;
   doc.availablePlayerSlots = Math.max(0, 6 - activePlayers.length);
   doc.canStart = activePlayers.length >= 2;
   doc.canJoinAsPlayer = activePlayers.length < 6 && doc.allowPlayerJoining !== false;
@@ -394,17 +399,21 @@ const createRoom = async (roomData) => {
   const format = roomData.format || 'T20';
   const purse = getFormatPurse(format);
   const squadLimits = roomData.squadLimits || getDefaultSquadLimits(format);
+  const stadiumId = roomData.stadiumId || 'lords';
+  const stadiumData = roomData.stadium || getStadiumById(stadiumId);
   const completeRoomData = {
+    ...roomData,
     minPlayers: 2,
     maxPlayers: 6,
     maxTeams: 6,
     budgetPerTeam: roomData.budgetPerTeam !== undefined ? roomData.budgetPerTeam : purse,
     squadLimits,
-    allowSpectators: true,
-    allowPlayerJoining: true,
-    spectatorChatEnabled: true,
+    allowSpectators: roomData.allowSpectators !== undefined ? Boolean(roomData.allowSpectators) : true,
+    allowPlayerJoining: roomData.allowPlayerJoining !== undefined ? Boolean(roomData.allowPlayerJoining) : true,
+    spectatorChatEnabled: roomData.spectatorChatEnabled !== undefined ? Boolean(roomData.spectatorChatEnabled) : true,
     format,
-    ...roomData,
+    stadiumId,
+    stadium: stadiumData,
     roomCode: (roomData.roomCode || `CRIC-${Math.floor(1000 + Math.random() * 9000)}`).toUpperCase(),
     invitation: roomData.invitation || {
       token,
@@ -3518,6 +3527,7 @@ module.exports = {
   // Phase 7: Phaser 3 Authoritative Delivery Engine
   VALID_SHOT_TYPES,
   VALID_TIMINGS,
-  playAuthoritativeDelivery
+  playAuthoritativeDelivery,
+  getStadiumById
 };
 

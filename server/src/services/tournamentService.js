@@ -610,3 +610,4 @@ module.exports = {
   calculatePointsTable,
   calculateTournamentAwards
 };
+

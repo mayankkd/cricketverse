@@ -329,7 +329,35 @@ const matchSchema = new mongoose.Schema({
   matchSummary: {
     type: mongoose.Schema.Types.Mixed,
     default: null
-  }
+  },
+  // Phase 12: Dynamic Match Events, Crowd Atmosphere & Documentary
+  dynamicEvents: [{
+    id: String,
+    type: String, // 'DRS_REVIEW', 'DEW_ONSET', 'CROWD_SURGE', 'INJURY_TIMEOUT', 'BALL_CONDITION'
+    title: String,
+    description: String,
+    timestamp: Date,
+    data: mongoose.Schema.Types.Mixed
+  }],
+  crowdAtmosphere: {
+    excitementLevel: { type: Number, default: 75 }, // 0 to 100
+    noiseDecibels: { type: Number, default: 85 },
+    currentChant: { type: String, default: 'CRICKET-VERSE!' },
+    mood: { type: String, default: 'Electric' }
+  },
+  documentary: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  drsReviews: [{
+    id: String,
+    over: String,
+    appealType: String,
+    originalDecision: String,
+    ultraEdgeSpike: Boolean,
+    ballTracking: mongoose.Schema.Types.Mixed,
+    finalDecision: String
+  }]
 }, {
   timestamps: true
 });

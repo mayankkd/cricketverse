@@ -20,6 +20,7 @@ const teamRoutes = require('./routes/teamRoutes');
 const matchRoutes = require('./routes/matchRoutes');
 const tournamentRoutes = require('./routes/tournamentRoutes');
 const stadiumRoutes = require('./routes/stadiumRoutes');
+const advancedSystemsRoutes = require('./routes/advancedSystemsRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -69,6 +70,7 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/stadiums', stadiumRoutes);
+app.use('/api/advanced', advancedSystemsRoutes);
 
 // Error handling
 app.use(notFound);

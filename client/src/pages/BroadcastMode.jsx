@@ -34,6 +34,13 @@ import PlayerComparisonModal from '../components/analytics/PlayerComparisonModal
 import MatchHighlights from '../components/analytics/MatchHighlights';
 import MatchSummaryCard from '../components/analytics/MatchSummaryCard';
 
+// Phase 12: Advanced Game Systems Components
+import { DrsSnickometerModal } from '../components/broadcast/DrsSnickometerModal';
+import { MatchDocumentaryModal } from '../components/broadcast/MatchDocumentaryModal';
+import { Stadium3DView } from '../components/graphics3d/Stadium3DView';
+import { VoiceChatBar } from '../components/voice/VoiceChatBar';
+import { Film, Radio, Layers } from 'lucide-react';
+
 export default function BroadcastMode() {
   const { matchId: routeMatchId } = useParams();
   const matchId = routeMatchId || 'LIVE-IPL-FINAL';
@@ -47,6 +54,10 @@ export default function BroadcastMode() {
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [recentFlash, setRecentFlash] = useState(null);
+  // Phase 12 Advanced Modals & Views
+  const [isDrsOpen, setIsDrsOpen] = useState(false);
+  const [isDocOpen, setIsDocOpen] = useState(false);
+  const [viewMode3D, setViewMode3D] = useState(false);
 
   const containerRef = useRef(null);
 
@@ -300,6 +311,49 @@ export default function BroadcastMode() {
             <span className="hidden sm:inline">Compare</span>
           </button>
 
+          {/* Phase 12: DRS UltraEdge Review Button */}
+          <button
+            onClick={() => {
+              sound.playClick();
+              setIsDrsOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/40 text-xs font-bold transition-all"
+            title="Simulate UltraEdge Snickometer DRS Review"
+          >
+            <Radio className="w-3.5 h-3.5 text-red-400" />
+            <span className="hidden sm:inline">DRS Review</span>
+          </button>
+
+          {/* Phase 12: 5-Act Match Documentary */}
+          <button
+            onClick={() => {
+              sound.playClick();
+              setIsDocOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all"
+            title="Open 5-Act Match Documentary"
+          >
+            <Film className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Docu</span>
+          </button>
+
+          {/* Phase 12: 3D Pitch Cam View Toggle */}
+          <button
+            onClick={() => {
+              sound.playClick();
+              setViewMode3D(!viewMode3D);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+              viewMode3D
+                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-md shadow-cyan-500/20'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+            }`}
+            title="Toggle 3D Pitch Perspective Camera"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{viewMode3D ? '3D Cam ON' : '3D Pitch'}</span>
+          </button>
+
           {/* Fullscreen Toggle */}
           <button
             onClick={toggleFullScreen}
@@ -312,6 +366,19 @@ export default function BroadcastMode() {
 
       {/* Main Broadcast Studio View */}
       <main className="max-w-7xl mx-auto w-full px-4 py-5 flex-1 space-y-5">
+        {/* Phase 12: WebRTC Voice Chat Channel Bar */}
+        <VoiceChatBar matchId={matchId} user={{ username: 'Broadcast Spectator' }} isSpectator={true} />
+
+        {/* Phase 12: Optional 3D Graphics Stadium & Pitch View */}
+        {viewMode3D && (
+          <Stadium3DView
+            stadiumName={match?.stadium?.name || match?.venue || 'Eden Gardens'}
+            pitchType={match?.stadium?.pitchType || 'Turning'}
+            lastDelivery={deliveries[deliveries.length - 1]}
+            isNightMatch={true}
+          />
+        )}
+
         {/* TV Style Main Scoreboard Banner */}
         <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl relative overflow-hidden">
           {/* Recent Event Flash Overlay */}
@@ -573,6 +640,20 @@ export default function BroadcastMode() {
           { _id: 'ply_01', name: striker.name },
           { _id: 'ply_02', name: bowler.name }
         ]}
+      />
+
+      {/* Phase 12: DRS UltraEdge Snickometer Modal */}
+      <DrsSnickometerModal
+        matchId={matchId}
+        isOpen={isDrsOpen}
+        onClose={() => setIsDrsOpen(false)}
+      />
+
+      {/* Phase 12: 5-Act Cinematic Match Documentary Modal */}
+      <MatchDocumentaryModal
+        matchId={matchId}
+        isOpen={isDocOpen}
+        onClose={() => setIsDocOpen(false)}
       />
 
       {/* Bottom TV Ticker */}

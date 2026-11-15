@@ -548,3 +548,4 @@ export default function FranchiseLegacyTab({ teamId, team, isOwner = false }) {
     </div>
   );
 }
+

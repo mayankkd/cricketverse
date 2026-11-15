@@ -20,7 +20,9 @@ import {
   RefreshCw,
   Sparkles,
   Shirt,
-  Flame
+  Flame,
+  Compass,
+  Dumbbell
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +35,9 @@ import { EditTeamIdentityModal } from '../components/team/EditTeamIdentityModal'
 import { ConfigureSquadLimitsModal } from '../components/team/ConfigureSquadLimitsModal';
 import { TacticalManagementModal } from '../components/tactics/TacticalManagementModal';
 import FranchiseLegacyTab from '../components/team/FranchiseLegacyTab';
+import { PlayerDevelopmentModal } from '../components/player/PlayerDevelopmentModal';
+import { TeamChemistryModal } from '../components/team/TeamChemistryModal';
+import { OpponentScoutingModal } from '../components/scouting/OpponentScoutingModal';
 import { sound } from '../services/sound';
 
 export const TeamDashboard = () => {
@@ -64,6 +69,10 @@ export const TeamDashboard = () => {
   const [identityModalOpen, setIdentityModalOpen] = useState(false);
   const [limitsModalOpen, setLimitsModalOpen] = useState(false);
   const [tacticsModalOpen, setTacticsModalOpen] = useState(false);
+  // Phase 12 Modals
+  const [devModalPlayer, setDevModalPlayer] = useState(null);
+  const [chemistryModalOpen, setChemistryModalOpen] = useState(false);
+  const [scoutingModalOpen, setScoutingModalOpen] = useState(false);
 
   // Swap bench target
   const [swapTargetPlayerId, setSwapTargetPlayerId] = useState(null);
@@ -391,6 +400,26 @@ export const TeamDashboard = () => {
             <Shield className="w-4 h-4 text-gold-400" /> TACTICAL SETUP
           </button>
 
+          <button
+            onClick={() => {
+              sound.playClick();
+              setChemistryModalOpen(true);
+            }}
+            className="bg-stadium-950 hover:bg-stadium-850 border border-purple-500/40 text-purple-400 hover:text-white font-mono text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors"
+          >
+            <Sparkles className="w-4 h-4 text-purple-400" /> SQUAD CHEMISTRY
+          </button>
+
+          <button
+            onClick={() => {
+              sound.playClick();
+              setScoutingModalOpen(true);
+            }}
+            className="bg-stadium-950 hover:bg-stadium-850 border border-cyan-500/40 text-cyan-400 hover:text-white font-mono text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors"
+          >
+            <Compass className="w-4 h-4 text-cyan-400" /> SCOUT OPPONENT
+          </button>
+
           {!isReadOnly && (
             <button
               onClick={() => setIdentityModalOpen(true)}
@@ -695,6 +724,17 @@ export const TeamDashboard = () => {
                       </button>
                     </div>
 
+                    {/* Phase 12: Train & Development Modal Trigger */}
+                    <button
+                      onClick={() => {
+                        sound.playClick();
+                        setDevModalPlayer(player);
+                      }}
+                      className="w-full py-1 rounded bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/30 text-amber-400 font-display font-bold text-[9px] uppercase flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <Dumbbell className="w-3 h-3" /> TRAIN & DEV
+                    </button>
+
                     {/* Bench Swap Selection */}
                     {populatedBench.length > 0 && (
                       <div className="pt-1">
@@ -875,6 +915,39 @@ export const TeamDashboard = () => {
             tactics: newTactics
           }));
         }}
+      />
+
+      {/* Phase 12: Player Development & Training Modal */}
+      {devModalPlayer && (
+        <PlayerDevelopmentModal
+          player={devModalPlayer}
+          isOpen={Boolean(devModalPlayer)}
+          onClose={() => setDevModalPlayer(null)}
+          onUpdate={(updatedPlayer) => {
+            setTeam(prev => {
+              if (!prev) return prev;
+              const newSquad = (prev.populatedSquad || []).map(p =>
+                p._id === updatedPlayer._id ? { ...p, ...updatedPlayer } : p
+              );
+              return { ...prev, populatedSquad: newSquad };
+            });
+          }}
+        />
+      )}
+
+      {/* Phase 12: Team Chemistry & Synergies Modal */}
+      <TeamChemistryModal
+        teamId={team?._id}
+        isOpen={chemistryModalOpen}
+        onClose={() => setChemistryModalOpen(false)}
+      />
+
+      {/* Phase 12: Opponent Analytical Scouting Modal */}
+      <OpponentScoutingModal
+        teamId={team?._id}
+        opponentId={roomTeams.find(t => t._id !== team?._id)?._id || team?._id}
+        isOpen={scoutingModalOpen}
+        onClose={() => setScoutingModalOpen(false)}
       />
     </div>
   );

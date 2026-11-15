@@ -1363,6 +1363,59 @@ const initialPlayers = [
   }
 ];
 
+// Phase 12: Enrich initialPlayers with Player Development, Special Abilities & Chemistry Tags
+initialPlayers.forEach(p => {
+  const pName = p.name || '';
+  let abilities = ['Big Match Player'];
+  if (pName.includes('Kohli')) abilities = ['Chase Master', 'Big Match Player'];
+  else if (pName.includes('Bumrah')) abilities = ['Yorker Specialist', 'Big Match Player'];
+  else if (pName.includes('Dhoni')) abilities = ["Finisher's Instinct", 'Lightning Fielder', 'Big Match Player'];
+  else if (pName.includes('Rohit')) abilities = ['Powerplay Destroyer', 'Big Match Player'];
+  else if (pName.includes('Klaasen')) abilities = ["Finisher's Instinct", 'Powerplay Destroyer'];
+  else if (pName.includes('Warne') || pName.includes('Murali') || pName.includes('Rashid')) abilities = ['Spin Master'];
+  else if (pName.includes('Stokes')) abilities = ['Chase Master', 'Big Match Player'];
+  else if (pName.includes('Cummins') || pName.includes('Starc') || pName.includes('Akram')) abilities = ['Yorker Specialist', 'Big Match Player'];
+  else if (pName.includes('Gayle') || pName.includes('Richards')) abilities = ['Powerplay Destroyer', 'Big Match Player'];
+  else if (pName.includes('Bradman') || pName.includes('Tendulkar') || pName.includes('Lara')) abilities = ['Wall of Defence', 'Big Match Player'];
+
+  p.specialAbilities = abilities;
+
+  // Chemistry tags
+  const tags = [p.country || 'International'];
+  if (p.role === 'Batter') tags.push('Anchor', 'Power Hitter');
+  if (p.role === 'Bowler') tags.push('Express Pace', 'Seam', 'Death Specialist');
+  if (p.role === 'Wicketkeeper') tags.push('Wicketkeeper', 'Finisher');
+  if (p.franchise && p.franchise.includes('Bengaluru')) tags.push('IPL_RCB');
+  if (p.franchise && p.franchise.includes('Mumbai')) tags.push('IPL_MI');
+  if (p.franchise && p.franchise.includes('Chennai')) tags.push('IPL_CSK');
+  p.chemistryTags = tags;
+
+  // Development & Readiness
+  p.development = {
+    form: 88,
+    confidence: 85,
+    fitness: 92,
+    fatigue: 12,
+    injury: {
+      status: 'healthy',
+      type: null,
+      matchesOut: 0,
+      recoveryProgress: 100,
+      injuryRisk: 10
+    },
+    training: {
+      battingXP: 250,
+      bowlingXP: p.role === 'Bowler' ? 250 : 50,
+      fieldingXP: 180,
+      fitnessXP: 200,
+      mentalXP: 220,
+      captaincyXP: 150,
+      level: 3
+    },
+    availability: 'available'
+  };
+});
+
 const initialRooms = [
   {
     _id: 'room_01',

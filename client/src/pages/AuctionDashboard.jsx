@@ -29,6 +29,7 @@ import { sound } from '../services/sound';
 import { NominationModal } from '../components/auction/NominationModal';
 import { T2VetoModal } from '../components/auction/T2VetoModal';
 import { AuctionReplayModal } from '../components/auction/AuctionReplayModal';
+import { AuctionAwardsModal } from '../components/auction/AuctionAwardsModal';
 
 export const AuctionDashboard = () => {
   const { user } = useAuth();
@@ -62,6 +63,7 @@ export const AuctionDashboard = () => {
   const [nominationOpen, setNominationOpen] = useState(false);
   const [vetoModalOpen, setVetoModalOpen] = useState(false);
   const [replayModalOpen, setReplayModalOpen] = useState(false);
+  const [awardsModalOpen, setAwardsModalOpen] = useState(false);
   const [dramaticOverlay, setDramaticOverlay] = useState(null);
 
   const timerRef = useRef(null);
@@ -630,6 +632,13 @@ export const AuctionDashboard = () => {
           >
             <History className="w-3.5 h-3.5 text-gold-400" /> REPLAY & LOGS
           </button>
+
+          <button
+            onClick={() => setAwardsModalOpen(true)}
+            className="bg-stadium-950 hover:bg-stadium-850 border border-gold-500/30 text-gold-300 hover:text-gold-200 font-mono text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-gold-400" /> AUCTION AWARDS
+          </button>
         </div>
       </div>
 
@@ -880,6 +889,13 @@ export const AuctionDashboard = () => {
         vetoedLots={auctionState?.vetoedLots || []}
         spendingHistory={auctionState?.spendingHistory || []}
         replayLogs={auctionState?.replayLogs || []}
+      />
+
+      {/* Auction Awards Modal */}
+      <AuctionAwardsModal
+        roomCode={roomCode}
+        isOpen={awardsModalOpen}
+        onClose={() => setAwardsModalOpen(false)}
       />
     </div>
   );

@@ -596,6 +596,76 @@ export const api = {
       body: JSON.stringify(data)
     });
     return await res.json();
+  },
+
+  // Phase 12: Advanced Game Systems
+  async trainPlayer(playerId, drillType = 'Batting') {
+    const res = await fetch(`${API_BASE}/advanced/players/${playerId}/train`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ drillType })
+    });
+    return await res.json();
+  },
+
+  async recoverPlayer(playerId, method = 'physio') {
+    const res = await fetch(`${API_BASE}/advanced/players/${playerId}/recover`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ method })
+    });
+    return await res.json();
+  },
+
+  async getPlayerDevelopment(playerId) {
+    const res = await fetch(`${API_BASE}/advanced/players/${playerId}/development`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getTeamChemistry(teamId) {
+    const res = await fetch(`${API_BASE}/advanced/teams/${teamId}/chemistry`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getOpponentScouting(teamId, opponentId) {
+    const res = await fetch(`${API_BASE}/advanced/teams/${teamId}/scouting/${opponentId}`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getMatchDocumentary(matchId) {
+    const res = await fetch(`${API_BASE}/advanced/matches/${matchId}/documentary`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getDrsReview(matchId) {
+    const res = await fetch(`${API_BASE}/advanced/matches/${matchId}/drs-review`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getAuctionAwards(roomCode) {
+    const res = await fetch(`${API_BASE}/advanced/auction/${roomCode}/awards`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getVoiceChatToken(matchId, userData = {}) {
+    const res = await fetch(`${API_BASE}/advanced/matches/${matchId}/voice/token`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(userData)
+    });
+    return await res.json();
   }
 };
 

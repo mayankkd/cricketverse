@@ -3619,6 +3619,183 @@ const runAllTests = async () => {
     assert.ok(foundSeason, 'Archived season must persist in franchise history');
   });
 
+  // ==========================================
+  // PHASE 12: ADVANCED GAME SYSTEMS TESTS
+  // ==========================================
+  console.log('\n--- PHASE 12: ADVANCED GAME SYSTEMS TESTS ---');
+
+  // Test 1: Training Drills (All 6 drills)
+  await test('Phase 12 - 1. Training Drills: Batting, Bowling, Fielding, Fitness, Mental, Captaincy award XP & boost attributes', async () => {
+    const drillTypes = ['Batting', 'Bowling', 'Fielding', 'Fitness', 'Mental Strength', 'Captaincy'];
+    for (const drill of drillTypes) {
+      const res = await callApp({
+        method: 'POST',
+        url: '/api/advanced/players/ply_01/train',
+        body: { drillType: drill }
+      });
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.drillType, drill);
+      assert.strictEqual(res.body.xpAwarded, 100);
+      assert.ok(res.body.statBoosted);
+    }
+  });
+
+  // Test 2: Recovery & Physio Methods
+  await test('Phase 12 - 2. Player Recovery: Physio, Ice Bath, Rest Cycle reduce fatigue and clear injury hazards', async () => {
+    const resPhysio = await callApp({
+      method: 'POST',
+      url: '/api/advanced/players/ply_01/recover',
+      body: { method: 'physio' }
+    });
+    assert.strictEqual(resPhysio.status, 200);
+    assert.strictEqual(resPhysio.body.success, true);
+    assert.ok(resPhysio.body.development.fatigue <= 15);
+
+    const resRest = await callApp({
+      method: 'POST',
+      url: '/api/advanced/players/ply_01/recover',
+      body: { method: 'rest_cycle' }
+    });
+    assert.strictEqual(resRest.status, 200);
+    assert.strictEqual(resRest.body.development.fatigue, 0);
+    assert.strictEqual(resRest.body.development.fitness, 100);
+  });
+
+  // Test 3: Player Development State Retrieval
+  await test('Phase 12 - 3. Player Development State: Form, confidence, fitness, fatigue, injury risk and availability', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/advanced/players/ply_01/development' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.development.form >= 30);
+    assert.ok(res.body.development.confidence >= 0);
+    assert.strictEqual(res.body.development.injury.status, 'healthy');
+    assert.strictEqual(res.body.development.availability, 'available');
+    assert.ok(Array.isArray(res.body.specialAbilities));
+    assert.ok(Array.isArray(res.body.chemistryTags));
+  });
+
+  // Test 4: Historical Partnerships & Balanced Chemistry Multipliers
+  await test('Phase 12 - 4. Historical Partnerships & Balanced Chemistry: Evaluates pairs and clamps multiplier [0.95, 1.08]', async () => {
+    const { calculatePartnershipChemistry } = require('../src/services/advancedGameSystemService');
+    const kohli = { name: 'Virat Kohli', role: 'Batter', battingStyle: 'Right-hand bat', country: 'India', chemistryTags: ['Anchor', 'Aggressive'] };
+    const abd = { name: 'AB de Villiers', role: 'Batter', battingStyle: 'Right-hand bat', country: 'South Africa', chemistryTags: ['Power Hitter'] };
+    const pairRes = calculatePartnershipChemistry(kohli, abd);
+
+    assert.strictEqual(pairRes.chemistryScore, 95);
+    assert.ok(pairRes.synergyMultiplier >= 1.05 && pairRes.synergyMultiplier <= 1.08, 'Must provide balanced synergy boost');
+    assert.strictEqual(pairRes.synergyTitle, 'The Bengaluru Dream Duo');
+    assert.ok(pairRes.bonuses.boundaryBuff > 0);
+  });
+
+  // Test 5: Compatible Styles Synergy
+  await test('Phase 12 - 5. Compatible Styles Synergy: Anchor + Power Striker and Left-Right combinations', async () => {
+    const { calculatePartnershipChemistry } = require('../src/services/advancedGameSystemService');
+    const p1 = { name: 'Anchor Batter', role: 'Batter', battingStyle: 'Right-hand bat', chemistryTags: ['Anchor'] };
+    const p2 = { name: 'Power Striker', role: 'Batter', battingStyle: 'Left-hand bat', chemistryTags: ['Power Hitter'] };
+    const styleRes = calculatePartnershipChemistry(p1, p2);
+
+    assert.ok(styleRes.chemistryScore >= 75);
+    assert.ok(styleRes.synergyMultiplier > 1.0);
+    assert.ok(styleRes.bonuses.runOutReduction > 0);
+  });
+
+  // Test 6: Team Chemistry Matrix Endpoint
+  await test('Phase 12 - 6. Team Chemistry Matrix: Returns squad synergy multiplier and compatibility score', async () => {
+    const res = await callApp({ method: 'GET', url: `/api/advanced/teams/${p5Team1._id}/chemistry` });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.overallChemistry >= 50 && res.body.overallChemistry <= 100);
+    assert.ok(res.body.synergyMultiplier >= 0.95 && res.body.synergyMultiplier <= 1.08);
+  });
+
+  // Test 7: Special Abilities Evaluation
+  await test('Phase 12 - 7. Special Abilities: Evaluates Finisher, Chase Master, Yorker, Powerplay, Spin, Defense, Big Match', async () => {
+    const { evaluateActiveAbilities } = require('../src/services/advancedGameSystemService');
+    
+    // Death Overs Finisher Test
+    const deathEval = evaluateActiveAbilities({
+      striker: { name: 'MS Dhoni', specialAbilities: ["Finisher's Instinct"] },
+      bowler: { name: 'Bowler', specialAbilities: [] },
+      matchContext: { overNumber: 19, format: 'T20', currentInnings: 2 }
+    });
+    assert.ok(deathEval.activeStrikerAbilities.includes("Finisher's Instinct"));
+    assert.ok(deathEval.buffs.boundaryChanceMultiplier > 1.0);
+
+    // Yorker Specialist at death Test
+    const yorkerEval = evaluateActiveAbilities({
+      striker: { name: 'Batter', specialAbilities: [] },
+      bowler: { name: 'Jasprit Bumrah', specialAbilities: ['Yorker Specialist'] },
+      matchContext: { overNumber: 19, format: 'T20', bowlingLength: 'Yorker' }
+    });
+    assert.ok(yorkerEval.activeBowlerAbilities.includes('Yorker Specialist'));
+    assert.ok(yorkerEval.buffs.boundaryChanceMultiplier <= 0.60);
+
+    // Wall of Defence Test
+    const defEval = evaluateActiveAbilities({
+      striker: { name: 'Rahul Dravid', specialAbilities: ['Wall of Defence'] },
+      bowler: { name: 'Bowler', specialAbilities: [] },
+      matchContext: { shotType: 'Defensive Block' }
+    });
+    assert.ok(defEval.activeStrikerAbilities.includes('Wall of Defence'));
+    assert.ok(defEval.buffs.edgeChanceMultiplier <= 0.15);
+  });
+
+  // Test 8: Dynamic Match Events & UltraEdge DRS Review
+  await test('Phase 12 - 8. Dynamic In-Game Events: DRS UltraEdge review with waveform and decision telemetry', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/advanced/matches/LIVE-IPL-FINAL/drs-review' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.drsReview.reviewId);
+    assert.ok(Array.isArray(res.body.drsReview.waveformSamples));
+    assert.ok(['OUT', 'NOT OUT'].includes(res.body.drsReview.finalDecision));
+  });
+
+  // Test 9: Opponent Scouting & Analysis
+  await test('Phase 12 - 9. Opponent Scouting: Generates batting/bowling vulnerabilities & tactical counter-measures', async () => {
+    const res = await callApp({ method: 'GET', url: `/api/advanced/teams/${p5Team1._id}/scouting/${p5Team2._id}` });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.scoutingReport.battingAnalysis);
+    assert.ok(res.body.scoutingReport.bowlingAnalysis);
+    assert.ok(res.body.scoutingReport.recommendedTactics.length >= 3);
+  });
+
+  // Test 10: Analytical Auction Awards
+  await test('Phase 12 - 10. Analytical Auction Awards: Best Value Pick, Steal of the Auction, Marquee Buy, Master Tactician', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/advanced/auction/IPL-2026/awards' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.awards.bestValuePick);
+    assert.ok(res.body.awards.stealOfTheAuction);
+    assert.ok(res.body.awards.marqueeBuy);
+    assert.ok(res.body.awards.masterTactician);
+  });
+
+  // Test 11: Match Documentary Generator
+  await test('Phase 12 - 11. Match Documentary Generator: Generates 5-act cinematic script with story acts and hero legacy', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/advanced/matches/LIVE-IPL-FINAL/documentary' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.documentary.title);
+    assert.strictEqual(res.body.documentary.acts.length, 5);
+    assert.ok(res.body.documentary.heroOfTheMatch);
+  });
+
+  // Test 12: WebRTC Voice Chat Signaling
+  await test('Phase 12 - 12. WebRTC Voice Chat Signaling: Generates room audio channel, token and ICE servers', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/advanced/matches/LIVE-IPL-FINAL/voice/token',
+      body: { userId: 'fan_12', username: 'Stadium Supporter' }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.channel.includes('voice_room'));
+    assert.ok(res.body.token.includes('rtc_token'));
+    assert.ok(res.body.iceServers.length > 0);
+  });
+
   // Match Center & Simulation
   await test('GET /api/matches returns live match data', async () => {
     const res = await callApp({ method: 'GET', url: '/api/matches' });

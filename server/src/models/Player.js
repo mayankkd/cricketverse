@@ -269,7 +269,46 @@ const playerSchema = new mongoose.Schema({
   isAvailableForAuction: {
     type: Boolean,
     default: true
-  }
+  },
+
+  // Phase 12: Player Development System
+  development: {
+    form: { type: Number, min: 30, max: 100, default: 80 },
+    confidence: { type: Number, min: 0, max: 100, default: 75 },
+    fitness: { type: Number, min: 0, max: 100, default: 90 },
+    fatigue: { type: Number, min: 0, max: 100, default: 10 },
+    injury: {
+      status: {
+        type: String,
+        enum: ['healthy', 'minor_strain', 'hamstring_tear', 'side_strain', 'fracture'],
+        default: 'healthy'
+      },
+      type: { type: String, default: null },
+      matchesOut: { type: Number, default: 0 },
+      recoveryProgress: { type: Number, default: 100 },
+      injuryRisk: { type: Number, default: 10 }
+    },
+    training: {
+      battingXP: { type: Number, default: 0 },
+      bowlingXP: { type: Number, default: 0 },
+      fieldingXP: { type: Number, default: 0 },
+      fitnessXP: { type: Number, default: 0 },
+      mentalXP: { type: Number, default: 0 },
+      captaincyXP: { type: Number, default: 0 },
+      level: { type: Number, default: 1 }
+    },
+    availability: {
+      type: String,
+      enum: ['available', 'rested', 'injured', 'suspended'],
+      default: 'available'
+    }
+  },
+
+  // Phase 12: Special Abilities
+  specialAbilities: [{ type: String }],
+
+  // Phase 12: Chemistry Tags & Partnerships
+  chemistryTags: [{ type: String }]
 }, {
   timestamps: true
 });

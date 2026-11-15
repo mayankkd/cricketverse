@@ -22,6 +22,13 @@ const {
   comparePlayers,
   generateMatchSummary
 } = require('./analyticsService');
+const {
+  calculatePartnershipChemistry,
+  evaluateActiveAbilities,
+  generateDynamicMatchEvent,
+  generateMatchDocumentary,
+  generateScoutingReport
+} = require('./advancedGameSystemService');
 
 // ==========================================
 // PHASE 8, 9 & 10: MATCH ENGINE, STADIUM CONDITIONS & BROADCAST ANALYTICS
@@ -442,6 +449,11 @@ const getMatchSnapshot = (matchId) => {
     matchSummary: match.matchSummary || null,
     wormData: [...match.wormData],
     result: match.result,
+    // Phase 12: Advanced Systems Telemetry
+    dynamicEvents: match.dynamicEvents || [],
+    crowdAtmosphere: match.crowdAtmosphere || { excitementLevel: 75, noiseDecibels: 85, currentChant: 'CRICKET-VERSE!', mood: 'Electric' },
+    activeAbilities: match.activeAbilities || [],
+    partnershipChemistry: match.partnershipChemistry || null,
     participants: match.participants.map(p => ({
       userId: p.userId,
       username: p.username,
@@ -1037,6 +1049,58 @@ const submitBattingDecision = async (matchId, userId, {
     battingTeamWickets: battingTeam.wickets,
     timestamp: new Date()
   };
+
+  // Phase 12: Special Abilities & Partnership Chemistry Telemetry
+  try {
+    const abilitiesEval = evaluateActiveAbilities({
+      striker: match.currentStriker,
+      bowler: match.currentBowler,
+      matchContext: {
+        overNumber: wholeOvers + 1,
+        format: match.format,
+        currentInnings: match.currentInnings,
+        pitchType: match.stadium?.pitchType,
+        bowlingLength: bowlingDecision.length,
+        shotType,
+        isPlayoff: match.isPlayoff,
+        isFinal: match.isFinal,
+        isRivalry: match.isRivalry
+      }
+    });
+    deliveryRecord.activeAbilities = abilitiesEval;
+    match.activeAbilities = [...abilitiesEval.activeStrikerAbilities, ...abilitiesEval.activeBowlerAbilities];
+
+    const partnershipChem = calculatePartnershipChemistry(match.currentStriker, match.currentNonStriker);
+    deliveryRecord.partnershipChemistry = partnershipChem;
+    match.partnershipChemistry = partnershipChem;
+
+    // Dynamic In-Game Events & Crowd Atmosphere
+    const dynamicEvents = generateDynamicMatchEvent(
+      { overs: newOvers, currentInnings: match.currentInnings, teamA: match.teamA, teamB: match.teamB, dewEventLogged: match.dewEventLogged },
+      outcome
+    );
+    if (dynamicEvents.length > 0) {
+      if (!match.dynamicEvents) match.dynamicEvents = [];
+      match.dynamicEvents.unshift(...dynamicEvents);
+      if (match.dynamicEvents.length > 10) match.dynamicEvents.pop();
+      if (dynamicEvents.some(e => e.type === 'DEW_ONSET')) match.dewEventLogged = true;
+    }
+
+    match.crowdAtmosphere = match.crowdAtmosphere || { excitementLevel: 75, noiseDecibels: 85, currentChant: 'CRICKET-VERSE!', mood: 'Electric' };
+    if (outcome.badge === 'SIX') {
+      match.crowdAtmosphere.excitementLevel = Math.min(100, match.crowdAtmosphere.excitementLevel + 5);
+      match.crowdAtmosphere.noiseDecibels = 108;
+      match.crowdAtmosphere.mood = 'Frenzied';
+    } else if (outcome.isWicket) {
+      match.crowdAtmosphere.excitementLevel = Math.min(100, match.crowdAtmosphere.excitementLevel + 8);
+      match.crowdAtmosphere.noiseDecibels = 112;
+      match.crowdAtmosphere.mood = 'Roaring';
+    } else if (outcome.badge === 'FOUR') {
+      match.crowdAtmosphere.noiseDecibels = 98;
+    }
+  } catch (err) {
+    console.warn('[MatchEngine] Phase 12 telemetry error:', err.message);
+  }
 
   if (!match.deliveries) match.deliveries = [];
   match.deliveries.push(deliveryRecord);

@@ -288,6 +288,19 @@ const getPlayerById = async (id) => {
   return memoryStore.players.find(p => p._id === id || p.slug === id) || null;
 };
 
+const updatePlayer = async (id, updateFields) => {
+  if (isMongoConnected()) {
+    return await Player.findByIdAndUpdate(id, { $set: updateFields }, { new: true });
+  }
+  const idx = memoryStore.players.findIndex(p => p._id === id || p.slug === id);
+  if (idx === -1) return null;
+  memoryStore.players[idx] = {
+    ...memoryStore.players[idx],
+    ...updateFields
+  };
+  return memoryStore.players[idx];
+};
+
 const comparePlayers = async (id1, id2) => {
   const [player1, player2] = await Promise.all([
     getPlayerById(id1),
@@ -3423,6 +3436,7 @@ module.exports = {
   updateUser,
   getAllPlayers,
   getPlayerById,
+  updatePlayer,
   comparePlayers,
   getPlayerFilterMetadata,
   getAllRooms,

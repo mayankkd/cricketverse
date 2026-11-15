@@ -27,6 +27,7 @@ import {
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
 import { sound } from '../services/sound';
+import { socketService } from '../services/socket';
 import { TacticalManagementModal } from '../components/tactics/TacticalManagementModal';
 import { CricketArena } from '../game/CricketArena';
 
@@ -36,11 +37,15 @@ export const MatchCenter = () => {
   const [loading, setLoading] = useState(true);
   const [isTacticsOpen, setIsTacticsOpen] = useState(false);
   const [activeView, setActiveView] = useState('arena'); // 'arena' | 'broadcast' | 'both'
+  const [userRole, setUserRole] = useState('player'); // 'player' | 'spectator'
+  const [matchNotification, setMatchNotification] = useState(null);
 
   useEffect(() => {
+    const matchId = 'LIVE-IPL-FINAL';
+
     const fetchMatch = async () => {
       try {
-        const res = await api.getMatchById('LIVE-IPL-FINAL');
+        const res = await api.getMatchById(matchId);
         if (res.success && res.match) {
           setMatch(res.match);
         }
@@ -52,7 +57,50 @@ export const MatchCenter = () => {
     };
 
     fetchMatch();
-  }, []);
+
+    // Real-time Multiplayer Socket Connection
+    socketService.joinMatch(matchId, { role: userRole });
+
+    const unsubSnapshot = socketService.onMatchSnapshot((snapshot) => {
+      setMatch(snapshot);
+      setLoading(false);
+    });
+
+    const unsubState = socketService.onMatchState((updatedState) => {
+      setMatch(updatedState);
+    });
+
+    const unsubNotification = socketService.onMatchNotification((notif) => {
+      setMatchNotification(notif.text);
+      setTimeout(() => setMatchNotification(null), 4000);
+    });
+
+    const unsubDelivery = socketService.onDeliveryResult((res) => {
+      if (res.snapshot) setMatch(res.snapshot);
+      if (res.outcome?.badge === 'SIX') sound.playSixHit();
+      else if (res.outcome?.badge === 'FOUR' || res.outcome?.badge === 'WICKET') sound.playBatCrack();
+      else sound.playClick();
+    });
+
+    const unsubInnings = socketService.onInningsEnded((data) => {
+      setMatchNotification(`INNINGS BREAK! Target: ${data.targetScore} runs.`);
+      sound.playClick();
+    });
+
+    const unsubEnded = socketService.onMatchEnded((data) => {
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 } });
+      sound.playSixHit();
+    });
+
+    return () => {
+      unsubSnapshot();
+      unsubState();
+      unsubNotification();
+      unsubDelivery();
+      unsubInnings();
+      unsubEnded();
+    };
+  }, [userRole]);
 
   // Auto-play interval
   useEffect(() => {
@@ -144,6 +192,30 @@ export const MatchCenter = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Active Role Switcher */}
+          <div className="flex items-center gap-1 bg-stadium-950 p-1 rounded-xl border border-white/10 text-xs font-mono">
+            <button
+              onClick={() => { sound.playClick(); setUserRole('player'); }}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                userRole === 'player'
+                  ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              🏏 PLAYER
+            </button>
+            <button
+              onClick={() => { sound.playClick(); setUserRole('spectator'); }}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                userRole === 'spectator'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              👁️ SPECTATOR
+            </button>
+          </div>
+
           <button
             onClick={() => {
               sound.playClick();
@@ -156,12 +228,22 @@ export const MatchCenter = () => {
         </div>
       </div>
 
+      {/* Match Notification Banner */}
+      {matchNotification && (
+        <div className="bg-gold-500/10 border border-gold-500/40 text-gold-400 p-3 rounded-2xl text-xs font-mono flex items-center justify-between shadow-gold-glow animate-pulse">
+          <span className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4" /> {matchNotification}
+          </span>
+          <button onClick={() => setMatchNotification(null)} className="text-white hover:text-gold-300 font-bold">✕</button>
+        </div>
+      )}
+
       {/* 2D PLAYABLE PHASER 3 ARENA */}
       {(activeView === 'arena' || activeView === 'both') && (
         <CricketArena
           match={match}
           onMatchUpdated={(updated) => setMatch(updated)}
-          isSpectator={false}
+          isSpectator={userRole === 'spectator'}
           format={match.format}
         />
       )}

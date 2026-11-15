@@ -3450,6 +3450,7 @@ module.exports = {
   updateTeamTactics,
   getMatchTactics,
   updateMatchTactics,
+  updateMatch,
   simulateTacticalBall,
   // Phase 7: Phaser 3 Authoritative Delivery Engine
   VALID_SHOT_TYPES,

@@ -129,12 +129,139 @@ const playDelivery = async (req, res, next) => {
   }
 };
 
+const matchEngineService = require('../services/matchEngineService');
+
+// @desc    Join a multiplayer match as Player or Spectator
+// @route   POST /api/matches/:id/join
+// @access  Public / Private
+const joinMatch = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { role = 'player', teamKey = 'teamA' } = req.body || {};
+    const userId = req.user?._id || req.body.userId || `usr_${Date.now()}`;
+    const username = req.user?.username || req.body.username || (role === 'player' ? 'Player' : 'Spectator');
+
+    const result = await matchEngineService.joinMatch(id, {
+      userId,
+      username,
+      role,
+      teamKey
+    });
+
+    res.status(200).json({
+      success: true,
+      participantRole: result.participantRole,
+      snapshot: result.snapshot,
+      event: result.event
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Get Authoritative Match Snapshot
+// @route   GET /api/matches/:id/snapshot
+// @access  Public
+const getMatchSnapshot = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await matchEngineService.getOrCreateMatchEngine(id);
+    const snapshot = matchEngineService.getMatchSnapshot(id);
+
+    if (!snapshot) {
+      return res.status(404).json({ success: false, code: 'MATCH_NOT_FOUND', message: 'Match snapshot not found.' });
+    }
+
+    res.status(200).json({
+      success: true,
+      snapshot
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Sync Match Events or Reconnection Recovery
+// @route   GET /api/matches/:id/sync
+// @access  Public
+const syncMatch = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const fromSeq = Number(req.query.fromSeq || 0);
+    const userId = req.user?._id || req.query.userId;
+
+    const result = await matchEngineService.syncMatch(id, { fromSeq, userId });
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Submit Bowling Decision
+// @route   POST /api/matches/:id/bowling-decision
+// @access  Public / Private
+const submitBowlingDecision = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?._id || req.body.userId || 'bowler_usr';
+    const result = await matchEngineService.submitBowlingDecision(id, userId, req.body || {});
+
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Submit Batting Decision
+// @route   POST /api/matches/:id/batting-decision
+// @access  Public / Private
+const submitBattingDecision = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?._id || req.body.userId || 'striker_usr';
+    const result = await matchEngineService.submitBattingDecision(id, userId, req.body || {});
+
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
 module.exports = {
   getMatches,
   getMatchById,
   getMatchTactics,
   updateMatchTactics,
   simulateBall,
-  playDelivery
+  playDelivery,
+  joinMatch,
+  getMatchSnapshot,
+  syncMatch,
+  submitBowlingDecision,
+  submitBattingDecision
 };
 

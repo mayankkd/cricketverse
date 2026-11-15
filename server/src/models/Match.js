@@ -95,6 +95,47 @@ const matchSchema = new mongoose.Schema({
     enum: ['pre_match', 'over_break', 'innings_break', 'tactical_break', 'live'],
     default: 'live'
   },
+  seed: {
+    type: String,
+    default: 'cricketverse_seed_2026'
+  },
+  seq: {
+    type: Number,
+    default: 0
+  },
+  targetScore: {
+    type: Number,
+    default: null
+  },
+  battingTeamKey: {
+    type: String,
+    default: 'teamA'
+  },
+  bowlingTeamKey: {
+    type: String,
+    default: 'teamB'
+  },
+  battingUserId: {
+    type: String,
+    default: null
+  },
+  bowlingUserId: {
+    type: String,
+    default: null
+  },
+  turnPhase: {
+    type: String,
+    enum: ['waiting_bowling', 'waiting_batting', 'resolving', 'innings_break', 'completed'],
+    default: 'waiting_bowling'
+  },
+  participants: [{
+    userId: String,
+    username: String,
+    role: { type: String, enum: ['player', 'spectator'], default: 'player' },
+    teamKey: String,
+    socketId: String,
+    isConnected: { type: Boolean, default: true }
+  }],
   teamATactics: {
     type: mongoose.Schema.Types.Mixed,
     default: () => ({})

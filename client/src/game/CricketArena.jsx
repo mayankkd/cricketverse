@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { sound } from '../services/sound';
 import { api } from '../services/api';
+import { socketService } from '../services/socket';
 
 const SHOT_TYPES = [
   'Drive',
@@ -149,6 +150,31 @@ export const CricketArena = ({
     }
   }, [match?.teamBTactics]);
 
+  // Real-time Multiplayer Socket delivery synchronization
+  useEffect(() => {
+    const unsub = socketService.onDeliveryResult((res) => {
+      if (res.deliveryData && sceneRef.current?.playDelivery) {
+        setIsDelivering(true);
+        setLastOutcome(res.outcome);
+
+        if (res.outcome?.badge === 'SIX') sound.playSixHit();
+        else if (res.outcome?.badge === 'FOUR' || res.outcome?.badge === 'WICKET') sound.playBatCrack();
+        else sound.playClick();
+
+        sceneRef.current.playDelivery(res.deliveryData, () => {
+          setIsDelivering(false);
+          setLockedTiming(null);
+          setIsTimingMoving(true);
+          if (onMatchUpdated && res.snapshot) {
+            onMatchUpdated(res.snapshot);
+          }
+        });
+      }
+    });
+
+    return () => unsub();
+  }, [onMatchUpdated]);
+
   // Timing bar oscillation
   useEffect(() => {
     if (!isTimingMoving || isDelivering) return;
@@ -218,42 +244,46 @@ export const CricketArena = ({
         runsAttempted: runsChoice
       };
 
-      const res = await api.playDelivery(match.matchId || 'LIVE-IPL-FINAL', payload);
+      if (socketService.connected) {
+        socketService.submitMatchDelivery(match?.matchId || 'LIVE-IPL-FINAL', payload, `action_${Date.now()}`);
+      } else {
+        const res = await api.playDelivery(match?.matchId || 'LIVE-IPL-FINAL', payload);
 
-      if (res.success && res.deliveryData) {
-        setLastOutcome(res.outcome);
+        if (res.success && res.deliveryData) {
+          setLastOutcome(res.outcome);
 
-        // Sound effects
-        if (res.outcome.badge === 'SIX') {
-          sound.playSixHit();
-        } else if (res.outcome.badge === 'FOUR') {
-          sound.playBatCrack();
-        } else if (res.outcome.badge === 'WICKET') {
-          sound.playBatCrack();
-        } else {
-          sound.playClick();
-        }
+          // Sound effects
+          if (res.outcome.badge === 'SIX') {
+            sound.playSixHit();
+          } else if (res.outcome.badge === 'FOUR') {
+            sound.playBatCrack();
+          } else if (res.outcome.badge === 'WICKET') {
+            sound.playBatCrack();
+          } else {
+            sound.playClick();
+          }
 
-        // Trigger Phaser 3 Scene Animation
-        if (sceneRef.current && sceneRef.current.playDelivery) {
-          sceneRef.current.playDelivery(res.deliveryData, () => {
+          // Trigger Phaser 3 Scene Animation
+          if (sceneRef.current && sceneRef.current.playDelivery) {
+            sceneRef.current.playDelivery(res.deliveryData, () => {
+              setIsDelivering(false);
+              setLockedTiming(null);
+              setIsTimingMoving(true);
+              if (onMatchUpdated && res.match) {
+                onMatchUpdated(res.match);
+              }
+            });
+          } else {
             setIsDelivering(false);
             setLockedTiming(null);
             setIsTimingMoving(true);
             if (onMatchUpdated && res.match) {
               onMatchUpdated(res.match);
             }
-          });
+          }
         } else {
           setIsDelivering(false);
-          setLockedTiming(null);
-          setIsTimingMoving(true);
-          if (onMatchUpdated && res.match) {
-            onMatchUpdated(res.match);
-          }
         }
-      } else {
-        setIsDelivering(false);
       }
     } catch (err) {
       console.error('Error executing authoritative delivery:', err);
@@ -633,3 +663,4 @@ export const CricketArena = ({
     </div>
   );
 };
+

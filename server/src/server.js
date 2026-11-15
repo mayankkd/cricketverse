@@ -88,8 +88,8 @@ const start = async () => {
   });
 };
 
-// Export app and server for testing
-module.exports = { app, server, start };
+// Export app, server, and io for testing and socket operations
+module.exports = { app, server, start, io };
 
 // Run if called directly
 if (require.main === module) {

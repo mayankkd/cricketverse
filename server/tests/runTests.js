@@ -3,6 +3,7 @@ const { Readable, Duplex } = require('stream');
 const http = require('http');
 const jwt = require('jsonwebtoken');
 const { app } = require('../src/server');
+const matchEngineService = require('../src/services/matchEngineService');
 
 // In-process HTTP request mock dispatcher for Express in Node v24
 const callApp = ({ method, url, body = null, headers = {} }) => {
@@ -2276,6 +2277,531 @@ const runAllTests = async () => {
     assert.strictEqual(res.body.deliveryData.shotType, 'Pull / Hook');
   });
 
+  // ==========================================
+  // PHASE 8: MULTIPLAYER MATCH ENGINE TESTS
+  // ==========================================
+
+  // 1. Deterministic Seeded Randomness
+  await test('Phase 8 - 1. Deterministic Seeded Randomness: Identical seeds yield 100% identical outcomes', async () => {
+    const seed = 'cricketverse_test_seed_alpha';
+    const rng1 = matchEngineService.createSeededRandom(seed);
+    const rng2 = matchEngineService.createSeededRandom(seed);
+
+    const values1 = [rng1(), rng1(), rng1(), rng1(), rng1()];
+    const values2 = [rng2(), rng2(), rng2(), rng2(), rng2()];
+
+    assert.deepStrictEqual(values1, values2, 'Seeded PRNG outputs must be identical for the same seed');
+
+    const differentRng = matchEngineService.createSeededRandom('cricketverse_test_seed_beta');
+    const diffValues = [differentRng(), differentRng(), differentRng(), differentRng(), differentRng()];
+    assert.notDeepStrictEqual(values1, diffValues, 'Different seeds must produce different sequences');
+  });
+
+  // 2. Fixed Capacity: Exactly 6 Active Players
+  await test('Phase 8 - 2. Fixed Capacity: Exactly 6 active players allowed in match', async () => {
+    const matchId = `TEST_MATCH_CAP_${Date.now()}`;
+    await matchEngineService.getOrCreateMatchEngine(matchId);
+
+    for (let i = 1; i <= 6; i++) {
+      const joinRes = await matchEngineService.joinMatch(matchId, {
+        userId: `player_${i}`,
+        username: `Player ${i}`,
+        role: 'player',
+        teamKey: i <= 3 ? 'teamA' : 'teamB'
+      });
+      assert.strictEqual(joinRes.participantRole, 'player', `Player ${i} should have role 'player'`);
+    }
+
+    const snapshot = matchEngineService.getMatchSnapshot(matchId);
+    assert.strictEqual(snapshot.activePlayersCount, 6, 'Should have exactly 6 active players');
+    assert.strictEqual(snapshot.spectatorsCount, 0);
+  });
+
+  // 3. Seventh Person Rule: 7th person forced to Spectator role
+  await test('Phase 8 - 3. Seventh Person Rule: 7th participant forced to join as spectator', async () => {
+    const matchId = `TEST_MATCH_7TH_${Date.now()}_ABC`;
+    await matchEngineService.getOrCreateMatchEngine(matchId);
+
+    // Join 6 players
+    for (let i = 1; i <= 6; i++) {
+      await matchEngineService.joinMatch(matchId, {
+        userId: `p_${i}`,
+        username: `Player ${i}`,
+        role: 'player',
+        teamKey: i <= 3 ? 'teamA' : 'teamB'
+      });
+    }
+
+    // 7th user tries to join as 'player'
+    const join7 = await matchEngineService.joinMatch(matchId, {
+      userId: 'seventh_person',
+      username: 'Seventh Person',
+      role: 'player'
+    });
+
+    assert.strictEqual(join7.participantRole, 'spectator', '7th person MUST be assigned spectator role');
+
+    // 8th user joins as spectator
+    const join8 = await matchEngineService.joinMatch(matchId, {
+      userId: 'eighth_person',
+      username: 'Eighth Person',
+      role: 'spectator'
+    });
+    assert.strictEqual(join8.participantRole, 'spectator');
+
+    const snap = matchEngineService.getMatchSnapshot(matchId);
+    assert.strictEqual(snap.activePlayersCount, 6);
+    assert.strictEqual(snap.spectatorsCount, 2);
+  });
+
+  // 4. Spectator Action Rejection: Spectators cannot submit bowling or batting decisions
+  await test('Phase 8 - 4. Spectator Action Rejection: Spectators cannot submit player actions', async () => {
+    const matchId = `TEST_MATCH_SPEC_${Date.now()}`;
+    await matchEngineService.getOrCreateMatchEngine(matchId);
+
+    await matchEngineService.joinMatch(matchId, {
+      userId: 'spec_user_1',
+      username: 'Spectator Watcher',
+      role: 'spectator'
+    });
+
+    // Spectator attempts to submit bowling decision
+    let bowlErr = null;
+    try {
+      await matchEngineService.submitBowlingDecision(matchId, 'spec_user_1', {
+        deliverySeq: 1,
+        line: 'Off Stump',
+        length: 'Good Length',
+        variation: 'Seam'
+      });
+    } catch (e) {
+      bowlErr = e;
+    }
+    assert.ok(bowlErr);
+    assert.strictEqual(bowlErr.code, 'SPECTATOR_READ_ONLY');
+
+    // Spectator attempts to submit batting decision
+    let batErr = null;
+    try {
+      await matchEngineService.submitBattingDecision(matchId, 'spec_user_1', {
+        deliverySeq: 1,
+        shotType: 'Drive',
+        timing: 'Good'
+      });
+    } catch (e) {
+      batErr = e;
+    }
+    assert.ok(batErr);
+    assert.strictEqual(batErr.code, 'SPECTATOR_READ_ONLY');
+  });
+
+  // 5. Turn Ordering & Player Action Validation
+  await test('Phase 8 - 5. Player Action Validation: Turn ordering strictly enforced', async () => {
+    const matchId = `TEST_MATCH_TURN_${Date.now()}`;
+    const engine = await matchEngineService.getOrCreateMatchEngine(matchId);
+    engine.battingUserId = 'striker_user';
+    engine.bowlingUserId = 'bowler_user';
+    engine.battingTeamKey = 'teamA';
+    engine.bowlingTeamKey = 'teamB';
+    engine.turnPhase = 'waiting_bowling';
+
+    await matchEngineService.joinMatch(matchId, { userId: 'striker_user', role: 'player', teamKey: 'teamA' });
+    await matchEngineService.joinMatch(matchId, { userId: 'bowler_user', role: 'player', teamKey: 'teamB' });
+
+    // Striker tries to bowl during waiting_bowling
+    let wrongBowlErr = null;
+    try {
+      await matchEngineService.submitBowlingDecision(matchId, 'striker_user', {
+        deliverySeq: 1,
+        line: 'Off Stump',
+        length: 'Good Length',
+        variation: 'Seam'
+      });
+    } catch (e) {
+      wrongBowlErr = e;
+    }
+    assert.ok(wrongBowlErr);
+    assert.strictEqual(wrongBowlErr.code, 'NOT_YOUR_TURN');
+
+    // Bowler bowls
+    const bowlRes = await matchEngineService.submitBowlingDecision(matchId, 'bowler_user', {
+      deliverySeq: 1,
+      line: 'Off Stump',
+      length: 'Good Length',
+      variation: 'Seam'
+    });
+    assert.strictEqual(bowlRes.success, true);
+    assert.strictEqual(bowlRes.nextPhase, 'waiting_batting');
+
+    // Bowler tries to bat during waiting_batting
+    let wrongBatErr = null;
+    try {
+      await matchEngineService.submitBattingDecision(matchId, 'bowler_user', {
+        deliverySeq: 1,
+        shotType: 'Drive',
+        timing: 'Good'
+      });
+    } catch (e) {
+      wrongBatErr = e;
+    }
+    assert.ok(wrongBatErr);
+    assert.strictEqual(wrongBatErr.code, 'NOT_YOUR_TURN');
+  });
+
+  // 6. Complete Turn Delivery Flow: Bowling -> Batting -> Resolve -> State Update
+  await test('Phase 8 - 6. Complete Turn Delivery Flow: Bowling to Batting to Resolution with Monotonic Sequencing', async () => {
+    const matchId = `TEST_MATCH_FLOW_${Date.now()}`;
+    const engine = await matchEngineService.getOrCreateMatchEngine(matchId);
+    engine.battingUserId = 'batter_1';
+    engine.bowlingUserId = 'bowler_1';
+    engine.turnPhase = 'waiting_bowling';
+
+    await matchEngineService.joinMatch(matchId, { userId: 'batter_1', role: 'player', teamKey: 'teamA' });
+    await matchEngineService.joinMatch(matchId, { userId: 'bowler_1', role: 'player', teamKey: 'teamB' });
+    const initialSeq = engine.seq;
+
+    // Phase A: Bowling commitment
+    const bowlRes = await matchEngineService.submitBowlingDecision(matchId, 'bowler_1', {
+      deliverySeq: 1,
+      line: 'Outside Off',
+      length: 'Full',
+      variation: 'Swing'
+    });
+    assert.strictEqual(bowlRes.success, true);
+    assert.strictEqual(bowlRes.event.type, 'BOWLING_COMMITTED');
+    assert.strictEqual(bowlRes.event.seq, initialSeq + 1);
+
+    // Phase B & C: Batting commitment & Resolution
+    const batRes = await matchEngineService.submitBattingDecision(matchId, 'batter_1', {
+      deliverySeq: 1,
+      shotType: 'Lofted Drive',
+      direction: 'Cover',
+      timing: 'Perfect'
+    });
+    assert.strictEqual(batRes.success, true);
+    assert.strictEqual(batRes.event.type, 'DELIVERY_RESULT');
+    assert.strictEqual(batRes.outcome.runs, 6);
+    assert.strictEqual(batRes.event.seq, initialSeq + 2);
+    assert.ok(batRes.snapshot.teamA.score >= 6);
+    assert.strictEqual(batRes.snapshot.currentTurn.deliverySeq, 2);
+    assert.strictEqual(batRes.snapshot.turnPhase, 'waiting_bowling');
+  });
+
+  // 7. Duplicate Event Prevention (Idempotency)
+  await test('Phase 8 - 7. Duplicate Event Prevention: Duplicate idempotency keys safely acknowledged without double mutating', async () => {
+    const matchId = `TEST_MATCH_IDEMP_${Date.now()}`;
+    const engine = await matchEngineService.getOrCreateMatchEngine(matchId);
+    engine.battingUserId = 'batter_idemp';
+    engine.bowlingUserId = 'bowler_idemp';
+    engine.turnPhase = 'waiting_bowling';
+
+    await matchEngineService.joinMatch(matchId, { userId: 'batter_idemp', role: 'player', teamKey: 'teamA' });
+    await matchEngineService.joinMatch(matchId, { userId: 'bowler_idemp', role: 'player', teamKey: 'teamB' });
+
+    const key = `action_idemp_${Date.now()}`;
+    const firstRes = await matchEngineService.submitBowlingDecision(matchId, 'bowler_idemp', {
+      deliverySeq: 1,
+      line: 'Off Stump',
+      length: 'Good Length',
+      variation: 'Seam',
+      idempotencyKey: key
+    });
+    assert.strictEqual(firstRes.success, true);
+    const seqAfterFirst = firstRes.event.seq;
+
+    // Resubmit with exact same idempotencyKey
+    const secondRes = await matchEngineService.submitBowlingDecision(matchId, 'bowler_idemp', {
+      deliverySeq: 1,
+      line: 'Off Stump',
+      length: 'Good Length',
+      variation: 'Seam',
+      idempotencyKey: key
+    });
+    assert.strictEqual(secondRes.duplicate, true);
+    assert.strictEqual(secondRes.seq, seqAfterFirst, 'Sequence must not increment on duplicate');
+  });
+
+  // 8. Reconnection Recovery (Sync & Replay)
+  await test('Phase 8 - 8. Reconnection Recovery: Client replays missed events from fromSeq', async () => {
+    const matchId = `TEST_MATCH_SYNC_${Date.now()}`;
+    const engine = await matchEngineService.getOrCreateMatchEngine(matchId);
+    engine.battingUserId = 'reconn_bat';
+    engine.bowlingUserId = 'reconn_bowl';
+
+    await matchEngineService.joinMatch(matchId, { userId: 'reconn_bat', role: 'player', teamKey: 'teamA' });
+    await matchEngineService.joinMatch(matchId, { userId: 'reconn_bowl', role: 'player', teamKey: 'teamB' });
+
+    // Execute 2 deliveries
+    await matchEngineService.submitFullDeliveryTurn(matchId, 'reconn_bat', {
+      shotType: 'Drive',
+      timing: 'Good',
+      runsAttempted: 1
+    });
+
+    const seqCheckpoint = engine.seq;
+
+    await matchEngineService.submitFullDeliveryTurn(matchId, 'reconn_bat', {
+      shotType: 'Pull / Hook',
+      timing: 'Good',
+      runsAttempted: 2
+    });
+
+    // Client reconnects requesting events from seqCheckpoint
+    const syncRes = await matchEngineService.syncMatch(matchId, { fromSeq: seqCheckpoint, userId: 'reconn_bat' });
+    assert.strictEqual(syncRes.mode, 'replay');
+    assert.ok(syncRes.events.length > 0);
+    assert.strictEqual(syncRes.events[0].seq, seqCheckpoint + 1);
+
+    // Client connects from seq 0 (Full snapshot mode)
+    const freshSync = await matchEngineService.syncMatch(matchId, { fromSeq: 0 });
+    assert.strictEqual(freshSync.mode, 'snapshot');
+    assert.ok(freshSync.snapshot);
+    assert.strictEqual(freshSync.snapshot.matchId, matchId);
+  });
+
+  // 9. Innings Transition: 1st Innings to 2nd Innings Target Chase
+  await test('Phase 8 - 9. Innings Transition: 10 wickets down sets target & switches teams', async () => {
+    const matchId = `TEST_MATCH_INN_${Date.now()}`;
+    const engine = await matchEngineService.getOrCreateMatchEngine(matchId);
+    engine.battingUserId = 'p1_inn';
+    engine.bowlingUserId = 'p2_inn';
+    engine.currentInnings = 1;
+    engine.teamA.score = 142;
+    engine.teamA.wickets = 9; // 9 wickets down!
+    engine.turnPhase = 'waiting_bowling';
+
+    await matchEngineService.joinMatch(matchId, { userId: 'p1_inn', role: 'player', teamKey: 'teamA' });
+    await matchEngineService.joinMatch(matchId, { userId: 'p2_inn', role: 'player', teamKey: 'teamB' });
+
+    // Bowl yorker, batsman late -> 10th wicket falls!
+    await matchEngineService.submitBowlingDecision(matchId, 'p2_inn', {
+      deliverySeq: 1,
+      line: 'Off Stump',
+      length: 'Yorker',
+      variation: 'Yorker'
+    });
+
+    const batRes = await matchEngineService.submitBattingDecision(matchId, 'p1_inn', {
+      deliverySeq: 1,
+      shotType: 'Pull / Hook',
+      timing: 'Late'
+    });
+
+    assert.strictEqual(batRes.outcome.isWicket, true);
+    assert.strictEqual(batRes.inningsEnded, true);
+    assert.strictEqual(batRes.snapshot.currentInnings, 2);
+    assert.strictEqual(batRes.snapshot.targetScore, 143); // 142 + 1
+    assert.strictEqual(batRes.snapshot.turnPhase, 'innings_break');
+    assert.strictEqual(batRes.snapshot.battingTeamKey, 'teamB');
+    assert.strictEqual(batRes.snapshot.bowlingTeamKey, 'teamA');
+  });
+
+  // 10. Match Completion & Result
+  await test('Phase 8 - 10. Match Completion: Chasing team reaches target -> victory declared', async () => {
+    const matchId = `TEST_MATCH_WIN_${Date.now()}`;
+    const engine = await matchEngineService.getOrCreateMatchEngine(matchId);
+    engine.currentInnings = 2;
+    engine.targetScore = 150;
+    engine.teamB.score = 146; // Chasing, 4 runs needed!
+    engine.teamB.wickets = 3;
+    engine.battingTeamKey = 'teamB';
+    engine.bowlingTeamKey = 'teamA';
+    engine.battingUserId = 'chaser_user';
+    engine.bowlingUserId = 'defender_user';
+    engine.turnPhase = 'waiting_bowling';
+
+    await matchEngineService.joinMatch(matchId, { userId: 'chaser_user', role: 'player', teamKey: 'teamB' });
+    await matchEngineService.joinMatch(matchId, { userId: 'defender_user', role: 'player', teamKey: 'teamA' });
+
+    // Bowl full, batsman perfect drive for 4 -> 150 reached!
+    await matchEngineService.submitBowlingDecision(matchId, 'defender_user', {
+      deliverySeq: 1,
+      line: 'Outside Off',
+      length: 'Full',
+      variation: 'Seam'
+    });
+
+    const batRes = await matchEngineService.submitBattingDecision(matchId, 'chaser_user', {
+      deliverySeq: 1,
+      shotType: 'Drive',
+      timing: 'Perfect'
+    });
+
+    assert.strictEqual(batRes.outcome.runs, 4);
+    assert.strictEqual(batRes.matchCompleted, true);
+    assert.strictEqual(batRes.snapshot.status, 'completed');
+    assert.strictEqual(batRes.snapshot.turnPhase, 'completed');
+    assert.ok(batRes.snapshot.result.includes('won by 7 wickets'));
+  });
+
+  // 11. Room Isolation: Multiple matches execute independently without crosstalk
+  await test('Phase 8 - 11. Room Isolation: Events in Match A do not leak into Match B', async () => {
+    const matchA = `MATCH_ISOLATION_A_${Date.now()}`;
+    const matchB = `MATCH_ISOLATION_B_${Date.now()}`;
+
+    const engA = await matchEngineService.getOrCreateMatchEngine(matchA);
+    const engB = await matchEngineService.getOrCreateMatchEngine(matchB);
+
+    await matchEngineService.joinMatch(matchA, { userId: 'user_A', role: 'player' });
+    await matchEngineService.joinMatch(matchB, { userId: 'user_B', role: 'player' });
+
+    await matchEngineService.submitFullDeliveryTurn(matchA, 'user_A', {
+      shotType: 'Drive',
+      timing: 'Good',
+      runsAttempted: 1
+    });
+
+    const snapA = matchEngineService.getMatchSnapshot(matchA);
+    const snapB = matchEngineService.getMatchSnapshot(matchB);
+
+    assert.ok(snapA.teamA.score > 0, 'Match A score should have updated');
+    assert.strictEqual(snapB.teamA.score, 0, 'Match B score must remain 0');
+    assert.notStrictEqual(snapA.seq, snapB.seq, 'Sequence numbers must remain isolated');
+  });
+
+  // 12. REST API Endpoints for Match Engine
+  await test('Phase 8 - 12. REST API: GET snapshot & sync endpoints return authoritative state', async () => {
+    const snapRes = await callApp({
+      method: 'GET',
+      url: '/api/matches/LIVE-IPL-FINAL/snapshot'
+    });
+    assert.strictEqual(snapRes.status, 200);
+    assert.strictEqual(snapRes.body.success, true);
+    assert.strictEqual(snapRes.body.snapshot.matchId, 'LIVE-IPL-FINAL');
+
+    const syncRes = await callApp({
+      method: 'GET',
+      url: '/api/matches/LIVE-IPL-FINAL/sync?fromSeq=0'
+    });
+    assert.strictEqual(syncRes.status, 200);
+    assert.strictEqual(syncRes.body.success, true);
+    assert.ok(syncRes.body.snapshot);
+  });
+
+  // 13. Socket.IO Match Synchronization with Multiple Clients & Spectator
+  await test('Phase 8 - 13. Socket.IO Match Synchronization: Multi-client broadcast, spectator enforcement & event delivery', async () => {
+    const { EventEmitter } = require('events');
+    const { initMultiplayerSockets } = require('../src/sockets/multiplayerSocket');
+
+    // In-process Mock IO Dispatcher
+    const roomBroadcasts = new Map();
+
+    const mockIo = {
+      use(fn) { this.authMiddleware = fn; },
+      on(event, fn) { if (event === 'connection') this.connectionHandler = fn; },
+      to(room) {
+        return {
+          emit: (event, data) => {
+            if (!roomBroadcasts.has(room)) roomBroadcasts.set(room, []);
+            roomBroadcasts.get(room).push({ event, data });
+          }
+        };
+      }
+    };
+
+    initMultiplayerSockets(mockIo);
+
+    const createMockClientSocket = (userId, username, role) => {
+      const emitter = new EventEmitter();
+      const emittedToClient = [];
+      const rooms = new Set();
+
+      const socket = {
+        id: `mock_sock_${Date.now()}_${Math.random()}`,
+        user: { _id: userId, username },
+        handshake: { auth: {} },
+        rooms,
+        join(r) { rooms.add(r); },
+        leave(r) { rooms.delete(r); },
+        emit(event, data) {
+          emittedToClient.push({ event, data });
+          emitter.emit(event, data);
+        },
+        on(event, fn) { emitter.on(event, fn); },
+        clientEmit(event, data) {
+          const listeners = emitter.rawListeners(event);
+          listeners.forEach(fn => fn(data));
+        },
+        getEmitted: (event) => emittedToClient.filter(e => e.event === event)
+      };
+
+      // Connect socket
+      mockIo.connectionHandler(socket);
+      return socket;
+    };
+
+    const matchId = `MOCK_SOCKET_${Date.now()}`;
+    const sockBowler = createMockClientSocket('bowler_sock_1', 'Bowler Bumrah', 'player');
+    const sockBatter = createMockClientSocket('batter_sock_2', 'Batter Kohli', 'player');
+    const sockSpec = createMockClientSocket('spec_sock_3', 'Spectator Sam', 'spectator');
+
+    // 1. Join match
+    sockBowler.clientEmit('join_match', { matchId, role: 'player', teamKey: 'teamB' });
+    sockBatter.clientEmit('join_match', { matchId, role: 'player', teamKey: 'teamA' });
+    sockSpec.clientEmit('join_match', { matchId, role: 'spectator' });
+
+    // Allow event processing
+    await new Promise(r => setTimeout(r, 10));
+
+    // Verify snapshots delivered to all
+    assert.ok(sockBowler.getEmitted('match_snapshot').length > 0);
+    assert.ok(sockBatter.getEmitted('match_snapshot').length > 0);
+    assert.ok(sockSpec.getEmitted('match_snapshot').length > 0);
+
+    // Verify rooms joined
+    assert.ok(sockBowler.rooms.has(`match:${matchId}`));
+    assert.ok(sockBatter.rooms.has(`match:${matchId}`));
+    assert.ok(sockSpec.rooms.has(`match:${matchId}`));
+    assert.ok(sockSpec.rooms.has(`match:${matchId}:spectators`));
+
+    // 2. Bowler submits bowling decision
+    sockBowler.clientEmit('submit_bowling_decision', {
+      matchId,
+      deliverySeq: 1,
+      line: 'Off Stump',
+      length: 'Good Length',
+      variation: 'Seam'
+    });
+
+    await new Promise(r => setTimeout(r, 10));
+
+    const roomEvents = roomBroadcasts.get(`match:${matchId}`) || [];
+    const bowlCommEvent = roomEvents.find(e => e.event === 'bowling_committed');
+    assert.ok(bowlCommEvent, 'Room must receive bowling_committed');
+    assert.strictEqual(bowlCommEvent.data.bowlingDecision.line, 'Off Stump');
+
+    // 3. Batter submits batting decision
+    sockBatter.clientEmit('submit_batting_decision', {
+      matchId,
+      deliverySeq: 1,
+      shotType: 'Lofted Drive',
+      direction: 'Cover',
+      timing: 'Perfect'
+    });
+
+    await new Promise(r => setTimeout(r, 10));
+
+    const deliveryEvent = roomEvents.find(e => e.event === 'delivery_result');
+    assert.ok(deliveryEvent, 'Room must receive delivery_result broadcast');
+    assert.strictEqual(deliveryEvent.data.outcome.runs, 6);
+    assert.strictEqual(deliveryEvent.data.outcome.badge, 'SIX');
+
+    // 4. Spectator tries to submit player decision -> MUST RECEIVE SPECTATOR_READ_ONLY error
+    sockSpec.clientEmit('submit_bowling_decision', {
+      matchId,
+      deliverySeq: 2,
+      line: 'Middle Stump',
+      length: 'Yorker',
+      variation: 'Yorker'
+    });
+
+    await new Promise(r => setTimeout(r, 10));
+
+    const specErrors = sockSpec.getEmitted('action_error');
+    assert.ok(specErrors.length > 0);
+    assert.strictEqual(specErrors[0].data.code, 'SPECTATOR_READ_ONLY');
+  });
+
   // Match Center & Simulation
   await test('GET /api/matches returns live match data', async () => {
     const res = await callApp({ method: 'GET', url: '/api/matches' });
@@ -2301,9 +2827,7 @@ const runAllTests = async () => {
   });
 
   console.log(`\n🎯 --- ALL TESTS PASSED: ${passed} PASSED, ${failed} FAILED --- 🎯\n`);
-  if (failed > 0) {
-    process.exit(1);
-  }
+  process.exit(failed > 0 ? 1 : 0);
 };
 
 runAllTests().catch(err => {

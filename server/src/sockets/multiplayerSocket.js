@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const storeService = require('../services/storeService');
+const matchEngineService = require('../services/matchEngineService');
 
 const initMultiplayerSockets = (io) => {
   // Socket Handshake Authentication Middleware
@@ -250,6 +251,231 @@ const initMultiplayerSockets = (io) => {
       } catch (err) {
         socket.emit('action_error', {
           code: err.code || 'START_ERROR',
+          message: err.message
+        });
+      }
+    });
+
+    // ==========================================
+    // PHASE 8: MULTIPLAYER REAL-TIME MATCH ENGINE
+    // ==========================================
+
+    // Join Match (Room Isolation, Capacity limit 6 players, Spectator fallback)
+    socket.on('join_match', async ({ matchId, role = 'player', teamKey = 'teamA', fromSeq = 0 }) => {
+      try {
+        if (!matchId) {
+          return socket.emit('action_error', { code: 'MATCH_ID_REQUIRED', message: 'matchId is required.' });
+        }
+
+        const roomChannel = `match:${matchId}`;
+        socket.join(roomChannel);
+        socket.currentMatchId = matchId;
+
+        const userId = socket.user?._id || `guest_${socket.id.slice(0, 8)}`;
+        const username = socket.user?.username || (role === 'player' ? 'Player' : 'Spectator');
+
+        const { match, participantRole, snapshot, event } = await matchEngineService.joinMatch(matchId, {
+          userId,
+          username,
+          role,
+          teamKey,
+          socketId: socket.id
+        });
+
+        socket.currentMatchRole = participantRole;
+
+        if (participantRole === 'spectator') {
+          socket.join(`${roomChannel}:spectators`);
+        }
+
+        // Deliver initial authoritative snapshot to joining client
+        socket.emit('match_snapshot', snapshot);
+
+        // If fromSeq was provided for reconnection, deliver missing events
+        if (fromSeq > 0) {
+          const syncResult = await matchEngineService.syncMatch(matchId, { fromSeq, userId, socketId: socket.id });
+          if (syncResult.mode === 'replay') {
+            socket.emit('match_events_replay', syncResult);
+          }
+        }
+
+        // Broadcast notification to all participants and spectators
+        io.to(roomChannel).emit('match_event', event);
+        io.to(roomChannel).emit('match_notification', {
+          type: 'USER_JOINED_MATCH',
+          userId,
+          username,
+          role: participantRole,
+          text: `${username} joined match as ${participantRole.toUpperCase()}.`
+        });
+        io.to(roomChannel).emit('match_state', snapshot);
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'MATCH_JOIN_ERROR',
+          message: err.message
+        });
+      }
+    });
+
+    // Bowling Decision (Phase A)
+    socket.on('submit_bowling_decision', async ({ matchId, deliverySeq, line, length, variation, idempotencyKey }) => {
+      try {
+        const id = matchId || socket.currentMatchId;
+        if (!id) return;
+        const userId = socket.user?._id || `guest_${socket.id.slice(0, 8)}`;
+
+        const result = await matchEngineService.submitBowlingDecision(id, userId, {
+          deliverySeq,
+          line,
+          length,
+          variation,
+          idempotencyKey
+        });
+
+        if (result.duplicate) {
+          return socket.emit('action_acknowledged', { duplicate: true, seq: result.seq });
+        }
+
+        const roomChannel = `match:${id}`;
+        io.to(roomChannel).emit('match_event', result.event);
+        io.to(roomChannel).emit('bowling_committed', {
+          seq: result.event.seq,
+          matchId: id,
+          deliverySeq: result.event.payload.deliverySeq,
+          bowlingDecision: result.event.payload.bowlingDecision,
+          nextTurn: result.nextPhase,
+          snapshot: result.snapshot
+        });
+        io.to(roomChannel).emit('match_state', result.snapshot);
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'BOWLING_ACTION_ERROR',
+          message: err.message
+        });
+      }
+    });
+
+    // Batting Decision & Delivery Resolution (Phase B & C)
+    socket.on('submit_batting_decision', async ({ matchId, deliverySeq, shotType, direction, timing, runsAttempted, riskyRun, idempotencyKey }) => {
+      try {
+        const id = matchId || socket.currentMatchId;
+        if (!id) return;
+        const userId = socket.user?._id || `guest_${socket.id.slice(0, 8)}`;
+
+        const result = await matchEngineService.submitBattingDecision(id, userId, {
+          deliverySeq,
+          shotType,
+          direction,
+          timing,
+          runsAttempted,
+          riskyRun,
+          idempotencyKey
+        });
+
+        if (result.duplicate) {
+          return socket.emit('action_acknowledged', { duplicate: true, seq: result.seq });
+        }
+
+        const roomChannel = `match:${id}`;
+        // Broadcast delivery outcome to both teams and spectators simultaneously
+        io.to(roomChannel).emit('match_event', result.event);
+        io.to(roomChannel).emit('delivery_result', {
+          seq: result.event.seq,
+          matchId: id,
+          deliverySeq: result.event.payload.deliverySeq,
+          outcome: result.outcome,
+          deliveryData: result.deliveryData,
+          snapshot: result.snapshot,
+          inningsEnded: result.inningsEnded,
+          matchCompleted: result.matchCompleted
+        });
+        io.to(roomChannel).emit('match_state', result.snapshot);
+
+        if (result.inningsEnded) {
+          io.to(roomChannel).emit('innings_ended', {
+            matchId: id,
+            currentInnings: result.snapshot.currentInnings,
+            targetScore: result.snapshot.targetScore,
+            snapshot: result.snapshot
+          });
+        }
+
+        if (result.matchCompleted) {
+          io.to(roomChannel).emit('match_ended', {
+            matchId: id,
+            result: result.snapshot.result,
+            snapshot: result.snapshot
+          });
+        }
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'BATTING_ACTION_ERROR',
+          message: err.message
+        });
+      }
+    });
+
+    // Coordinated Single Delivery Execution (for 1-click execution or tactical auto-simulation)
+    socket.on('submit_match_delivery', async ({ matchId, deliveryInput, idempotencyKey }) => {
+      try {
+        const id = matchId || socket.currentMatchId;
+        if (!id) return;
+        const userId = socket.user?._id || `guest_${socket.id.slice(0, 8)}`;
+
+        const result = await matchEngineService.submitFullDeliveryTurn(id, userId, {
+          ...deliveryInput,
+          idempotencyKey
+        });
+
+        const roomChannel = `match:${id}`;
+        io.to(roomChannel).emit('match_event', result.event);
+        io.to(roomChannel).emit('delivery_result', {
+          seq: result.event.seq,
+          matchId: id,
+          deliverySeq: result.event.payload.deliverySeq,
+          outcome: result.outcome,
+          deliveryData: result.deliveryData,
+          snapshot: result.snapshot,
+          inningsEnded: result.inningsEnded,
+          matchCompleted: result.matchCompleted
+        });
+        io.to(roomChannel).emit('match_state', result.snapshot);
+
+        if (result.inningsEnded) {
+          io.to(roomChannel).emit('innings_ended', {
+            matchId: id,
+            targetScore: result.snapshot.targetScore,
+            snapshot: result.snapshot
+          });
+        }
+
+        if (result.matchCompleted) {
+          io.to(roomChannel).emit('match_ended', {
+            matchId: id,
+            result: result.snapshot.result,
+            snapshot: result.snapshot
+          });
+        }
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'DELIVERY_ERROR',
+          message: err.message
+        });
+      }
+    });
+
+    // Reconnection & Event Synchronization Request
+    socket.on('sync_match', async ({ matchId, fromSeq = 0 }) => {
+      try {
+        const id = matchId || socket.currentMatchId;
+        if (!id) return;
+        const userId = socket.user?._id;
+
+        const syncResult = await matchEngineService.syncMatch(id, { fromSeq, userId, socketId: socket.id });
+        socket.emit('match_synced', syncResult);
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'SYNC_ERROR',
           message: err.message
         });
       }

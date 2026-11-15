@@ -142,6 +142,104 @@ class SocketService {
     return () => socket.off('game_started', callback);
   }
 
+  // ==========================================
+  // PHASE 8: MULTIPLAYER REAL-TIME MATCH ENGINE
+  // ==========================================
+
+  joinMatch(matchId, options = {}) {
+    const socket = this.getSocket();
+    socket.emit('join_match', {
+      matchId,
+      role: options.role || 'player',
+      teamKey: options.teamKey || 'teamA',
+      fromSeq: options.fromSeq || 0
+    });
+  }
+
+  submitBowlingDecision(matchId, data = {}) {
+    const socket = this.getSocket();
+    socket.emit('submit_bowling_decision', {
+      matchId,
+      ...data
+    });
+  }
+
+  submitBattingDecision(matchId, data = {}) {
+    const socket = this.getSocket();
+    socket.emit('submit_batting_decision', {
+      matchId,
+      ...data
+    });
+  }
+
+  submitMatchDelivery(matchId, deliveryInput, idempotencyKey = null) {
+    const socket = this.getSocket();
+    socket.emit('submit_match_delivery', {
+      matchId,
+      deliveryInput,
+      idempotencyKey
+    });
+  }
+
+  syncMatch(matchId, fromSeq = 0) {
+    const socket = this.getSocket();
+    socket.emit('sync_match', { matchId, fromSeq });
+  }
+
+  onMatchSnapshot(callback) {
+    const socket = this.getSocket();
+    socket.on('match_snapshot', callback);
+    return () => socket.off('match_snapshot', callback);
+  }
+
+  onMatchState(callback) {
+    const socket = this.getSocket();
+    socket.on('match_state', callback);
+    return () => socket.off('match_state', callback);
+  }
+
+  onMatchEvent(callback) {
+    const socket = this.getSocket();
+    socket.on('match_event', callback);
+    return () => socket.off('match_event', callback);
+  }
+
+  onBowlingCommitted(callback) {
+    const socket = this.getSocket();
+    socket.on('bowling_committed', callback);
+    return () => socket.off('bowling_committed', callback);
+  }
+
+  onDeliveryResult(callback) {
+    const socket = this.getSocket();
+    socket.on('delivery_result', callback);
+    return () => socket.off('delivery_result', callback);
+  }
+
+  onInningsEnded(callback) {
+    const socket = this.getSocket();
+    socket.on('innings_ended', callback);
+    return () => socket.off('innings_ended', callback);
+  }
+
+  onMatchEnded(callback) {
+    const socket = this.getSocket();
+    socket.on('match_ended', callback);
+    return () => socket.off('match_ended', callback);
+  }
+
+  onMatchSynced(callback) {
+    const socket = this.getSocket();
+    socket.on('match_synced', callback);
+    return () => socket.off('match_synced', callback);
+  }
+
+  onMatchNotification(callback) {
+    const socket = this.getSocket();
+    socket.on('match_notification', callback);
+    return () => socket.off('match_notification', callback);
+  }
+
   disconnect() {
     if (this.socket) {
       this.socket.disconnect();

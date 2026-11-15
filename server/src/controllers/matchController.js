@@ -106,11 +106,35 @@ const simulateBall = async (req, res, next) => {
   }
 };
 
+// @desc    Play authoritative delivery with manual/hybrid/tactical controls
+// @route   POST /api/matches/:id/play-delivery
+// @access  Public / Private
+const playDelivery = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const deliveryInput = req.body || {};
+    const result = await storeService.playAuthoritativeDelivery(id, deliveryInput);
+
+    res.status(200).json({
+      success: true,
+      outcome: result.outcome,
+      match: result.match,
+      deliveryData: result.deliveryData
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
 module.exports = {
   getMatches,
   getMatchById,
   getMatchTactics,
   updateMatchTactics,
-  simulateBall
+  simulateBall,
+  playDelivery
 };
 

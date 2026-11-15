@@ -390,6 +390,15 @@ export const api = {
     return await res.json();
   },
 
+  async playDelivery(matchId, deliveryData = {}) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/play-delivery`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(deliveryData)
+    });
+    return await res.json();
+  },
+
   // Tournaments
   async getTournaments() {
     const res = await fetch(`${API_BASE}/tournaments`, {

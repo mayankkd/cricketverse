@@ -28,12 +28,14 @@ import confetti from 'canvas-confetti';
 import { api } from '../services/api';
 import { sound } from '../services/sound';
 import { TacticalManagementModal } from '../components/tactics/TacticalManagementModal';
+import { CricketArena } from '../game/CricketArena';
 
 export const MatchCenter = () => {
   const [match, setMatch] = useState(null);
   const [autoPlay, setAutoPlay] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isTacticsOpen, setIsTacticsOpen] = useState(false);
+  const [activeView, setActiveView] = useState('arena'); // 'arena' | 'broadcast' | 'both'
 
   useEffect(() => {
     const fetchMatch = async () => {
@@ -106,6 +108,64 @@ export const MatchCenter = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Top View Selector Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-1.5 bg-stadium-950 p-1.5 rounded-2xl border border-white/10 shadow-lg">
+          <button
+            onClick={() => { sound.playClick(); setActiveView('arena'); }}
+            className={`px-4 py-2 rounded-xl text-xs font-display font-bold uppercase transition-all flex items-center gap-1.5 ${
+              activeView === 'arena'
+                ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            🎮 2D PLAYABLE ARENA (PHASER 3)
+          </button>
+          <button
+            onClick={() => { sound.playClick(); setActiveView('broadcast'); }}
+            className={`px-4 py-2 rounded-xl text-xs font-display font-bold uppercase transition-all flex items-center gap-1.5 ${
+              activeView === 'broadcast'
+                ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            📊 BROADCAST HUD & WORM
+          </button>
+          <button
+            onClick={() => { sound.playClick(); setActiveView('both'); }}
+            className={`px-4 py-2 rounded-xl text-xs font-display font-bold uppercase transition-all flex items-center gap-1.5 ${
+              activeView === 'both'
+                ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            ⚡ SPLIT THEATER VIEW
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              sound.playClick();
+              setIsTacticsOpen(true);
+            }}
+            className="px-4 py-2 rounded-xl text-xs font-display uppercase font-bold flex items-center gap-1.5 bg-stadium-900 border border-gold-500/40 text-gold-400 hover:bg-gold-500 hover:text-slate-950 transition-all shadow-gold-glow"
+          >
+            <Sliders className="w-3.5 h-3.5" /> TACTICAL SETUP
+          </button>
+        </div>
+      </div>
+
+      {/* 2D PLAYABLE PHASER 3 ARENA */}
+      {(activeView === 'arena' || activeView === 'both') && (
+        <CricketArena
+          match={match}
+          onMatchUpdated={(updated) => setMatch(updated)}
+          isSpectator={false}
+          format={match.format}
+        />
+      )}
+
       {/* Broadcast Graphics Header Bar */}
       <div className="bg-stadium-950 border border-stadium-800 rounded-3xl p-6 relative overflow-hidden shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-stadium-800">
@@ -119,16 +179,6 @@ export const MatchCenter = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                sound.playClick();
-                setIsTacticsOpen(true);
-              }}
-              className="px-4 py-2 rounded-xl text-xs font-display uppercase font-bold flex items-center gap-1.5 bg-stadium-900 border border-gold-500/40 text-gold-400 hover:bg-gold-500 hover:text-slate-950 transition-all shadow-gold-glow"
-            >
-              <Sliders className="w-3.5 h-3.5" /> TACTICAL SETUP
-            </button>
-
             <button
               onClick={() => {
                 sound.playClick();
@@ -360,55 +410,91 @@ export const MatchCenter = () => {
       </div>
 
       {/* Worm Run Rate Comparison Chart & Commentary Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Worm Run Rate Chart (2 Cols) */}
-        <div className="lg:col-span-2 bg-stadium-900 border border-stadium-800 p-6 rounded-3xl flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-display text-xl font-bold uppercase text-white">
-                LIVE WORM GRAPH & RUN PROGRESSION
-              </h3>
-              <p className="text-xs font-mono text-slate-400">
-                OVER-BY-OVER SCORING RATE COMPARISON
-              </p>
+      {(activeView === 'broadcast' || activeView === 'both') ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Worm Run Rate Chart (2 Cols) */}
+          <div className="lg:col-span-2 bg-stadium-900 border border-stadium-800 p-6 rounded-3xl flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-display text-xl font-bold uppercase text-white">
+                  LIVE WORM GRAPH & RUN PROGRESSION
+                </h3>
+                <p className="text-xs font-mono text-slate-400">
+                  OVER-BY-OVER SCORING RATE COMPARISON
+                </p>
+              </div>
+              <TrendingUp className="w-5 h-5 text-gold-400" />
             </div>
-            <TrendingUp className="w-5 h-5 text-gold-400" />
+
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={match.wormData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
+                  <XAxis dataKey="over" stroke="#64748B" fontSize={11} />
+                  <YAxis stroke="#64748B" fontSize={11} domain={[0, 200]} />
+                  <Tooltip contentStyle={{ backgroundColor: '#0B0F17', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }} />
+                  <Line type="monotone" dataKey="teamAScore" name={match.teamA.name} stroke="#F59E0B" strokeWidth={3} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="teamBScore" name={match.teamB.name} stroke="#3B82F6" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="flex items-center justify-center gap-6 border-t border-stadium-800 pt-3 text-xs font-mono">
+              <span className="flex items-center gap-1.5 text-gold-400 font-bold">
+                ― {match.teamA.name} (Current Inning)
+              </span>
+              <span className="flex items-center gap-1.5 text-blue-400 font-bold">
+                ╌ {match.teamB.name} (Target Score)
+              </span>
+            </div>
           </div>
 
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={match.wormData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
-                <XAxis dataKey="over" stroke="#64748B" fontSize={11} />
-                <YAxis stroke="#64748B" fontSize={11} domain={[0, 200]} />
-                <Tooltip contentStyle={{ backgroundColor: '#0B0F17', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }} />
-                <Line type="monotone" dataKey="teamAScore" name={match.teamA.name} stroke="#F59E0B" strokeWidth={3} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="teamBScore" name={match.teamB.name} stroke="#3B82F6" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {/* Live Commentary Feed (1 Col) */}
+          <div className="bg-stadium-900 border border-stadium-800 p-6 rounded-3xl flex flex-col h-[380px]">
+            <div className="flex items-center justify-between pb-3 border-b border-stadium-800 mb-3">
+              <h3 className="font-display text-base font-bold uppercase text-white">
+                LIVE COMMENTARY
+              </h3>
+              <span className="text-[10px] font-mono text-pitch-400 font-bold">ENGLISH ON AIR</span>
+            </div>
 
-          <div className="flex items-center justify-center gap-6 border-t border-stadium-800 pt-3 text-xs font-mono">
-            <span className="flex items-center gap-1.5 text-gold-400 font-bold">
-              ― {match.teamA.name} (Current Inning)
-            </span>
-            <span className="flex items-center gap-1.5 text-blue-400 font-bold">
-              ╌ {match.teamB.name} (Target Score)
-            </span>
+            <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+              {match.commentary?.map((item) => (
+                <div key={item.id} className="p-3 rounded-2xl bg-stadium-950 border border-white/5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-bold text-gold-400">
+                      Over {item.over}
+                    </span>
+                    <span className={`text-[9px] font-mono font-black px-2 py-0.5 rounded ${
+                      item.badge === 'SIX' ? 'bg-purple-500 text-white' :
+                      item.badge === 'FOUR' ? 'bg-cyan-500 text-slate-950' :
+                      item.badge === 'WICKET' ? 'bg-red-500 text-white' :
+                      'bg-stadium-800 text-slate-300'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                    {item.text}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-
-        {/* Live Commentary Feed (1 Col) */}
-        <div className="bg-stadium-900 border border-stadium-800 p-6 rounded-3xl flex flex-col h-[380px]">
-          <div className="flex items-center justify-between pb-3 border-b border-stadium-800 mb-3">
-            <h3 className="font-display text-base font-bold uppercase text-white">
-              LIVE COMMENTARY
+      ) : (
+        /* Sleek Live Commentary Strip for Arena Mode */
+        <div className="bg-stadium-900 border border-stadium-800 p-5 rounded-3xl">
+          <div className="flex items-center justify-between pb-2 border-b border-stadium-800 mb-3">
+            <h3 className="font-display text-sm font-bold uppercase text-white flex items-center gap-2">
+              <Radio className="w-4 h-4 text-pitch-400 animate-pulse" /> LIVE BROADCAST COMMENTARY LOG
             </h3>
-            <span className="text-[10px] font-mono text-pitch-400 font-bold">ENGLISH ON AIR</span>
+            <span className="text-[10px] font-mono text-gold-400 uppercase font-bold">
+              LATEST DELIVERIES
+            </span>
           </div>
-
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-            {match.commentary?.map((item) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {match.commentary?.slice(0, 3).map((item) => (
               <div key={item.id} className="p-3 rounded-2xl bg-stadium-950 border border-white/5 space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs font-bold text-gold-400">
@@ -423,42 +509,14 @@ export const MatchCenter = () => {
                     {item.badge}
                   </span>
                 </div>
-                <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                <p className="text-xs text-slate-300 font-sans line-clamp-2">
                   {item.text}
                 </p>
               </div>
             ))}
           </div>
         </div>
-
-        {/* Live Broadcast Tactical Telemetry HUD */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-stadium-800 text-[11px] font-mono text-slate-400">
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-purple-400" />
-              <span>Field: <strong className="text-white uppercase">{match.teamBTactics?.fieldPlacement?.preset || 'Powerplay'}</strong> (9 Fielders)</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Flame className="w-3.5 h-3.5 text-gold-400" />
-              <span>Striker Tempo: <strong className="text-gold-400 uppercase">Anchor</strong></span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Target className="w-3.5 h-3.5 text-pitch-400" />
-              <span>Delivery Tactic: <strong className="text-pitch-400 uppercase">Yorker</strong></span>
-            </span>
-          </div>
-
-          <button
-            onClick={() => {
-              sound.playClick();
-              setIsTacticsOpen(true);
-            }}
-            className="text-[10px] uppercase font-bold text-gold-400 hover:text-gold-300 underline underline-offset-4 flex items-center gap-1"
-          >
-            Adjust Field & Strategies →
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Tactical Management Center Modal */}
       <TacticalManagementModal

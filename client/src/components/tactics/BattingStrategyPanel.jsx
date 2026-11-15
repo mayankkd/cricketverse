@@ -270,3 +270,4 @@ export const BattingStrategyPanel = ({
     </div>
   );
 };
+

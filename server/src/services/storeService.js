@@ -3052,6 +3052,320 @@ const simulateTacticalBall = async (matchId) => {
   };
 };
 
+// ==========================================
+// PHASE 7: PHASER 3 AUTHORITATIVE GAMEPLAY ENGINE
+// ==========================================
+
+const VALID_SHOT_TYPES = [
+  'Drive',
+  'Lofted Drive',
+  'Pull / Hook',
+  'Cut',
+  'Sweep',
+  'Defensive Block',
+  'Ramp / Scoop'
+];
+
+const VALID_TIMINGS = ['Early', 'Good', 'Perfect', 'Late'];
+
+const playAuthoritativeDelivery = async (matchId, deliveryInput = {}) => {
+  const match = await getMatchById(matchId);
+  if (!match) {
+    const err = new Error(`Match '${matchId}' not found.`);
+    err.status = 404;
+    throw err;
+  }
+
+  const {
+    controlMode = 'manual',
+    shotType = 'Drive',
+    direction = 'Cover',
+    timing = 'Good',
+    deliveryTactic = 'Seam',
+    pitchLine = 'Off Stump',
+    pitchLength = 'Good Length',
+    runsAttempted = 0
+  } = deliveryInput;
+
+  // Tactical auto-mode delegates to tactical engine
+  if (controlMode === 'tactical') {
+    return await simulateTacticalBall(matchId);
+  }
+
+  // Validate shot type
+  if (shotType && !VALID_SHOT_TYPES.includes(shotType)) {
+    const err = new Error(`Invalid shot type '${shotType}'. Valid: ${VALID_SHOT_TYPES.join(', ')}.`);
+    err.status = 400;
+    err.code = 'INVALID_SHOT_TYPE';
+    throw err;
+  }
+
+  // Validate delivery tactic
+  if (deliveryTactic && !DELIVERY_TACTICS.includes(deliveryTactic)) {
+    const err = new Error(`Invalid delivery tactic '${deliveryTactic}'.`);
+    err.status = 400;
+    err.code = 'INVALID_DELIVERY_TACTIC';
+    throw err;
+  }
+
+  // Validate timing
+  if (timing && !VALID_TIMINGS.includes(timing)) {
+    const err = new Error(`Invalid timing '${timing}'. Valid: ${VALID_TIMINGS.join(', ')}.`);
+    err.status = 400;
+    err.code = 'INVALID_TIMING';
+    throw err;
+  }
+
+  const strikerName = match.currentStriker?.name || 'Striker';
+  const bowlerName = match.currentBowler?.name || 'Bowler';
+
+  const allPlayers = isMongoConnected() ? await Player.find() : memoryStore.players;
+  const strikerPlayer = allPlayers.find(p => p.name === strikerName || p._id === match.currentStriker?.playerId) || {
+    attributes: { batting: 90, powerHitting: 85, temperament: 90, fitness: 88, strikeRotation: 85 }
+  };
+  const bowlerPlayer = allPlayers.find(p => p.name === bowlerName || p._id === match.currentBowler?.playerId) || {
+    attributes: { bowling: 90, pace: 88, swing: 85, spin: 80, deathBowling: 85 }
+  };
+
+  const batAttr = strikerPlayer.attributes || {};
+  const bwlAttr = bowlerPlayer.attributes || {};
+
+  let outcome = null;
+
+  const isTimingPerfect = timing === 'Perfect';
+  const isTimingGood = timing === 'Good';
+  const isTimingLate = timing === 'Late';
+  const isTimingEarly = timing === 'Early';
+
+  const isBouncerHazard = pitchLength === 'Short' && (shotType === 'Drive' || shotType === 'Defensive Block');
+  const isYorkerHazard = pitchLength === 'Yorker' && (shotType === 'Pull / Hook' || shotType === 'Sweep');
+  const isSpinHazard = (deliveryTactic === 'Off-spin' || deliveryTactic === 'Leg-spin') && (shotType === 'Ramp / Scoop' || shotType === 'Lofted Drive') && !isTimingPerfect;
+
+  if (isTimingPerfect) {
+    if (shotType === 'Lofted Drive' || shotType === 'Pull / Hook') {
+      outcome = {
+        ball: '6',
+        runs: 6,
+        isWicket: false,
+        wicketType: null,
+        badge: 'SIX',
+        commentary: `SWEET AS A NUT! ${strikerName} timed the ${shotType} with flawless perfection! Ball launched 98 meters over the ropes for a colossal SIX!`
+      };
+    } else if (shotType === 'Defensive Block') {
+      outcome = {
+        ball: '0',
+        runs: 0,
+        isWicket: false,
+        wicketType: null,
+        badge: 'DOT',
+        commentary: `Solid as a rock. ${strikerName} plays a textbook ${shotType} right under the eyes, dead on the turf.`
+      };
+    } else {
+      outcome = {
+        ball: '4',
+        runs: 4,
+        isWicket: false,
+        wicketType: null,
+        badge: 'FOUR',
+        commentary: `CRACK! Exquisite timing on the ${shotType}! Bisects the inner ring fielders and races like a tracer bullet for FOUR!`
+      };
+    }
+  } else if (isTimingGood) {
+    if (shotType === 'Lofted Drive') {
+      const power = batAttr.powerHitting || 85;
+      if (power >= 105) {
+        outcome = {
+          ball: '6',
+          runs: 6,
+          isWicket: false,
+          wicketType: null,
+          badge: 'SIX',
+          commentary: `High and handsome! Power hitting clears the ropes by a couple of yards for a sensational SIX!`
+        };
+      } else {
+        outcome = {
+          ball: '4',
+          runs: 4,
+          isWicket: false,
+          wicketType: null,
+          badge: 'FOUR',
+          commentary: `One bounce over the rope! Beautifully lofted ${shotType} into the vacant deep zone for FOUR!`
+        };
+      }
+    } else if (shotType === 'Defensive Block') {
+      outcome = {
+        ball: '0',
+        runs: 0,
+        isWicket: false,
+        wicketType: null,
+        badge: 'DOT',
+        commentary: `Defended softly onto the off side. Dot ball.`
+      };
+    } else {
+      const runs = runsAttempted >= 2 ? 2 : 1;
+      outcome = {
+        ball: String(runs),
+        runs,
+        isWicket: false,
+        wicketType: null,
+        badge: runs === 2 ? 'TWO' : 'SINGLE',
+        commentary: `Crisp ${shotType} placed into the outfield gap. Clean running between wickets yields ${runs} run${runs > 1 ? 's' : ''}.`
+      };
+    }
+  } else if (isTimingLate || isTimingEarly) {
+    if (pitchLine === 'Middle Stump' && (pitchLength === 'Yorker' || deliveryTactic === 'Yorker') && isTimingLate) {
+      outcome = {
+        ball: 'W',
+        runs: 0,
+        isWicket: true,
+        wicketType: 'LBW',
+        badge: 'WICKET',
+        commentary: `OUT! LBW! Trapped right in front of middle stump by the searing Yorker! Umpire's finger goes straight up!`
+      };
+    } else if (isYorkerHazard || (pitchLength === 'Yorker' && isTimingLate)) {
+      outcome = {
+        ball: 'W',
+        runs: 0,
+        isWicket: true,
+        wicketType: 'Bowled',
+        badge: 'WICKET',
+        commentary: `OUT! BOWLED! ${bowlerName}'s deadly Yorker sneaks under the late bat and shatters the off-stump! Timber!`
+      };
+    } else if (isSpinHazard) {
+      outcome = {
+        ball: 'W',
+        runs: 0,
+        isWicket: true,
+        wicketType: 'Stumped',
+        badge: 'WICKET',
+        commentary: `OUT! STUMPED! ${strikerName} stepped down the track, deceived by the sharp turn, and the wicketkeeper whips off the bails in a flash!`
+      };
+    } else if (isBouncerHazard || isTimingEarly) {
+      outcome = {
+        ball: 'W',
+        runs: 0,
+        isWicket: true,
+        wicketType: 'Caught',
+        badge: 'WICKET',
+        commentary: `OUT! CAUGHT! Leading edge loops softly into the air and the fielder takes a regulation catch!`
+      };
+    } else if (isTimingLate && (deliveryTactic === 'Swing' || deliveryTactic === 'Seam')) {
+      outcome = {
+        ball: 'W',
+        runs: 0,
+        isWicket: true,
+        wicketType: 'Caught',
+        badge: 'WICKET',
+        commentary: `OUT! CAUGHT BEHIND! Feather of an outside edge through to the wicketkeeper! Superb bowling by ${bowlerName}!`
+      };
+    } else {
+      outcome = {
+        ball: '0',
+        runs: 0,
+        isWicket: false,
+        wicketType: null,
+        badge: 'DOT',
+        commentary: `Mistimed stroke! Beaten for pace and movement. Dot ball.`
+      };
+    }
+  }
+
+  // Check Run-Out when running 2 or 3
+  if (runsAttempted >= 2 && !outcome.isWicket && outcome.runs > 0) {
+    const fitness = batAttr.fitness || 85;
+    const runningChance = Math.random() * 100;
+    if (deliveryInput.riskyRun || (fitness < 80 && runningChance > 70)) {
+      outcome = {
+        ball: 'W',
+        runs: 1,
+        isWicket: true,
+        wicketType: 'Run Out',
+        badge: 'WICKET',
+        commentary: `OUT! RUN OUT! Risky second run attempted! Fielder throws down the stumps with a direct hit before the batter can ground the bat!`
+      };
+    }
+  }
+
+  // Update match state
+  const currentOvers = match.teamA.overs;
+  const wholeOvers = Math.floor(currentOvers);
+  const ballsInOver = Math.round((currentOvers - wholeOvers) * 10);
+
+  let newOvers;
+  if (ballsInOver >= 5) {
+    newOvers = wholeOvers + 1.0;
+  } else {
+    newOvers = Number((wholeOvers + (ballsInOver + 1) * 0.1).toFixed(1));
+  }
+
+  match.teamA.overs = newOvers;
+  match.teamA.score += outcome.runs;
+  if (outcome.isWicket) {
+    match.teamA.wickets = Math.min(10, match.teamA.wickets + 1);
+  }
+
+  if (match.currentStriker) {
+    match.currentStriker.runs += outcome.runs;
+    match.currentStriker.balls += 1;
+    if (outcome.badge === 'FOUR') match.currentStriker.fours += 1;
+    if (outcome.badge === 'SIX') match.currentStriker.sixes += 1;
+  }
+
+  if (match.currentBowler) {
+    match.currentBowler.runs += outcome.runs;
+    if (outcome.isWicket) match.currentBowler.wickets += 1;
+  }
+
+  match.recentBalls = match.recentBalls || [];
+  match.recentBalls.unshift(outcome.ball);
+  if (match.recentBalls.length > 8) match.recentBalls.pop();
+
+  match.commentary = match.commentary || [];
+  match.commentary.unshift({
+    id: `comm_${Date.now()}`,
+    over: newOvers.toFixed(1),
+    text: `${strikerName} vs ${bowlerName}: ${outcome.commentary}`,
+    badge: outcome.badge,
+    timestamp: new Date()
+  });
+  if (match.commentary.length > 25) match.commentary.pop();
+
+  if (match.teamA.score > match.teamB.score) {
+    match.status = 'completed';
+    match.result = `${match.teamA.name} won by ${10 - match.teamA.wickets} wickets!`;
+  } else if (match.teamA.wickets >= 10 || newOvers >= match.teamA.maxOvers) {
+    match.status = 'completed';
+    if (match.teamA.score === match.teamB.score) {
+      match.result = 'Match Tied! Heading to Super Over!';
+    } else {
+      match.result = `${match.teamB.name} won by ${match.teamB.score - match.teamA.score} runs!`;
+    }
+  }
+
+  const updatedMatch = await updateMatch(match.matchId, match);
+
+  const visualPayload = {
+    shotType,
+    direction,
+    timing,
+    pitchLine,
+    pitchLength,
+    deliveryTactic,
+    runs: outcome.runs,
+    isWicket: outcome.isWicket,
+    wicketType: outcome.wicketType,
+    badge: outcome.badge,
+    commentary: outcome.commentary
+  };
+
+  return {
+    success: true,
+    outcome,
+    match: updatedMatch,
+    deliveryData: visualPayload
+  };
+};
+
 // Tournament operations
 const getTournaments = async () => {
   if (isMongoConnected()) {
@@ -3136,6 +3450,10 @@ module.exports = {
   updateTeamTactics,
   getMatchTactics,
   updateMatchTactics,
-  simulateTacticalBall
+  simulateTacticalBall,
+  // Phase 7: Phaser 3 Authoritative Delivery Engine
+  VALID_SHOT_TYPES,
+  VALID_TIMINGS,
+  playAuthoritativeDelivery
 };
 

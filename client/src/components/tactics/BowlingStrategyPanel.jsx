@@ -220,3 +220,4 @@ export const BowlingStrategyPanel = ({
     </div>
   );
 };
+

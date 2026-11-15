@@ -2017,6 +2017,265 @@ const runAllTests = async () => {
     assert.strictEqual(specEdit.body.code, 'SPECTATOR_READ_ONLY');
   });
 
+  // ==========================================
+  // PHASE 7: PHASER 3 PLAYABLE CRICKET GAME & AUTHORITATIVE ENGINE
+  // ==========================================
+
+  // 1. Manual Batting: Perfect Timing on Lofted Drive -> Six
+  await test('Phase 7 - 1. Manual Batting: Perfect Timing on Lofted Drive yields a SIX', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Lofted Drive',
+        direction: 'Long-off',
+        timing: 'Perfect',
+        deliveryTactic: 'Seam',
+        pitchLine: 'Off Stump',
+        pitchLength: 'Good Length'
+      }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.outcome.runs, 6);
+    assert.strictEqual(res.body.outcome.badge, 'SIX');
+    assert.strictEqual(res.body.outcome.isWicket, false);
+    assert.ok(res.body.deliveryData);
+    assert.strictEqual(res.body.deliveryData.runs, 6);
+  });
+
+  // 2. Manual Batting: Perfect Timing on Ground Drive -> Four
+  await test('Phase 7 - 2. Manual Batting: Perfect Timing on Drive yields FOUR', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Drive',
+        direction: 'Cover',
+        timing: 'Perfect',
+        deliveryTactic: 'Seam'
+      }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.outcome.runs, 4);
+    assert.strictEqual(res.body.outcome.badge, 'FOUR');
+  });
+
+  // 3. Defensive Block: Good/Perfect Timing -> Dot Ball
+  await test('Phase 7 - 3. Defensive Block: Solid defense produces 0 runs (Dot ball)', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Defensive Block',
+        direction: 'Mid-off',
+        timing: 'Good',
+        deliveryTactic: 'Seam'
+      }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.outcome.runs, 0);
+    assert.strictEqual(res.body.outcome.badge, 'DOT');
+    assert.strictEqual(res.body.outcome.isWicket, false);
+  });
+
+  // 4. Running Between Wickets: 1 Run and 2 Runs
+  await test('Phase 7 - 4. Running Between Wickets: Single and Double correctly recorded', async () => {
+    const singleRes = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Drive',
+        direction: 'Midwicket',
+        timing: 'Good',
+        runsAttempted: 1
+      }
+    });
+    assert.strictEqual(singleRes.status, 200);
+    assert.strictEqual(singleRes.body.outcome.runs, 1);
+    assert.strictEqual(singleRes.body.outcome.badge, 'SINGLE');
+
+    const doubleRes = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Cut',
+        direction: 'Point',
+        timing: 'Good',
+        runsAttempted: 2
+      }
+    });
+    assert.strictEqual(doubleRes.status, 200);
+    assert.strictEqual(doubleRes.body.outcome.runs, 2);
+    assert.strictEqual(doubleRes.body.outcome.badge, 'TWO');
+  });
+
+  // 5. Dismissal: Bowled (Late timing on Yorker)
+  await test('Phase 7 - 5. Dismissal - Bowled: Late timing on Yorker shatters wickets', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Drive',
+        timing: 'Late',
+        deliveryTactic: 'Yorker',
+        pitchLine: 'Off Stump',
+        pitchLength: 'Yorker'
+      }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.outcome.isWicket, true);
+    assert.strictEqual(res.body.outcome.wicketType, 'Bowled');
+    assert.strictEqual(res.body.outcome.badge, 'WICKET');
+  });
+
+  // 6. Dismissal: LBW (Late timing on Middle Stump Yorker)
+  await test('Phase 7 - 6. Dismissal - LBW: Yorker on Middle Stump traps batsman in front', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Drive',
+        timing: 'Late',
+        deliveryTactic: 'Yorker',
+        pitchLine: 'Middle Stump',
+        pitchLength: 'Yorker'
+      }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.outcome.isWicket, true);
+    assert.strictEqual(res.body.outcome.wicketType, 'LBW');
+  });
+
+  // 7. Dismissal: Stumped (Mistimed shot against Spin)
+  await test('Phase 7 - 7. Dismissal - Stumped: Stepping out against Spin variation', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Lofted Drive',
+        timing: 'Late',
+        deliveryTactic: 'Off-spin',
+        pitchLine: 'Outside Off',
+        pitchLength: 'Good Length'
+      }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.outcome.isWicket, true);
+    assert.strictEqual(res.body.outcome.wicketType, 'Stumped');
+  });
+
+  // 8. Dismissal: Caught (Early mistimed drive or Bouncer hazard)
+  await test('Phase 7 - 8. Dismissal - Caught: Early mistimed stroke against Bouncer', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Drive',
+        timing: 'Early',
+        deliveryTactic: 'Bouncer',
+        pitchLine: 'Off Stump',
+        pitchLength: 'Short'
+      }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.outcome.isWicket, true);
+    assert.strictEqual(res.body.outcome.wicketType, 'Caught');
+  });
+
+  // 9. Dismissal: Run Out (Risky 2nd run)
+  await test('Phase 7 - 9. Dismissal - Run Out: Risky 2nd run results in run-out', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Drive',
+        timing: 'Good',
+        runsAttempted: 2,
+        riskyRun: true
+      }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.outcome.isWicket, true);
+    assert.strictEqual(res.body.outcome.wicketType, 'Run Out');
+  });
+
+  // 10. Validation: Invalid Shot Type rejected
+  await test('Phase 7 - 10. Validation: Invalid shot type returns 400 INVALID_SHOT_TYPE', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Helicopter Upper Cut Ultra',
+        timing: 'Good'
+      }
+    });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.code, 'INVALID_SHOT_TYPE');
+  });
+
+  // 11. Validation: Invalid Delivery Tactic rejected
+  await test('Phase 7 - 11. Validation: Invalid delivery tactic returns 400 INVALID_DELIVERY_TACTIC', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Drive',
+        deliveryTactic: 'Supersonic Plasma Beam'
+      }
+    });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.code, 'INVALID_DELIVERY_TACTIC');
+  });
+
+  // 12. Control Modes: Tactical Mode Delegation
+  await test('Phase 7 - 12. Control Modes: Tactical mode delegates to tactical simulation engine', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'tactical'
+      }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.outcome);
+    assert.ok(res.body.match);
+  });
+
+  // 13. State Synchronization: Match state progresses authoritatively
+  await test('Phase 7 - 13. State Synchronization: Match state, commentary, recentBalls updated', async () => {
+    const res = await callApp({
+      method: 'POST',
+      url: '/api/matches/LIVE-IPL-FINAL/play-delivery',
+      body: {
+        controlMode: 'manual',
+        shotType: 'Pull / Hook',
+        direction: 'Square Leg',
+        timing: 'Perfect'
+      }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.ok(res.body.match.teamA.overs > 0);
+    assert.ok(res.body.match.recentBalls.length > 0);
+    assert.ok(res.body.match.commentary.length > 0);
+    assert.ok(res.body.deliveryData);
+    assert.strictEqual(res.body.deliveryData.shotType, 'Pull / Hook');
+  });
+
   // Match Center & Simulation
   await test('GET /api/matches returns live match data', async () => {
     const res = await callApp({ method: 'GET', url: '/api/matches' });

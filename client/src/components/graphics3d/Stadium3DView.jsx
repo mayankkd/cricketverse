@@ -300,3 +300,4 @@ export const Stadium3DView = ({
     </div>
   );
 };
+

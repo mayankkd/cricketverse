@@ -111,3 +111,4 @@ export const VoiceChatBar = ({ matchId, user, isSpectator = false }) => {
     </div>
   );
 };
+

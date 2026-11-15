@@ -8,6 +8,7 @@ const morgan = require('morgan');
 const { connectDB, getDBStatus } = require('./config/db');
 const { seedMongoIfEmpty } = require('./services/storeService');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
+const { apiRateLimiter, authRateLimiter } = require('./middleware/rateLimitMiddleware');
 
 const { initMultiplayerSockets } = require('./sockets/multiplayerSocket');
 
@@ -60,6 +61,11 @@ app.get('/api/health', (req, res) => {
     database: getDBStatus()
   });
 });
+
+// Security & Rate Limiting
+app.use('/api/auth/login', authRateLimiter);
+app.use('/api/auth/register', authRateLimiter);
+app.use('/api', apiRateLimiter);
 
 // Mount Routes
 app.use('/api/auth', authRoutes);

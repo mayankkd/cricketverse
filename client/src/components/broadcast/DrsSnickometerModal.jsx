@@ -170,3 +170,4 @@ export const DrsSnickometerModal = ({ matchId, isOpen, onClose }) => {
     </div>
   );
 };
+

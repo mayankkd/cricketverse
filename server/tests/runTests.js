@@ -1,3 +1,4 @@
+process.env.DISABLE_RATE_LIMIT = 'true';
 const assert = require('assert');
 const { Readable, Duplex } = require('stream');
 const http = require('http');
@@ -3819,6 +3820,13 @@ const runAllTests = async () => {
     assert.ok(res.body.tournaments[0].standings.length > 0);
     assert.ok(res.body.tournaments[0].fixtures.length > 0);
   });
+
+  // ==========================================
+  // PHASE 13: FINAL QA AND DEPLOYMENT SUITE
+  // ==========================================
+  const { runPhase13QATests } = require('./phase13QATests');
+  const qa13Res = await runPhase13QATests({ callApp, test });
+  // (passed and failed are incremented directly inside test callback)
 
   console.log(`\n🎯 --- ALL TESTS PASSED: ${passed} PASSED, ${failed} FAILED --- 🎯\n`);
   process.exit(failed > 0 ? 1 : 0);

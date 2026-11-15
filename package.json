@@ -8,7 +8,8 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "build": "npm run build --prefix client",
     "install:all": "npm install && npm install --prefix server && npm install --prefix client",
-    "test:server": "node server/tests/runTests.js"
+    "test:server": "node server/tests/runTests.js",
+    "seed": "npm run seed --prefix server"
   },
   "keywords": ["cricket", "gaming", "mern", "socket.io", "fifa-ultimate-team", "ipl", "multiplayer"],
   "author": "CricketVerse Team",

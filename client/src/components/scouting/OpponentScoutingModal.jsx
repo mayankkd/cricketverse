@@ -146,3 +146,4 @@ export const OpponentScoutingModal = ({ teamId, opponentId, isOpen, onClose }) =
     </div>
   );
 };
+

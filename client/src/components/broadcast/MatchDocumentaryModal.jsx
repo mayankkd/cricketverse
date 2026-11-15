@@ -234,3 +234,4 @@ export const MatchDocumentaryModal = ({ matchId, isOpen, onClose }) => {
     </div>
   );
 };
+

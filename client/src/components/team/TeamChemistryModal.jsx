@@ -150,3 +150,4 @@ export const TeamChemistryModal = ({ teamId, isOpen, onClose }) => {
     </div>
   );
 };
+

@@ -329,3 +329,4 @@ export const PlayerDevelopmentModal = ({ player, isOpen, onClose, onUpdate }) =>
     </div>
   );
 };
+

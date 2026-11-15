@@ -2149,6 +2149,12 @@ const populateTeamSquad = async (team, format = 'T20') => {
 
   return {
     ...doc,
+    captain: doc.captainId || doc.captain,
+    viceCaptain: doc.viceCaptainId || doc.viceCaptain,
+    wicketKeeper: doc.wicketKeeperId || doc.wicketKeeper,
+    captainId: doc.captainId || doc.captain,
+    viceCaptainId: doc.viceCaptainId || doc.viceCaptain,
+    wicketKeeperId: doc.wicketKeeperId || doc.wicketKeeper,
     populatedSquad,
     populatedPlayingXI,
     populatedBench,
@@ -2496,8 +2502,13 @@ const updateTeamSelection = async (teamId, userId, updateData = {}) => {
   if (updateData.battingOrder) updates.battingOrder = updateData.battingOrder;
   if (updateData.bowlingOrder) updates.bowlingOrder = updateData.bowlingOrder;
   if (updateData.captainId !== undefined) updates.captainId = updateData.captainId;
+  else if (updateData.captain !== undefined) updates.captainId = updateData.captain;
+
   if (updateData.viceCaptainId !== undefined) updates.viceCaptainId = updateData.viceCaptainId;
+  else if (updateData.viceCaptain !== undefined) updates.viceCaptainId = updateData.viceCaptain;
+
   if (updateData.wicketKeeperId !== undefined) updates.wicketKeeperId = updateData.wicketKeeperId;
+  else if (updateData.wicketKeeper !== undefined) updates.wicketKeeperId = updateData.wicketKeeper;
 
   const updatedRaw = await updateTeam(team._id, updates);
   return await populateTeamSquad(updatedRaw, updatedRaw.format || team.format);

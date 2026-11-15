@@ -1220,6 +1220,330 @@ const runAllTests = async () => {
     assert.strictEqual(specVeto.status, 403);
   });
 
+  // ==========================================
+  // PHASE 5: TEAM MANAGEMENT TESTS
+  // ==========================================
+  console.log('\n--- PHASE 5: TEAM MANAGEMENT TESTS ---');
+
+  let p5Host, p5Player2, p5RoomCode, p5Team1, p5Team2, p5Spectator;
+
+  // 1. Squad Sizes
+  await test('Phase 5 - 1. Squad Sizes: Default limits (Test: 15, ODI: 15, T20: 13, Playing XI: 11)', async () => {
+    const tHost = await createTestUser(`P5_Host_${Date.now()}`);
+    // Create Test room
+    const testRoom = await callApp({
+      method: 'POST',
+      url: '/api/rooms',
+      body: { name: 'Test Limit Arena', format: 'Test' },
+      headers: { authorization: `Bearer ${tHost.token}` }
+    });
+    assert.strictEqual(testRoom.status, 201);
+    assert.strictEqual(testRoom.body.room.squadLimits.test, 15);
+    assert.strictEqual(testRoom.body.room.squadLimits.playingXISize, 11);
+
+    // Create ODI room
+    const odiRoom = await callApp({
+      method: 'POST',
+      url: '/api/rooms',
+      body: { name: 'ODI Limit Arena', format: 'ODI' },
+      headers: { authorization: `Bearer ${tHost.token}` }
+    });
+    assert.strictEqual(odiRoom.status, 201);
+    assert.strictEqual(odiRoom.body.room.squadLimits.odi, 15);
+
+    // Create T20 room
+    const t20Room = await callApp({
+      method: 'POST',
+      url: '/api/rooms',
+      body: { name: 'T20 Limit Arena', format: 'T20' },
+      headers: { authorization: `Bearer ${tHost.token}` }
+    });
+    assert.strictEqual(t20Room.status, 201);
+    assert.strictEqual(t20Room.body.room.squadLimits.t20, 13);
+    assert.strictEqual(t20Room.body.room.squadLimits.playingXISize, 11);
+
+    // Setup base room for subsequent Phase 5 tests
+    p5Host = tHost;
+    p5RoomCode = t20Room.body.room.roomCode;
+    p5Player2 = await createTestUser(`P5_P2_${Date.now()}`);
+    await callApp({
+      method: 'POST',
+      url: `/api/rooms/${p5RoomCode}/join`,
+      body: { role: 'player', teamName: 'Warriors XI' },
+      headers: { authorization: `Bearer ${p5Player2.token}` }
+    });
+
+    p5Spectator = await createTestUser(`P5_Spec_${Date.now()}`);
+    await callApp({
+      method: 'POST',
+      url: `/api/rooms/${p5RoomCode}/join`,
+      body: { role: 'spectator' },
+      headers: { authorization: `Bearer ${p5Spectator.token}` }
+    });
+  });
+
+  // 2. Host Configures Squad Limits
+  await test('Phase 5 - 2. Host Configures Squad Limits: Host updates limits; non-host rejected with 403', async () => {
+    // Non-host attempts to configure limits -> 403
+    const unauthorizedRes = await callApp({
+      method: 'PUT',
+      url: `/api/teams/room/${p5RoomCode}/squad-limits`,
+      body: { t20: 16, maxSquadSize: 18 },
+      headers: { authorization: `Bearer ${p5Player2.token}` }
+    });
+    assert.strictEqual(unauthorizedRes.status, 403);
+
+    // Host configures limits -> 200
+    const hostRes = await callApp({
+      method: 'PUT',
+      url: `/api/teams/room/${p5RoomCode}/squad-limits`,
+      body: { t20: 16, maxSquadSize: 18 },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(hostRes.status, 200);
+    assert.strictEqual(hostRes.body.success, true);
+    assert.strictEqual(hostRes.body.squadLimits.t20, 16);
+    assert.strictEqual(hostRes.body.squadLimits.maxSquadSize, 18);
+  });
+
+  // 3. Squad Dashboard & Strength Metrics
+  await test('Phase 5 - 3. Squad Dashboard & Strength Metrics: Validates returned cards and aggregates', async () => {
+    const res = await callApp({
+      method: 'GET',
+      url: `/api/teams/my?room=${p5RoomCode}`,
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    p5Team1 = res.body.team;
+    assert.ok(p5Team1._id);
+
+    // Validate strength metrics
+    assert.ok(typeof p5Team1.squadStrength === 'number');
+    assert.ok(typeof p5Team1.battingStrength === 'number');
+    assert.ok(typeof p5Team1.bowlingStrength === 'number');
+    assert.ok(typeof p5Team1.fieldingStrength === 'number');
+    assert.ok(typeof p5Team1.chemistryScore === 'number');
+    assert.ok(p5Team1.squadBalance);
+    assert.ok(typeof p5Team1.squadBalance.battersCount === 'number');
+    assert.ok(typeof p5Team1.squadBalance.bowlersCount === 'number');
+    assert.ok(typeof p5Team1.squadBalance.allRoundersCount === 'number');
+    assert.ok(typeof p5Team1.squadBalance.wicketKeepersCount === 'number');
+    assert.ok(p5Team1.squadBalance.summary);
+
+    // Validate player card fields on Playing XI
+    assert.strictEqual(p5Team1.populatedPlayingXI.length, 11);
+    for (const card of p5Team1.populatedPlayingXI) {
+      assert.ok(card.name, 'Player card must display name');
+      assert.ok(card.country, 'Player card must display country');
+      assert.ok(card.countryFlag, 'Player card must display country flag');
+      assert.ok(card.ovr >= 1 && card.ovr <= 120, 'OVR must be on 1-120 scale');
+      assert.ok(card.format, 'Player card must display format');
+      assert.ok(card.role, 'Player card must display role');
+      assert.ok(typeof card.battingRating === 'number', 'Card must have batting rating');
+      assert.ok(typeof card.bowlingRating === 'number', 'Card must have bowling rating');
+      assert.ok(typeof card.fieldingRating === 'number', 'Card must have fielding rating');
+      assert.ok(typeof card.fitness === 'number', 'Card must have fitness');
+      assert.ok(typeof card.chemistry === 'number', 'Card must have chemistry');
+      assert.ok(card.imageUrl || card.avatarUrl, 'Player card must display real photograph');
+    }
+  });
+
+  // 4. Team Selection
+  await test('Phase 5 - 4. Team Selection: Updates identity, (C), (VC), (WK), and batting/bowling orders', async () => {
+    const p1 = p5Team1.squad[0];
+    const p2 = p5Team1.squad[1];
+    const p3 = p5Team1.squad[2];
+    const reversedBatting = [...p5Team1.playingXI].reverse();
+    const bowlers = [p5Team1.playingXI[3], p5Team1.playingXI[4], p5Team1.playingXI[5]];
+
+    const updateRes = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}`,
+      body: {
+        name: 'Thunderbolts XI',
+        shortCode: 'TBX',
+        logo: '⚡',
+        captainId: p1,
+        viceCaptainId: p2,
+        wicketKeeperId: p3,
+        battingOrder: reversedBatting,
+        playingXI: reversedBatting,
+        bowlingOrder: bowlers
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(updateRes.status, 200);
+    assert.strictEqual(updateRes.body.success, true);
+    assert.strictEqual(updateRes.body.team.name, 'Thunderbolts XI');
+    assert.strictEqual(updateRes.body.team.shortCode, 'TBX');
+    assert.strictEqual(updateRes.body.team.logo, '⚡');
+    assert.strictEqual(updateRes.body.team.captainId, p1);
+    assert.strictEqual(updateRes.body.team.viceCaptainId, p2);
+    assert.strictEqual(updateRes.body.team.wicketKeeperId, p3);
+    assert.deepStrictEqual(updateRes.body.team.playingXI, reversedBatting);
+    p5Team1 = updateRes.body.team;
+  });
+
+  // 5. Prevent Duplicate Players in Playing XI
+  await test('Phase 5 - 5. Prevent Duplicate Players in Playing XI: Rejects duplicates with 400 DUPLICATE_PLAYER_IN_XI', async () => {
+    const dupXI = [p5Team1.squad[0], p5Team1.squad[0], ...p5Team1.squad.slice(2, 11)];
+    const res = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}`,
+      body: { playingXI: dupXI },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.code, 'DUPLICATE_PLAYER_IN_XI');
+  });
+
+  // 6. Enforce Exactly 11 Players in Playing XI
+  await test('Phase 5 - 6. Enforce Exactly 11 Players in Playing XI: Rejects < 11 or > 11 with 400 INVALID_PLAYING_XI_SIZE', async () => {
+    // 10 players
+    const tenXI = p5Team1.squad.slice(0, 10);
+    const res10 = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}`,
+      body: { playingXI: tenXI },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(res10.status, 400);
+    assert.strictEqual(res10.body.code, 'INVALID_PLAYING_XI_SIZE');
+
+    // 12 players
+    const twelveXI = p5Team1.squad.slice(0, 12);
+    const res12 = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}`,
+      body: { playingXI: twelveXI },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(res12.status, 400);
+    assert.strictEqual(res12.body.code, 'INVALID_PLAYING_XI_SIZE');
+  });
+
+  // 7. Respect Auction Ownership
+  await test('Phase 5 - 7. Respect Auction Ownership: Rejects unowned player in lineup with 400 UNOWNED_PLAYER_IN_LINEUP', async () => {
+    const unownedXI = [...p5Team1.squad.slice(0, 10), 'ply_unowned_card_999'];
+    const res = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}`,
+      body: { playingXI: unownedXI },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.code, 'UNOWNED_PLAYER_IN_LINEUP');
+  });
+
+  // 8. Cross-Team Auction Uniqueness
+  await test('Phase 5 - 8. Cross-Team Auction Uniqueness: Rejects player owned by another team in same auction', async () => {
+    // Provision Team 2 for Player 2
+    const p2TeamRes = await callApp({
+      method: 'GET',
+      url: `/api/teams/my?room=${p5RoomCode}`,
+      headers: { authorization: `Bearer ${p5Player2.token}` }
+    });
+    assert.strictEqual(p2TeamRes.status, 200);
+    p5Team2 = p2TeamRes.body.team;
+    assert.ok(p5Team2._id);
+
+    // Verify squads are disjoint
+    const team1SquadSet = new Set(p5Team1.squad);
+    const team2Player = p5Team2.squad[0];
+    assert.strictEqual(team1SquadSet.has(team2Player), false, 'Teams in same room must not share players');
+
+    // Team 1 attempts to add Player 2's player into its squad
+    const stealAttemptSquad = [...p5Team1.squad.slice(0, 12), team2Player];
+    const stealRes = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}`,
+      body: { squad: stealAttemptSquad },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(stealRes.status, 400);
+    assert.strictEqual(stealRes.body.code, 'PLAYER_ALREADY_ASSIGNED_TO_OTHER_TEAM');
+  });
+
+  // 9. Player Swapping
+  await test('Phase 5 - 9. Player Swapping: Swapping Playing XI with Bench maintains 11 unique players', async () => {
+    const pIn = p5Team1.populatedBench[0]._id;
+    const pOut = p5Team1.playingXI[0];
+
+    const swapRes = await callApp({
+      method: 'POST',
+      url: `/api/teams/${p5Team1._id}/swap`,
+      body: { playerInId: pIn, playerOutId: pOut },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(swapRes.status, 200);
+    assert.strictEqual(swapRes.body.success, true);
+    assert.strictEqual(swapRes.body.team.playingXI.includes(pIn), true, 'Bench player must now be in Playing XI');
+    assert.strictEqual(swapRes.body.team.playingXI.includes(pOut), false, 'Replaced player must not be in Playing XI');
+    assert.strictEqual(swapRes.body.team.playingXI.length, 11, 'Playing XI size must remain exactly 11');
+    assert.strictEqual(new Set(swapRes.body.team.playingXI).size, 11, 'All 11 players must be unique');
+    p5Team1 = swapRes.body.team;
+  });
+
+  // 10. Owner & Host Only Modification
+  await test('Phase 5 - 10. Owner & Host Only Modification: Non-owner rejected with 403 UNAUTHORIZED_TEAM_EDIT', async () => {
+    // Player 2 attempts to modify Team 1 (Host's team)
+    const unauthorizedEdit = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}`,
+      body: { name: 'Hacked Team' },
+      headers: { authorization: `Bearer ${p5Player2.token}` }
+    });
+    assert.strictEqual(unauthorizedEdit.status, 403);
+    assert.strictEqual(unauthorizedEdit.body.code, 'UNAUTHORIZED_TEAM_EDIT');
+  });
+
+  // 11. Spectators Have Read-Only Access
+  await test('Phase 5 - 11. Spectators Have Read-Only Access: Spectator views team (200), edits rejected (403)', async () => {
+    // Spectator can view all room teams
+    const roomTeamsRes = await callApp({
+      method: 'GET',
+      url: `/api/teams/room/${p5RoomCode}`,
+      headers: { authorization: `Bearer ${p5Spectator.token}` }
+    });
+    assert.strictEqual(roomTeamsRes.status, 200);
+    assert.strictEqual(roomTeamsRes.body.count >= 2, true);
+
+    // Spectator views my franchise (read-only view)
+    const myRes = await callApp({
+      method: 'GET',
+      url: `/api/teams/my?room=${p5RoomCode}`,
+      headers: { authorization: `Bearer ${p5Spectator.token}` }
+    });
+    assert.strictEqual(myRes.status, 200);
+    assert.strictEqual(myRes.body.team.isSpectator, true);
+    assert.strictEqual(myRes.body.team.isReadOnly, true);
+
+    // Spectator attempts to update team -> 403 SPECTATOR_READ_ONLY
+    const editRes = await callApp({
+      method: 'PUT',
+      url: `/api/teams/${p5Team1._id}`,
+      body: { name: 'Spectator Tampered' },
+      headers: { authorization: `Bearer ${p5Spectator.token}` }
+    });
+    assert.strictEqual(editRes.status, 403);
+    assert.strictEqual(editRes.body.code, 'SPECTATOR_READ_ONLY');
+
+    // Spectator attempts to swap players -> 403 SPECTATOR_READ_ONLY
+    const swapRes = await callApp({
+      method: 'POST',
+      url: `/api/teams/${p5Team1._id}/swap`,
+      body: {
+        playerInId: p5Team1.squad[0],
+        playerOutId: p5Team1.playingXI[0]
+      },
+      headers: { authorization: `Bearer ${p5Spectator.token}` }
+    });
+    assert.strictEqual(swapRes.status, 403);
+    assert.strictEqual(swapRes.body.code, 'SPECTATOR_READ_ONLY');
+  });
+
   // Match Center & Simulation
   await test('GET /api/matches returns live match data', async () => {
     const res = await callApp({ method: 'GET', url: '/api/matches' });

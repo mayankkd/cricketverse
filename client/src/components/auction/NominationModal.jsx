@@ -327,3 +327,4 @@ export const NominationModal = ({
     </div>
   );
 };
+

@@ -182,6 +182,13 @@ const roomSchema = new mongoose.Schema({
     type: Number,
     default: 30 // Test: 50, ODI: 40, T20: 30 points
   },
+  squadLimits: {
+    test: { type: Number, default: 15 },
+    odi: { type: Number, default: 15 },
+    t20: { type: Number, default: 13 },
+    maxSquadSize: { type: Number, default: 15 },
+    playingXISize: { type: Number, default: 11 }
+  },
   isPrivate: {
     type: Boolean,
     default: false

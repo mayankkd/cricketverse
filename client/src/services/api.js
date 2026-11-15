@@ -273,18 +273,63 @@ export const api = {
   },
 
   // Teams
-  async getMyTeam() {
-    const res = await fetch(`${API_BASE}/teams/my`, {
+  async getMyTeam(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    const res = await fetch(`${API_BASE}/teams/my${query ? `?${query}` : ''}`, {
       headers: getAuthHeaders()
     });
     return await res.json();
   },
 
-  async updateMyTeam(data) {
-    const res = await fetch(`${API_BASE}/teams/my`, {
+  async getTeamById(id) {
+    const res = await fetch(`${API_BASE}/teams/${id}`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getTeamsByRoom(roomCode) {
+    const res = await fetch(`${API_BASE}/teams/room/${roomCode}`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async updateMyTeam(idOrData, data) {
+    const teamId = typeof idOrData === 'string' ? idOrData : idOrData?._id;
+    const payload = typeof idOrData === 'string' ? data : idOrData;
+    const url = teamId ? `${API_BASE}/teams/${teamId}` : `${API_BASE}/teams/my`;
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  },
+
+  async updateTeam(id, data) {
+    const res = await fetch(`${API_BASE}/teams/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
+    });
+    return await res.json();
+  },
+
+  async swapTeamPlayer(teamId, data) {
+    const res = await fetch(`${API_BASE}/teams/${teamId}/swap`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return await res.json();
+  },
+
+  async configureRoomSquadLimits(roomCode, limits) {
+    const res = await fetch(`${API_BASE}/teams/room/${roomCode}/squad-limits`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(limits)
     });
     return await res.json();
   },

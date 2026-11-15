@@ -67,6 +67,14 @@ const getFormatPurse = (format = 'T20') => {
   return 30; // Default for 'The Hundred', 'Super Over', etc.
 };
 
+// Default Squad Limits: Test: 15, ODI: 15, T20: 13, Playing XI: 11
+const getDefaultSquadLimits = (format = 'T20') => {
+  const fmt = (format || '').toUpperCase();
+  if (fmt === 'TEST') return { test: 15, odi: 15, t20: 13, maxSquadSize: 15, playingXISize: 11 };
+  if (fmt === 'ODI') return { test: 15, odi: 15, t20: 13, maxSquadSize: 15, playingXISize: 11 };
+  return { test: 15, odi: 15, t20: 13, maxSquadSize: 13, playingXISize: 11 };
+};
+
 // Memory store fallback
 const memoryStore = {
   users: [...initialUsers.map(u => ({ ...u }))],
@@ -372,11 +380,13 @@ const createRoom = async (roomData) => {
   const token = `inv_${crypto.randomBytes(8).toString('hex')}`;
   const format = roomData.format || 'T20';
   const purse = getFormatPurse(format);
+  const squadLimits = roomData.squadLimits || getDefaultSquadLimits(format);
   const completeRoomData = {
     minPlayers: 2,
     maxPlayers: 6,
     maxTeams: 6,
     budgetPerTeam: roomData.budgetPerTeam !== undefined ? roomData.budgetPerTeam : purse,
+    squadLimits,
     allowSpectators: true,
     allowPlayerJoining: true,
     spectatorChatEnabled: true,
@@ -1607,6 +1617,206 @@ const updateAuctionSettings = async (roomCode, hostId, settings = {}) => {
   return await updateRoom(code, { auctionState });
 };
 
+// ==========================================
+// PHASE 5: FRANCHISE & SQUAD MANAGEMENT
+// ==========================================
+
+// Calculate all squad strengths, balance, and chemistry
+const calculateSquadMetrics = (populatedXI, populatedBench = [], format = 'T20') => {
+  const fmt = (format || 'T20').toLowerCase();
+
+  if (!populatedXI || populatedXI.length === 0) {
+    return {
+      squadStrength: 85,
+      overallRating: 85,
+      battingStrength: 85,
+      bowlingStrength: 85,
+      fieldingStrength: 85,
+      fitnessAverage: 90,
+      chemistryScore: 85,
+      squadBalance: {
+        battersCount: 0,
+        bowlersCount: 0,
+        allRoundersCount: 0,
+        wicketKeepersCount: 0,
+        isBalanced: false,
+        summary: 'Incomplete Lineup'
+      }
+    };
+  }
+
+  // Format-specific OVR per player
+  const getFormatOVR = (p) => {
+    if (p.ovr && typeof p.ovr === 'object') {
+      if (fmt === 'test' && p.ovr.test) return p.ovr.test;
+      if (fmt === 'odi' && p.ovr.odi) return p.ovr.odi;
+      if (p.ovr.t20) return p.ovr.t20;
+    }
+    return p.overallRating || 88;
+  };
+
+  const getBattingRating = (p) => p.attributes?.batting || p.stats?.bat || 75;
+  const getBowlingRating = (p) => p.attributes?.bowling || p.stats?.bwl || 75;
+  const getFieldingRating = (p) => p.attributes?.fielding || p.stats?.fld || 80;
+  const getFitnessRating = (p) => p.attributes?.fitness || 90;
+
+  // 1. Squad Strength / Overall Rating (average of Playing XI OVR)
+  const ovrList = populatedXI.map(getFormatOVR);
+  const squadStrength = Math.round(ovrList.reduce((a, b) => a + b, 0) / ovrList.length);
+
+  // 2. Batting Strength: Top order (1-7) weighted heavier
+  const batRatings = populatedXI.map(getBattingRating);
+  const topBatters = [...batRatings].sort((a, b) => b - a).slice(0, 7);
+  const battingStrength = Math.round(topBatters.reduce((a, b) => a + b, 0) / topBatters.length);
+
+  // 3. Bowling Strength: Top 5 specialized bowlers / all-rounders
+  const bwlRatings = populatedXI.map(getBowlingRating);
+  const topBowlers = [...bwlRatings].sort((a, b) => b - a).slice(0, 5);
+  const bowlingStrength = Math.round(topBowlers.reduce((a, b) => a + b, 0) / topBowlers.length);
+
+  // 4. Fielding Strength
+  const fldRatings = populatedXI.map(getFieldingRating);
+  const fieldingStrength = Math.round(fldRatings.reduce((a, b) => a + b, 0) / fldRatings.length);
+
+  // 5. Fitness Average
+  const fitRatings = populatedXI.map(getFitnessRating);
+  const fitnessAverage = Math.round(fitRatings.reduce((a, b) => a + b, 0) / fitRatings.length);
+
+  // 6. Role Counts & Balance
+  let battersCount = 0;
+  let bowlersCount = 0;
+  let allRoundersCount = 0;
+  let wicketKeepersCount = 0;
+
+  for (const p of populatedXI) {
+    const role = (p.role || '').toLowerCase();
+    if (role === 'batter') battersCount++;
+    else if (role === 'bowler') bowlersCount++;
+    else if (role === 'all-rounder') allRoundersCount++;
+    else if (role === 'wicketkeeper') wicketKeepersCount++;
+  }
+
+  const isBalanced = battersCount >= 4 && bowlersCount >= 3 && (allRoundersCount >= 1 || bowlersCount >= 4) && wicketKeepersCount >= 1;
+  let summary = 'Optimal Champion Balance';
+  if (wicketKeepersCount === 0) summary = 'Warning: No Wicketkeeper selected in Playing XI';
+  else if (bowlersCount < 3 && allRoundersCount < 2) summary = 'Warning: Bowling attack too light';
+  else if (battersCount < 4) summary = 'Warning: Batting lineup too fragile';
+  else summary = `Solid Balance (${battersCount} Bat, ${wicketKeepersCount} WK, ${allRoundersCount} AR, ${bowlersCount} Bowl)`;
+
+  // 7. Chemistry Calculation
+  let chemistryScore = 80;
+  if (populatedXI.length === 11) chemistryScore += 8;
+  if (isBalanced) chemistryScore += 7;
+  const countryMap = {};
+  for (const p of populatedXI) {
+    countryMap[p.country] = (countryMap[p.country] || 0) + 1;
+  }
+  const maxCountryCluster = Math.max(...Object.values(countryMap), 0);
+  if (maxCountryCluster >= 4) chemistryScore += 4;
+  chemistryScore = Math.min(99, chemistryScore);
+
+  return {
+    squadStrength,
+    overallRating: squadStrength,
+    battingStrength,
+    bowlingStrength,
+    fieldingStrength,
+    fitnessAverage,
+    chemistryScore,
+    squadBalance: {
+      battersCount,
+      bowlersCount,
+      allRoundersCount,
+      wicketKeepersCount,
+      isBalanced,
+      summary
+    }
+  };
+};
+
+// Populate player details from IDs
+const populateTeamSquad = async (team, format = 'T20') => {
+  if (!team) return null;
+  const doc = (typeof team.toObject === 'function') ? team.toObject() : { ...team };
+
+  const allPlayers = isMongoConnected() ? await Player.find() : memoryStore.players;
+  const playerMap = new Map();
+  for (const p of allPlayers) {
+    const item = (typeof p.toObject === 'function') ? p.toObject() : { ...p };
+    playerMap.set(p._id, item);
+    if (p.playerId) {
+      playerMap.set(p.playerId, item);
+    }
+  }
+
+  const squadIds = doc.squad || [];
+  const playingXIIds = doc.playingXI || squadIds.slice(0, 11);
+  const benchIds = squadIds.filter(id => !playingXIIds.includes(id));
+
+  const formatKey = (format || doc.format || 'T20').toLowerCase();
+
+  const formatCardForDashboard = (pId, idx = 0) => {
+    const raw = playerMap.get(pId) || {
+      _id: pId,
+      name: `Player ${pId}`,
+      country: 'International',
+      countryFlag: '🏏',
+      role: 'Batter',
+      overallRating: 85
+    };
+
+    let ovrVal = raw.overallRating || 88;
+    if (raw.ovr && typeof raw.ovr === 'object') {
+      if (formatKey === 'test' && raw.ovr.test) ovrVal = raw.ovr.test;
+      else if (formatKey === 'odi' && raw.ovr.odi) ovrVal = raw.ovr.odi;
+      else if (raw.ovr.t20) ovrVal = raw.ovr.t20;
+    }
+
+    return {
+      _id: raw._id,
+      playerId: raw.playerId || raw._id,
+      name: raw.name,
+      shortName: raw.shortName || raw.name,
+      country: raw.country,
+      countryFlag: raw.countryFlag || '🏏',
+      imageUrl: raw.imageUrl || raw.avatarUrl,
+      avatarUrl: raw.avatarUrl || raw.imageUrl,
+      role: raw.role,
+      format: doc.format || 'T20',
+      cardVariant: raw.cardVariant || 'Peak',
+      ovr: ovrVal,
+      overallRating: ovrVal,
+      battingRating: raw.attributes?.batting || raw.stats?.bat || 80,
+      bowlingRating: raw.attributes?.bowling || raw.stats?.bwl || 40,
+      fieldingRating: raw.attributes?.fielding || raw.stats?.fld || 85,
+      fitness: raw.attributes?.fitness || 90,
+      battingStyle: raw.battingStyle || 'Right-hand bat',
+      bowlingStyle: raw.bowlingStyle || 'Right-arm medium',
+      chemistry: 92,
+      isCaptain: doc.captainId === raw._id || doc.captainId === raw.playerId,
+      isViceCaptain: doc.viceCaptainId === raw._id || doc.viceCaptainId === raw.playerId,
+      isWicketKeeper: doc.wicketKeeperId === raw._id || doc.wicketKeeperId === raw.playerId || raw.role?.toLowerCase() === 'wicketkeeper',
+      battingOrderPosition: idx + 1
+    };
+  };
+
+  const populatedPlayingXI = playingXIIds.map((id, idx) => formatCardForDashboard(id, idx));
+  const populatedBench = benchIds.map(id => formatCardForDashboard(id));
+  const populatedSquad = squadIds.map(id => formatCardForDashboard(id));
+
+  const metrics = calculateSquadMetrics(populatedPlayingXI, populatedBench, doc.format || format);
+
+  return {
+    ...doc,
+    populatedSquad,
+    populatedPlayingXI,
+    populatedBench,
+    ...metrics,
+    totalSpending: doc.totalSpending || 0,
+    remainingPurse: doc.remainingPurse !== undefined ? doc.remainingPurse : (doc.budgetRemaining || 30)
+  };
+};
+
 // Team operations
 const getTeams = async (ownerId) => {
   if (isMongoConnected()) {
@@ -1630,6 +1840,430 @@ const updateTeam = async (id, updateFields) => {
   if (idx === -1) return null;
   memoryStore.teams[idx] = { ...memoryStore.teams[idx], ...updateFields, updatedAt: new Date() };
   return memoryStore.teams[idx];
+};
+
+// Get or create franchise for user in a room (after auction or during lobby)
+const getOrCreateUserFranchise = async (userId, roomCode = null) => {
+  const user = await findUserById(userId);
+  if (!user) {
+    const err = new Error('User not found.');
+    err.status = 404;
+    throw err;
+  }
+
+  let code = roomCode ? roomCode.toUpperCase() : null;
+
+  if (code) {
+    const room = await getRoomByCode(code);
+    if (!room) {
+      const err = new Error(`Room '${roomCode}' not found.`);
+      err.status = 404;
+      throw err;
+    }
+
+    const participant = (room.participants || []).find(p => p.userId === userId);
+    const isSpectator = participant?.role === 'spectator';
+
+    // If user is spectator, return host's team or first franchise team as read-only preview
+    if (isSpectator) {
+      const roomTeams = isMongoConnected()
+        ? await Team.find({ roomCode: code })
+        : memoryStore.teams.filter(t => t.roomCode === code);
+      if (roomTeams.length > 0) {
+        const pop = await populateTeamSquad(roomTeams[0], room.format);
+        return {
+          ...pop,
+          isReadOnly: true,
+          isSpectator: true,
+          spectatorMessage: 'Observing franchise as spectator. Read-only access.'
+        };
+      }
+    }
+
+    // Look for existing team for this user in this room
+    let team = isMongoConnected()
+      ? await Team.findOne({ ownerId: userId, roomCode: code })
+      : memoryStore.teams.find(t => t.ownerId === userId && t.roomCode === code);
+
+    // Get acquired players from participant's auction squad
+    const acquiredSquad = (participant?.squad || []).map(s => (typeof s === 'string' ? s : (s.cardId || s._id)));
+    const allPlayers = isMongoConnected() ? await Player.find() : memoryStore.players;
+
+    // Fill default roster if fewer than 11 (e.g. before auction finishes or in demo)
+    let squadIds = [...acquiredSquad];
+    if (squadIds.length < 11) {
+      const existingSet = new Set(squadIds);
+      // Exclude players already assigned to other teams in this room to enforce auction uniqueness
+      const otherRoomTeams = isMongoConnected()
+        ? await Team.find({ roomCode: code })
+        : memoryStore.teams.filter(t => t.roomCode === code);
+      for (const ot of otherRoomTeams) {
+        if (ot.ownerId !== userId && ot.squad) {
+          for (const pid of ot.squad) {
+            existingSet.add(pid);
+          }
+        }
+      }
+
+      for (const p of allPlayers) {
+        if (!existingSet.has(p._id)) {
+          squadIds.push(p._id);
+          existingSet.add(p._id);
+        }
+        if (squadIds.length >= 13) break;
+      }
+    }
+
+    const defaultLimits = room.squadLimits || getDefaultSquadLimits(room.format);
+
+    if (!team) {
+      const newTeamData = {
+        _id: `tm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: participant?.teamName || `${user.username}'s Super XI`,
+        shortCode: (participant?.teamName || user.username).substring(0, 3).toUpperCase(),
+        logo: '🏏',
+        logoUrl: '',
+        ownerId: user._id,
+        ownerUsername: user.username,
+        roomCode: code,
+        format: room.format || 'T20',
+        squadLimits: defaultLimits,
+        primaryColor: '#F59E0B',
+        secondaryColor: '#1E293B',
+        squad: squadIds,
+        playingXI: squadIds.slice(0, 11),
+        battingOrder: squadIds.slice(0, 11),
+        bowlingOrder: squadIds.slice(4, 9),
+        captainId: squadIds[0] || null,
+        viceCaptainId: squadIds[1] || null,
+        wicketKeeperId: squadIds.find(id => {
+          const p = allPlayers.find(x => x._id === id);
+          return p && p.role?.toLowerCase() === 'wicketkeeper';
+        }) || squadIds[2] || null,
+        totalSpending: (participant?.squad || []).reduce((sum, s) => sum + (s.acquiredPrice || 0), 0),
+        remainingPurse: participant?.budgetRemaining !== undefined ? participant.budgetRemaining : (room.budgetPerTeam || 30)
+      };
+
+      if (isMongoConnected()) {
+        const created = new Team(newTeamData);
+        team = await created.save();
+      } else {
+        memoryStore.teams.push(newTeamData);
+        team = newTeamData;
+      }
+    } else {
+      if (participant) {
+        const totalSpent = (participant.squad || []).reduce((sum, s) => sum + (s.acquiredPrice || 0), 0);
+        team.remainingPurse = participant.budgetRemaining;
+        team.totalSpending = totalSpent;
+      }
+    }
+
+    const populated = await populateTeamSquad(team, room.format);
+    return {
+      ...populated,
+      isReadOnly: false,
+      isSpectator: false
+    };
+  }
+
+  // Standalone mode
+  let teams = isMongoConnected()
+    ? await Team.find({ ownerId: userId })
+    : memoryStore.teams.filter(t => t.ownerId === userId);
+
+  let myTeam = teams[0];
+  if (!myTeam) {
+    const allPlayers = isMongoConnected() ? await Player.find() : memoryStore.players;
+    const defaultSquad = allPlayers.slice(0, 13).map(p => p._id);
+    const newTeam = {
+      _id: `tm_${Date.now()}`,
+      name: `${user.username}'s Super XI`,
+      shortCode: user.username.substring(0, 3).toUpperCase(),
+      logo: '🏏',
+      logoUrl: '',
+      ownerId: user._id,
+      ownerUsername: user.username,
+      roomCode: '',
+      format: 'T20',
+      squadLimits: getDefaultSquadLimits('T20'),
+      primaryColor: '#F59E0B',
+      secondaryColor: '#1E293B',
+      squad: defaultSquad,
+      playingXI: defaultSquad.slice(0, 11),
+      battingOrder: defaultSquad.slice(0, 11),
+      bowlingOrder: defaultSquad.slice(4, 9),
+      captainId: defaultSquad[0] || null,
+      viceCaptainId: defaultSquad[1] || null,
+      wicketKeeperId: defaultSquad.find(id => {
+        const p = allPlayers.find(x => x._id === id);
+        return p && p.role?.toLowerCase() === 'wicketkeeper';
+      }) || defaultSquad[2] || null,
+      totalSpending: 0,
+      remainingPurse: 30
+    };
+
+    if (isMongoConnected()) {
+      const created = new Team(newTeam);
+      myTeam = await created.save();
+    } else {
+      memoryStore.teams.push(newTeam);
+      myTeam = newTeam;
+    }
+  }
+
+  return await populateTeamSquad(myTeam, myTeam.format || 'T20');
+};
+
+// Get all franchise teams in a room (for room roster / spectator viewing)
+const getFranchiseTeamsByRoom = async (roomCode) => {
+  const code = (roomCode || '').toUpperCase();
+  const room = await getRoomByCode(code);
+  if (!room) {
+    const err = new Error(`Room '${roomCode}' not found.`);
+    err.status = 404;
+    throw err;
+  }
+
+  let teams = isMongoConnected()
+    ? await Team.find({ roomCode: code })
+    : memoryStore.teams.filter(t => t.roomCode === code);
+
+  // If room participants have no teams yet, provision them
+  const players = (room.participants || []).filter(p => p.role === 'player');
+  for (const p of players) {
+    const exists = teams.some(t => t.ownerId === p.userId);
+    if (!exists) {
+      await getOrCreateUserFranchise(p.userId, code);
+    }
+  }
+
+  teams = isMongoConnected()
+    ? await Team.find({ roomCode: code })
+    : memoryStore.teams.filter(t => t.roomCode === code);
+
+  const populated = await Promise.all(teams.map(t => populateTeamSquad(t, room.format)));
+  return populated;
+};
+
+// Update Team Selection & Lineup
+// Enforces:
+// 1. Owner or authorized Host only (Spectators get 403 Forbidden)
+// 2. Prevent duplicate players in playingXI
+// 3. Exactly 11 players in playingXI
+// 4. Respect auction ownership (all players in playingXI must belong to team squad)
+// 5. One player cannot be assigned to multiple teams in the same auction
+const updateTeamSelection = async (teamId, userId, updateData = {}) => {
+  const team = await getTeamById(teamId);
+  if (!team) {
+    const err = new Error('Franchise team not found.');
+    err.status = 404;
+    throw err;
+  }
+
+  // Check authorization
+  let isHost = false;
+  let room = null;
+  if (team.roomCode) {
+    room = await getRoomByCode(team.roomCode);
+    if (room && room.hostId === userId) {
+      isHost = true;
+    }
+  }
+
+  // Check spectator role
+  if (room) {
+    const participant = (room.participants || []).find(p => p.userId === userId);
+    if (participant && participant.role === 'spectator') {
+      const err = new Error('Forbidden: Spectators have read-only access and cannot modify team settings or lineups.');
+      err.status = 403;
+      err.code = 'SPECTATOR_READ_ONLY';
+      throw err;
+    }
+  }
+
+  if (team.ownerId !== userId && !isHost) {
+    const err = new Error('Forbidden: Only the team owner or room host can modify franchise settings.');
+    err.status = 403;
+    err.code = 'UNAUTHORIZED_TEAM_EDIT';
+    throw err;
+  }
+
+  const currentSquad = updateData.squad || team.squad || [];
+
+  // RULE 1: PREVENT DUPLICATE PLAYERS IN PLAYING XI
+  if (updateData.playingXI) {
+    const xi = updateData.playingXI;
+    const unique = new Set(xi);
+    if (unique.size !== xi.length) {
+      const err = new Error('Invalid Lineup: Playing XI cannot contain duplicate players. Every player must be unique.');
+      err.status = 400;
+      err.code = 'DUPLICATE_PLAYER_IN_XI';
+      throw err;
+    }
+
+    if (xi.length !== 11) {
+      const err = new Error(`Invalid Lineup: Playing XI must contain exactly 11 players (${xi.length}/11 selected).`);
+      err.status = 400;
+      err.code = 'INVALID_PLAYING_XI_SIZE';
+      throw err;
+    }
+
+    // RULE 2: RESPECT AUCTION OWNERSHIP
+    for (const pId of xi) {
+      if (!currentSquad.includes(pId)) {
+        const err = new Error(`Ownership Violation: Player '${pId}' is not part of this franchise squad roster.`);
+        err.status = 400;
+        err.code = 'UNOWNED_PLAYER_IN_LINEUP';
+        throw err;
+      }
+    }
+  }
+
+  // RULE 3: ONE PLAYER CANNOT BE ASSIGNED TO MULTIPLE TEAMS IN THE SAME AUCTION
+  if (team.roomCode && (updateData.squad || updateData.playingXI)) {
+    const checkSquad = updateData.squad || team.squad;
+    const otherTeams = isMongoConnected()
+      ? await Team.find({ roomCode: team.roomCode, _id: { $ne: team._id } })
+      : memoryStore.teams.filter(t => t.roomCode === team.roomCode && t._id !== team._id);
+
+    for (const other of otherTeams) {
+      for (const pId of checkSquad) {
+        if (other.squad && other.squad.includes(pId)) {
+          const err = new Error(`Auction Rule Violation: Player '${pId}' is already owned by '${other.name}' in this auction.`);
+          err.status = 400;
+          err.code = 'PLAYER_ALREADY_ASSIGNED_TO_OTHER_TEAM';
+          throw err;
+        }
+      }
+    }
+  }
+
+  const updates = {};
+  if (updateData.name) updates.name = updateData.name.trim();
+  if (updateData.shortCode) updates.shortCode = updateData.shortCode.trim().toUpperCase();
+  if (updateData.logo) updates.logo = updateData.logo;
+  if (updateData.logoUrl !== undefined) updates.logoUrl = updateData.logoUrl;
+  if (updateData.primaryColor) updates.primaryColor = updateData.primaryColor;
+  if (updateData.secondaryColor) updates.secondaryColor = updateData.secondaryColor;
+  if (updateData.squad) updates.squad = updateData.squad;
+  if (updateData.playingXI) {
+    updates.playingXI = updateData.playingXI;
+    updates.battingOrder = updateData.battingOrder || updateData.playingXI;
+  }
+  if (updateData.battingOrder) updates.battingOrder = updateData.battingOrder;
+  if (updateData.bowlingOrder) updates.bowlingOrder = updateData.bowlingOrder;
+  if (updateData.captainId !== undefined) updates.captainId = updateData.captainId;
+  if (updateData.viceCaptainId !== undefined) updates.viceCaptainId = updateData.viceCaptainId;
+  if (updateData.wicketKeeperId !== undefined) updates.wicketKeeperId = updateData.wicketKeeperId;
+
+  const updatedRaw = await updateTeam(team._id, updates);
+  return await populateTeamSquad(updatedRaw, updatedRaw.format || team.format);
+};
+
+// Swap two players between Playing XI and Bench (or within Batting Order)
+const swapTeamPlayers = async (teamId, userId, { playerInId, playerOutId, newBattingOrder, newBowlingOrder }) => {
+  const team = await getTeamById(teamId);
+  if (!team) {
+    const err = new Error('Team not found.');
+    err.status = 404;
+    throw err;
+  }
+
+  // Check authorization
+  let isHost = false;
+  if (team.roomCode) {
+    const room = await getRoomByCode(team.roomCode);
+    if (room && room.hostId === userId) isHost = true;
+    const participant = (room?.participants || []).find(p => p.userId === userId);
+    if (participant?.role === 'spectator') {
+      const err = new Error('Forbidden: Spectators have read-only access.');
+      err.status = 403;
+      err.code = 'SPECTATOR_READ_ONLY';
+      throw err;
+    }
+  }
+
+  if (team.ownerId !== userId && !isHost) {
+    const err = new Error('Forbidden: Only team owner or host can modify lineup.');
+    err.status = 403;
+    throw err;
+  }
+
+  let playingXI = [...(team.playingXI || [])];
+  const squad = team.squad || [];
+
+  if (playerInId && playerOutId) {
+    if (!squad.includes(playerInId)) {
+      const err = new Error(`Player '${playerInId}' is not in your squad roster.`);
+      err.status = 400;
+      throw err;
+    }
+
+    const outIndex = playingXI.indexOf(playerOutId);
+    if (outIndex === -1) {
+      const err = new Error(`Player to replace '${playerOutId}' is not currently in the Playing XI.`);
+      err.status = 400;
+      throw err;
+    }
+
+    if (playingXI.includes(playerInId)) {
+      const err = new Error('Invalid swap: incoming player is already in the Playing XI.');
+      err.status = 400;
+      err.code = 'DUPLICATE_PLAYER_IN_XI';
+      throw err;
+    }
+
+    playingXI[outIndex] = playerInId;
+  }
+
+  if (newBattingOrder && Array.isArray(newBattingOrder)) {
+    playingXI = newBattingOrder;
+  }
+
+  return await updateTeamSelection(teamId, userId, {
+    playingXI,
+    battingOrder: playingXI,
+    ...(newBowlingOrder ? { bowlingOrder: newBowlingOrder } : {})
+  });
+};
+
+// Host configures squad limits
+const updateRoomSquadLimits = async (roomCode, hostId, squadLimits = {}) => {
+  const code = roomCode.toUpperCase();
+  const room = await getRoomByCode(code);
+  if (!room) {
+    const err = new Error('Room not found.');
+    err.status = 404;
+    throw err;
+  }
+
+  if (room.hostId !== hostId) {
+    const err = new Error('Only the room host can configure squad limits.');
+    err.status = 403;
+    throw err;
+  }
+
+  const updatedLimits = {
+    ...(room.squadLimits || getDefaultSquadLimits(room.format)),
+    ...(squadLimits.test !== undefined ? { test: Number(squadLimits.test) } : {}),
+    ...(squadLimits.odi !== undefined ? { odi: Number(squadLimits.odi) } : {}),
+    ...(squadLimits.t20 !== undefined ? { t20: Number(squadLimits.t20) } : {}),
+    ...(squadLimits.maxSquadSize !== undefined ? { maxSquadSize: Number(squadLimits.maxSquadSize) } : {}),
+    ...(squadLimits.playingXISize !== undefined ? { playingXISize: Number(squadLimits.playingXISize) } : {})
+  };
+
+  const updatedRoom = await updateRoom(code, { squadLimits: updatedLimits });
+
+  if (isMongoConnected()) {
+    await Team.updateMany({ roomCode: code }, { $set: { squadLimits: updatedLimits } });
+  } else {
+    for (const t of memoryStore.teams) {
+      if (t.roomCode === code) t.squadLimits = updatedLimits;
+    }
+  }
+
+  return updatedRoom;
 };
 
 // Match operations
@@ -1706,6 +2340,15 @@ module.exports = {
   startUnsoldRound,
   nominateRandomPlayer,
   updateAuctionSettings,
-  withRoomLock
+  withRoomLock,
+  // Phase 5: Franchise & Squad Management
+  getDefaultSquadLimits,
+  calculateSquadMetrics,
+  populateTeamSquad,
+  getOrCreateUserFranchise,
+  getFranchiseTeamsByRoom,
+  updateTeamSelection,
+  swapTeamPlayers,
+  updateRoomSquadLimits
 };
 

@@ -251,6 +251,123 @@ const submitBattingDecision = async (req, res, next) => {
   }
 };
 
+// @desc    Declare Innings in Test Match
+// @route   POST /api/matches/:id/declare
+// @access  Public / Private
+const declareInnings = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?._id || req.body.userId || 'captain_usr';
+    const result = await matchEngineService.declareInnings(id, userId);
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Enforce Follow-On in Test Match
+// @route   POST /api/matches/:id/follow-on
+// @access  Public / Private
+const enforceFollowOn = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?._id || req.body.userId || 'captain_usr';
+    const result = await matchEngineService.enforceFollowOn(id, userId);
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Call Tactical Timeout in T20
+// @route   POST /api/matches/:id/timeout
+// @access  Public / Private
+const callTacticalTimeout = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?._id || req.body.userId || 'tactician_usr';
+    const result = await matchEngineService.callTacticalTimeout(id, userId);
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Resume from Tactical Timeout
+// @route   POST /api/matches/:id/timeout/resume
+// @access  Public / Private
+const resumeTacticalTimeout = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await matchEngineService.resumeTacticalTimeout(id);
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Apply DLS Revision for Limited Overs
+// @route   POST /api/matches/:id/dls
+// @access  Public / Private
+const applyDLSRevision = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await matchEngineService.applyDLSRevision(id, req.body || {});
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Set Stadium & Weather Conditions
+// @route   POST /api/matches/:id/conditions
+// @access  Public / Private
+const setStadiumAndConditions = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await matchEngineService.setStadiumAndConditions(id, req.body || {});
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
 module.exports = {
   getMatches,
   getMatchById,
@@ -262,6 +379,12 @@ module.exports = {
   getMatchSnapshot,
   syncMatch,
   submitBowlingDecision,
-  submitBattingDecision
+  submitBattingDecision,
+  declareInnings,
+  enforceFollowOn,
+  callTacticalTimeout,
+  resumeTacticalTimeout,
+  applyDLSRevision,
+  setStadiumAndConditions
 };
 

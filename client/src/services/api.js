@@ -399,6 +399,71 @@ export const api = {
     return await res.json();
   },
 
+  // Phase 9: Stadiums & Match Formats
+  async getStadiums() {
+    const res = await fetch(`${API_BASE}/stadiums`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getStadiumById(id) {
+    const res = await fetch(`${API_BASE}/stadiums/${id}`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async declareInnings(matchId) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/declare`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async enforceFollowOn(matchId) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/follow-on`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async callTacticalTimeout(matchId) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/timeout`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async resumeTacticalTimeout(matchId) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/timeout/resume`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async applyDLS(matchId, dlsData = {}) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/dls`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(dlsData)
+    });
+    return await res.json();
+  },
+
+  async setConditions(matchId, conditionsData = {}) {
+    const res = await fetch(`${API_BASE}/matches/${matchId}/conditions`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(conditionsData)
+    });
+    return await res.json();
+  },
+
   // Tournaments
   async getTournaments() {
     const res = await fetch(`${API_BASE}/tournaments`, {

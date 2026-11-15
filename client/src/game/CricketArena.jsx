@@ -13,7 +13,16 @@ import {
   Activity,
   Layers,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Cloud,
+  Sun,
+  Droplets,
+  Wind,
+  Clock,
+  Flag,
+  AlertCircle,
+  Timer,
+  Compass
 } from 'lucide-react';
 import { sound } from '../services/sound';
 import { api } from '../services/api';
@@ -129,7 +138,9 @@ export const CricketArena = ({
         scene.init({
           tacticalPositions: match?.teamBTactics?.fieldPlacement?.customPositions,
           striker: match?.currentStriker,
-          bowler: match?.currentBowler
+          bowler: match?.currentBowler,
+          stadium: match?.stadium,
+          weather: match?.weather
         });
       }
     });
@@ -150,7 +161,7 @@ export const CricketArena = ({
     }
   }, [match?.teamBTactics]);
 
-  // Real-time Multiplayer Socket delivery synchronization
+  // Real-time Multiplayer Socket delivery synchronization & Phase 9 events
   useEffect(() => {
     const unsub = socketService.onDeliveryResult((res) => {
       if (res.deliveryData && sceneRef.current?.playDelivery) {
@@ -172,7 +183,39 @@ export const CricketArena = ({
       }
     });
 
-    return () => unsub();
+    const unsubTimeout = socketService.onTacticalTimeoutCalled((data) => {
+      if (onMatchUpdated && data.snapshot) onMatchUpdated(data.snapshot);
+    });
+
+    const unsubTimeoutResume = socketService.onTacticalTimeoutResumed((data) => {
+      if (onMatchUpdated && data.snapshot) onMatchUpdated(data.snapshot);
+    });
+
+    const unsubDecl = socketService.onInningsDeclared((data) => {
+      if (onMatchUpdated && data.snapshot) onMatchUpdated(data.snapshot);
+    });
+
+    const unsubFollow = socketService.onFollowOnEnforced((data) => {
+      if (onMatchUpdated && data.snapshot) onMatchUpdated(data.snapshot);
+    });
+
+    const unsubDLS = socketService.onDLSApplied((data) => {
+      if (onMatchUpdated && data.snapshot) onMatchUpdated(data.snapshot);
+    });
+
+    const unsubCond = socketService.onConditionsUpdated((data) => {
+      if (onMatchUpdated && data.snapshot) onMatchUpdated(data.snapshot);
+    });
+
+    return () => {
+      unsub();
+      unsubTimeout();
+      unsubTimeoutResume();
+      unsubDecl();
+      unsubFollow();
+      unsubDLS();
+      unsubCond();
+    };
   }, [onMatchUpdated]);
 
   // Timing bar oscillation
@@ -291,6 +334,79 @@ export const CricketArena = ({
     }
   };
 
+  // Phase 9: Format & Conditions Handlers
+  const handleCallTimeout = async () => {
+    try {
+      sound.playClick();
+      if (socketService.connected) {
+        socketService.callTacticalTimeout(match?.matchId || 'LIVE-IPL-FINAL');
+      } else {
+        const res = await api.callTacticalTimeout(match?.matchId || 'LIVE-IPL-FINAL');
+        if (res.success && onMatchUpdated && res.snapshot) onMatchUpdated(res.snapshot);
+      }
+    } catch (err) {
+      console.error('Error calling timeout:', err);
+    }
+  };
+
+  const handleResumeTimeout = async () => {
+    try {
+      sound.playClick();
+      if (socketService.connected) {
+        socketService.resumeTacticalTimeout(match?.matchId || 'LIVE-IPL-FINAL');
+      } else {
+        const res = await api.resumeTacticalTimeout(match?.matchId || 'LIVE-IPL-FINAL');
+        if (res.success && onMatchUpdated && res.snapshot) onMatchUpdated(res.snapshot);
+      }
+    } catch (err) {
+      console.error('Error resuming timeout:', err);
+    }
+  };
+
+  const handleDeclareInnings = async () => {
+    if (!window.confirm('Declare current innings closed?')) return;
+    try {
+      sound.playClick();
+      if (socketService.connected) {
+        socketService.declareInnings(match?.matchId || 'LIVE-IPL-FINAL');
+      } else {
+        const res = await api.declareInnings(match?.matchId || 'LIVE-IPL-FINAL');
+        if (res.success && onMatchUpdated && res.snapshot) onMatchUpdated(res.snapshot);
+      }
+    } catch (err) {
+      console.error('Error declaring innings:', err);
+    }
+  };
+
+  const handleEnforceFollowOn = async () => {
+    if (!window.confirm('Enforce follow-on? Opponent will bat again immediately in Innings 3.')) return;
+    try {
+      sound.playClick();
+      if (socketService.connected) {
+        socketService.enforceFollowOn(match?.matchId || 'LIVE-IPL-FINAL');
+      } else {
+        const res = await api.enforceFollowOn(match?.matchId || 'LIVE-IPL-FINAL');
+        if (res.success && onMatchUpdated && res.snapshot) onMatchUpdated(res.snapshot);
+      }
+    } catch (err) {
+      console.error('Error enforcing follow-on:', err);
+    }
+  };
+
+  const handleApplyDLS = async () => {
+    try {
+      sound.playClick();
+      if (socketService.connected) {
+        socketService.applyDLS(match?.matchId || 'LIVE-IPL-FINAL', 10);
+      } else {
+        const res = await api.applyDLS(match?.matchId || 'LIVE-IPL-FINAL', { oversLost: 10 });
+        if (res.success && onMatchUpdated && res.snapshot) onMatchUpdated(res.snapshot);
+      }
+    } catch (err) {
+      console.error('Error applying DLS:', err);
+    }
+  };
+
   return (
     <div className="bg-stadium-950 border border-stadium-800 rounded-3xl overflow-hidden shadow-2xl space-y-4">
       {/* ARENA HEADER: Control Mode Switcher & Broadcast Telemetry */}
@@ -343,6 +459,134 @@ export const CricketArena = ({
             <Eye className="w-3.5 h-3.5" /> LIVE SPECTATOR CAM (READ ONLY)
           </div>
         )}
+      </div>
+
+      {/* PHASE 9: STADIUM & WEATHER TELEMETRY BANNER */}
+      <div className="mx-4 p-3 bg-stadium-900/90 border border-white/10 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Stadium & City */}
+          <span className="font-display font-bold text-white flex items-center gap-1.5">
+            <Compass className="w-3.5 h-3.5 text-gold-400" />
+            {match?.stadium?.name || match?.venue || 'Eden Gardens'}, {match?.stadium?.city || 'Kolkata'}
+          </span>
+
+          {/* Boundary Dimensions */}
+          <span className="bg-stadium-950 px-2 py-0.5 rounded text-[11px] font-mono text-slate-300 border border-white/5">
+            Straight: {match?.stadium?.boundaryDimensions?.straight || 72}m | Square: {match?.stadium?.boundaryDimensions?.square || 67}m
+          </span>
+
+          {/* Pitch Badge */}
+          <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border ${
+            match?.stadium?.pitchType === 'Green' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+            match?.stadium?.pitchType === 'Cracked' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+            match?.stadium?.pitchType === 'Turning' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
+            match?.stadium?.pitchType === 'Flat' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+            'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+          }`}>
+            PITCH: {match?.stadium?.pitchType || 'Turning'}
+          </span>
+
+          {/* Weather Badge */}
+          <span className="bg-sky-500/20 text-sky-300 border border-sky-500/30 px-2 py-0.5 rounded text-[11px] font-mono font-bold flex items-center gap-1">
+            {match?.weather?.condition === 'Overcast' ? <Cloud className="w-3 h-3" /> :
+             match?.weather?.condition === 'Rain' ? <Droplets className="w-3 h-3" /> :
+             match?.weather?.condition === 'Windy' ? <Wind className="w-3 h-3" /> :
+             <Sun className="w-3 h-3" />}
+            {match?.weather?.condition || 'Clear'} ({match?.weather?.temperature || 29}°C)
+          </span>
+
+          {/* Dew Indicator */}
+          {(match?.stadium?.dewConditions?.hasEveningDew || match?.conditions?.isEveningSession) && (
+            <span className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded text-[11px] font-mono font-bold flex items-center gap-1">
+              <Droplets className="w-3 h-3" /> DEW ACTIVE (-30% Spin)
+            </span>
+          )}
+
+          {/* Active Multipliers Pill */}
+          {match?.conditions && (
+            <span className="bg-stadium-950 px-2.5 py-0.5 rounded text-[10px] font-mono text-slate-400 border border-white/5">
+              Swing x{match.conditions.swingMultiplier} • Spin x{match.conditions.spinMultiplier} • Boundary x{match.conditions.boundaryDifficulty}
+            </span>
+          )}
+        </div>
+
+        {/* FORMAT ACTION BUTTONS & TELEMETRY */}
+        <div className="flex items-center gap-2">
+          {/* TEST FORMAT CONTROLS */}
+          {match?.format === 'TEST' && (
+            <div className="flex items-center gap-2">
+              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" /> DAY {match?.testDetails?.day || 1} • {match?.testDetails?.session || 'Morning'}
+              </span>
+              {!isSpectator && (
+                <button
+                  onClick={handleDeclareInnings}
+                  className="bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-lg text-xs font-mono font-bold transition-all"
+                >
+                  DECLARE INNINGS
+                </button>
+              )}
+              {!isSpectator && match?.testDetails?.followOnEligible && !match?.testDetails?.followOnEnforced && match?.currentInnings === 2 && (
+                <button
+                  onClick={handleEnforceFollowOn}
+                  className="bg-red-600 hover:bg-red-500 text-white font-mono font-bold px-3 py-1 rounded-lg text-xs animate-pulse shadow-md"
+                >
+                  ENFORCE FOLLOW-ON!
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* T20 FORMAT TIMEOUT CONTROLS */}
+          {match?.format === 'T20' && (
+            <div className="flex items-center gap-2">
+              <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-lg text-xs font-mono font-bold">
+                {match?.powerplayStage?.stage || 'Powerplay'}
+              </span>
+              {!isSpectator && (
+                match?.tacticalTimeouts?.isTimeoutActive ? (
+                  <button
+                    onClick={handleResumeTimeout}
+                    className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1 animate-pulse"
+                  >
+                    <Timer className="w-3.5 h-3.5" /> RESUME PLAY
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleCallTimeout}
+                    disabled={(match?.tacticalTimeouts?.teamATimeoutsUsed || 0) >= 2}
+                    className="bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 border border-purple-500/40 px-3 py-1 rounded-lg text-xs font-mono font-bold disabled:opacity-40"
+                  >
+                    TIMEOUT ({2 - (match?.tacticalTimeouts?.teamATimeoutsUsed || 0)}/2)
+                  </button>
+                )
+              )}
+            </div>
+          )}
+
+          {/* ODI FORMAT CONTROLS */}
+          {match?.format === 'ODI' && (
+            <div className="flex items-center gap-2">
+              <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded-lg text-xs font-mono font-bold">
+                {match?.powerplayStage?.stage || 'Powerplay 1'}
+              </span>
+              {match?.weather?.isDLSActive ? (
+                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-lg text-xs font-mono font-bold">
+                  DLS: {match.weather.dlsDetails?.revisedTarget} ({match.weather.dlsDetails?.revisedOvers} ov)
+                </span>
+              ) : (
+                !isSpectator && (
+                  <button
+                    onClick={handleApplyDLS}
+                    className="bg-sky-600/30 hover:bg-sky-600/50 text-sky-300 border border-sky-500/40 px-2.5 py-1 rounded-lg text-[11px] font-mono"
+                  >
+                    🌧️ RAIN (DLS)
+                  </button>
+                )
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* PHASER 3 CANVAS VIEWPORT */}

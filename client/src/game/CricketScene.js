@@ -13,6 +13,10 @@ export class CricketScene extends Phaser.Scene {
     this.onDeliveryFinished = data.onDeliveryFinished || null;
     this.strikerData = data.striker || { name: 'Virat Kohli', role: 'Batter', ovr: 115 };
     this.bowlerData = data.bowler || { name: 'Jasprit Bumrah', role: 'Bowler', ovr: 118 };
+    this.stadiumData = data.stadium || { name: 'Eden Gardens', pitchType: 'Turning', boundaryDimensions: { straight: 72, square: 67 } };
+    this.weatherData = data.weather || { condition: 'Clear' };
+    this.pitchType = this.stadiumData.pitchType || 'Turning';
+    this.weatherCondition = this.weatherData.condition || 'Clear';
   }
 
   preload() {
@@ -42,12 +46,55 @@ export class CricketScene extends Phaser.Scene {
     gCircle.strokeEllipse(240, 150, 440, 270);
     gCircle.generateTexture('inner_circle', 480, 300);
 
-    // 3. Pitch Clay Strip
+    // 3. Pitch Strip (Dynamic Pitch Condition: Green, Flat, Dry, Turning, Cracked)
     const gPitch = this.make.graphics({ x: 0, y: 0, add: false });
-    gPitch.fillStyle(0xb89768, 1);
+    let pitchColor = 0xb89768;
+    let pitchBorder = 0x7c5831;
+
+    const currentPitchType = this.pitchType || 'Turning';
+    if (currentPitchType === 'Green') {
+      pitchColor = 0x2e6f40;
+      pitchBorder = 0x1e492b;
+    } else if (currentPitchType === 'Flat') {
+      pitchColor = 0xd9b382;
+      pitchBorder = 0x9c7a4e;
+    } else if (currentPitchType === 'Dry') {
+      pitchColor = 0xd4af7a;
+      pitchBorder = 0x8c6b3e;
+    } else if (currentPitchType === 'Turning') {
+      pitchColor = 0xb58253;
+      pitchBorder = 0x734b28;
+    } else if (currentPitchType === 'Cracked') {
+      pitchColor = 0x8a6240;
+      pitchBorder = 0x54361e;
+    }
+
+    gPitch.fillStyle(pitchColor, 1);
     gPitch.fillRoundedRect(0, 0, 80, 260, 6);
-    gPitch.lineStyle(2, 0x7c5831, 1);
+    gPitch.lineStyle(2, pitchBorder, 1);
     gPitch.strokeRoundedRect(0, 0, 80, 260, 6);
+
+    // Realistic Surface Detailing
+    if (currentPitchType === 'Green') {
+      // Grass seam blades
+      gPitch.lineStyle(1, 0x3d8c54, 0.6);
+      gPitch.lineBetween(15, 60, 25, 68);
+      gPitch.lineBetween(50, 100, 62, 108);
+      gPitch.lineBetween(22, 180, 32, 188);
+    } else if (currentPitchType === 'Turning') {
+      // Bowler footmark scuffs & rough
+      gPitch.fillStyle(0x6b4423, 0.45);
+      gPitch.fillEllipse(30, 70, 16, 12);
+      gPitch.fillEllipse(52, 195, 18, 14);
+    } else if (currentPitchType === 'Cracked') {
+      // Prominent fissures and cracks
+      gPitch.lineStyle(1.5, 0x3d2010, 0.9);
+      gPitch.lineBetween(25, 45, 36, 75);
+      gPitch.lineBetween(36, 75, 28, 105);
+      gPitch.lineBetween(48, 135, 60, 165);
+      gPitch.lineBetween(60, 165, 52, 195);
+      gPitch.lineBetween(15, 175, 26, 215);
+    }
 
     // Crease lines (White)
     gPitch.lineStyle(2, 0xffffff, 1);
@@ -191,6 +238,43 @@ export class CricketScene extends Phaser.Scene {
 
     // Particles / Fireworks for Six and Wickets
     this.createCelebrationParticles();
+
+    // Weather Atmosphere & Dew Simulation
+    this.createWeatherAtmosphere();
+  }
+
+  createWeatherAtmosphere() {
+    const weather = this.weatherCondition || 'Clear';
+
+    if (weather === 'Overcast') {
+      // Atmospheric cloudy overcast gloom overlay
+      this.overcastLayer = this.add.rectangle(480, 270, 960, 540, 0x1e293b, 0.22).setDepth(45);
+    } else if (weather === 'Rain') {
+      // Rain Streaks falling down
+      this.rainDrops = [];
+      for (let i = 0; i < 40; i++) {
+        const x = Phaser.Math.Between(40, 920);
+        const y = Phaser.Math.Between(0, 540);
+        const drop = this.add.line(0, 0, x, y, x - 2, y + 10, 0x93c5fd, 0.6).setDepth(48);
+        this.rainDrops.push(drop);
+      }
+      this.time.addEvent({
+        delay: 40,
+        loop: true,
+        callback: () => {
+          this.rainDrops.forEach(d => {
+            d.y += 12;
+            if (d.y > 540) d.y = -20;
+          });
+        }
+      });
+    }
+
+    if (this.stadiumData?.dewConditions?.hasEveningDew) {
+      // Dew sheen effect
+      this.dewRing = this.add.ellipse(480, 270, 880, 460);
+      this.dewRing.setStrokeStyle(3, 0x38bdf8, 0.35).setDepth(3);
+    }
   }
 
   createAnimatedCrowd() {

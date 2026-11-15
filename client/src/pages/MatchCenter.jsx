@@ -255,8 +255,26 @@ export const MatchCenter = () => {
             <span className="flex items-center gap-1.5 bg-red-600 text-white font-mono text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
               <Radio className="w-3.5 h-3.5" /> BROADCAST LIVE
             </span>
-            <span className="text-xs font-mono text-slate-400">
-              {match.venue} • {match.format} Championship Final
+            <span className="text-xs font-mono text-slate-400 flex flex-wrap items-center gap-2">
+              <span>{match.stadium?.name || match.venue}</span>
+              <span>•</span>
+              <span className="text-gold-400 font-bold">{match.format}</span>
+              <span>•</span>
+              <span className="text-pitch-400">Pitch: {match.stadium?.pitchType || 'Turning'}</span>
+              <span>•</span>
+              <span className="text-sky-400">{match.weather?.condition || 'Clear'}</span>
+              {match.format === 'TEST' && (
+                <>
+                  <span>•</span>
+                  <span className="text-amber-400 font-bold">Day {match.testDetails?.day || 1} ({match.testDetails?.session || 'Morning'})</span>
+                </>
+              )}
+              {match.weather?.isDLSActive && (
+                <>
+                  <span>•</span>
+                  <span className="text-cyan-400 font-bold">DLS Target: {match.weather.dlsDetails?.revisedTarget}</span>
+                </>
+              )}
             </span>
           </div>
 

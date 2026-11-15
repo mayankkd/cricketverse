@@ -240,6 +240,73 @@ class SocketService {
     return () => socket.off('match_notification', callback);
   }
 
+  // Phase 9: Match Format & Stadium Actions
+  declareInnings(matchId) {
+    const socket = this.getSocket();
+    socket.emit('declare_innings', { matchId });
+  }
+
+  enforceFollowOn(matchId) {
+    const socket = this.getSocket();
+    socket.emit('enforce_follow_on', { matchId });
+  }
+
+  callTacticalTimeout(matchId) {
+    const socket = this.getSocket();
+    socket.emit('call_tactical_timeout', { matchId });
+  }
+
+  resumeTacticalTimeout(matchId) {
+    const socket = this.getSocket();
+    socket.emit('resume_tactical_timeout', { matchId });
+  }
+
+  applyDLS(matchId, oversLost, targetTeamOversTotal = 50) {
+    const socket = this.getSocket();
+    socket.emit('apply_dls', { matchId, oversLost, targetTeamOversTotal });
+  }
+
+  setStadiumConditions(matchId, conditions) {
+    const socket = this.getSocket();
+    socket.emit('set_stadium_conditions', { matchId, conditions });
+  }
+
+  onInningsDeclared(callback) {
+    const socket = this.getSocket();
+    socket.on('innings_declared', callback);
+    return () => socket.off('innings_declared', callback);
+  }
+
+  onFollowOnEnforced(callback) {
+    const socket = this.getSocket();
+    socket.on('follow_on_enforced', callback);
+    return () => socket.off('follow_on_enforced', callback);
+  }
+
+  onTacticalTimeoutCalled(callback) {
+    const socket = this.getSocket();
+    socket.on('tactical_timeout_called', callback);
+    return () => socket.off('tactical_timeout_called', callback);
+  }
+
+  onTacticalTimeoutResumed(callback) {
+    const socket = this.getSocket();
+    socket.on('tactical_timeout_resumed', callback);
+    return () => socket.off('tactical_timeout_resumed', callback);
+  }
+
+  onDLSApplied(callback) {
+    const socket = this.getSocket();
+    socket.on('dls_applied', callback);
+    return () => socket.off('dls_applied', callback);
+  }
+
+  onConditionsUpdated(callback) {
+    const socket = this.getSocket();
+    socket.on('conditions_updated', callback);
+    return () => socket.off('conditions_updated', callback);
+  }
+
   disconnect() {
     if (this.socket) {
       this.socket.disconnect();

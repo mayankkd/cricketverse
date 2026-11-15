@@ -481,6 +481,146 @@ const initMultiplayerSockets = (io) => {
       }
     });
 
+    // Test Cricket Declaration
+    socket.on('declare_innings', async ({ matchId }) => {
+      try {
+        const id = matchId || socket.currentMatchId;
+        if (!id) return;
+        const userId = socket.user?._id || `guest_${socket.id.slice(0, 8)}`;
+
+        const result = await matchEngineService.declareInnings(id, userId);
+        const roomChannel = `match:${id}`;
+        io.to(roomChannel).emit('match_event', result.event);
+        io.to(roomChannel).emit('innings_declared', {
+          matchId: id,
+          declared: true,
+          snapshot: result.snapshot
+        });
+        io.to(roomChannel).emit('match_state', result.snapshot);
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'DECLARATION_ERROR',
+          message: err.message
+        });
+      }
+    });
+
+    // Test Cricket Follow-On Enforcement
+    socket.on('enforce_follow_on', async ({ matchId }) => {
+      try {
+        const id = matchId || socket.currentMatchId;
+        if (!id) return;
+        const userId = socket.user?._id || `guest_${socket.id.slice(0, 8)}`;
+
+        const result = await matchEngineService.enforceFollowOn(id, userId);
+        const roomChannel = `match:${id}`;
+        io.to(roomChannel).emit('match_event', result.event);
+        io.to(roomChannel).emit('follow_on_enforced', {
+          matchId: id,
+          followOnEnforced: true,
+          snapshot: result.snapshot
+        });
+        io.to(roomChannel).emit('match_state', result.snapshot);
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'FOLLOW_ON_ERROR',
+          message: err.message
+        });
+      }
+    });
+
+    // T20 Tactical Timeout
+    socket.on('call_tactical_timeout', async ({ matchId }) => {
+      try {
+        const id = matchId || socket.currentMatchId;
+        if (!id) return;
+        const userId = socket.user?._id || `guest_${socket.id.slice(0, 8)}`;
+
+        const result = await matchEngineService.callTacticalTimeout(id, userId);
+        const roomChannel = `match:${id}`;
+        io.to(roomChannel).emit('match_event', result.event);
+        io.to(roomChannel).emit('tactical_timeout_called', {
+          matchId: id,
+          isTimeoutActive: true,
+          snapshot: result.snapshot
+        });
+        io.to(roomChannel).emit('match_state', result.snapshot);
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'TIMEOUT_ERROR',
+          message: err.message
+        });
+      }
+    });
+
+    // Resume Tactical Timeout
+    socket.on('resume_tactical_timeout', async ({ matchId }) => {
+      try {
+        const id = matchId || socket.currentMatchId;
+        if (!id) return;
+
+        const result = await matchEngineService.resumeTacticalTimeout(id);
+        const roomChannel = `match:${id}`;
+        io.to(roomChannel).emit('match_event', result.event);
+        io.to(roomChannel).emit('tactical_timeout_resumed', {
+          matchId: id,
+          isTimeoutActive: false,
+          snapshot: result.snapshot
+        });
+        io.to(roomChannel).emit('match_state', result.snapshot);
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'TIMEOUT_RESUME_ERROR',
+          message: err.message
+        });
+      }
+    });
+
+    // DLS Target Adjustment
+    socket.on('apply_dls', async ({ matchId, oversLost, targetTeamOversTotal }) => {
+      try {
+        const id = matchId || socket.currentMatchId;
+        if (!id) return;
+
+        const result = await matchEngineService.applyDLSRevision(id, { oversLost, targetTeamOversTotal });
+        const roomChannel = `match:${id}`;
+        io.to(roomChannel).emit('match_event', result.event);
+        io.to(roomChannel).emit('dls_applied', {
+          matchId: id,
+          dls: result.dls,
+          snapshot: result.snapshot
+        });
+        io.to(roomChannel).emit('match_state', result.snapshot);
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'DLS_ERROR',
+          message: err.message
+        });
+      }
+    });
+
+    // Set Stadium & Weather Conditions
+    socket.on('set_stadium_conditions', async ({ matchId, conditions }) => {
+      try {
+        const id = matchId || socket.currentMatchId;
+        if (!id) return;
+
+        const result = await matchEngineService.setStadiumAndConditions(id, conditions || {});
+        const roomChannel = `match:${id}`;
+        io.to(roomChannel).emit('match_event', result.event);
+        io.to(roomChannel).emit('conditions_updated', {
+          matchId: id,
+          snapshot: result.snapshot
+        });
+        io.to(roomChannel).emit('match_state', result.snapshot);
+      } catch (err) {
+        socket.emit('action_error', {
+          code: err.code || 'CONDITIONS_ERROR',
+          message: err.message
+        });
+      }
+    });
+
     // Disconnect handling: preserve slot and mark disconnected
     socket.on('disconnect', async () => {
       console.log(`[Socket] Disconnected: ${socket.id}`);

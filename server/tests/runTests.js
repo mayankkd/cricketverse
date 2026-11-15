@@ -2802,6 +2802,258 @@ const runAllTests = async () => {
     assert.strictEqual(specErrors[0].data.code, 'SPECTATOR_READ_ONLY');
   });
 
+  // ==========================================
+  // PHASE 9: CRICKET FORMATS & STADIUM SIMULATION TESTS
+  // ==========================================
+  console.log('\n--- PHASE 9: CRICKET FORMATS & STADIUM SIMULATION TESTS ---');
+
+  const { getAllStadiums, getStadiumById } = require('../src/data/stadiumsData');
+  const {
+    calculateConditionMultipliers,
+    calculateDLSRevision,
+    calculateTestSessionAndDay,
+    canEnforceFollowOn,
+    getFormatPowerplayStage,
+    getMaxBowlerLimitForFormat
+  } = require('../src/services/stadiumConditionsService');
+
+  // Test 1: All 15 authentic stadiums verification
+  await test('Phase 9 - 1. All 15 authentic cricket stadiums verification & profile lookup', async () => {
+    const all = getAllStadiums();
+    assert.strictEqual(all.length, 15, 'Must contain all 15 authentic stadiums');
+
+    const expectedNames = [
+      "Lord's", "MCG", "SCG", "Eden Gardens", "Wankhede",
+      "Narendra Modi Stadium", "Chepauk", "Chinnaswamy", "The Oval", "Headingley",
+      "Newlands", "Wanderers", "Gaddafi Stadium", "R. Premadasa", "Kensington Oval"
+    ];
+
+    expectedNames.forEach(name => {
+      const found = all.find(s => s.name === name || s.fullName.includes(name));
+      assert.ok(found, `Stadium '${name}' must exist in stadiums database`);
+      assert.ok(found.country, `Stadium '${name}' must have country`);
+      assert.ok(found.city, `Stadium '${name}' must have city`);
+      assert.ok(found.pitchType, `Stadium '${name}' must have pitchType`);
+      assert.ok(found.boundaryDimensions.straight > 50, `Stadium '${name}' must have valid straight boundary`);
+      assert.ok(found.boundaryDimensions.square > 50, `Stadium '${name}' must have valid square boundary`);
+      assert.ok(found.historicalScores, `Stadium '${name}' must have historical scores`);
+      assert.ok(found.weatherProfile, `Stadium '${name}' must have weather profile`);
+      assert.ok(found.dewConditions !== undefined, `Stadium '${name}' must have dew conditions`);
+    });
+  });
+
+  // Test 2: Stadium boundary physics (MCG vs Chinnaswamy)
+  await test('Phase 9 - 2. Stadium boundary physics: MCG large boundary vs Chinnaswamy small boundary', async () => {
+    const mcgConditions = calculateConditionMultipliers({ stadiumId: 'mcg' });
+    const chinConditions = calculateConditionMultipliers({ stadiumId: 'chinnaswamy' });
+
+    assert.ok(mcgConditions.boundaryDifficulty > 1.2, `MCG boundary difficulty must be > 1.2 (actual: ${mcgConditions.boundaryDifficulty})`);
+    assert.ok(chinConditions.boundaryDifficulty < 1.0, `Chinnaswamy boundary difficulty must be < 1.0 (actual: ${chinConditions.boundaryDifficulty})`);
+    assert.ok(mcgConditions.boundaryDifficulty > chinConditions.boundaryDifficulty, 'MCG must have higher boundary difficulty than Chinnaswamy');
+  });
+
+  // Test 3: Green pitch & Overcast swing multiplier boost
+  await test('Phase 9 - 3. Overcast & Green Pitch swing multiplier boost', async () => {
+    const clearFlat = calculateConditionMultipliers({ stadiumId: 'wankhede', pitchType: 'Flat', weather: 'Clear' });
+    const overcastGreen = calculateConditionMultipliers({ stadiumId: 'lords', pitchType: 'Green', weather: 'Overcast' });
+
+    assert.ok(overcastGreen.swingMultiplier >= 1.7, `Overcast Green pitch swing multiplier must be >= 1.7 (actual: ${overcastGreen.swingMultiplier})`);
+    assert.ok(overcastGreen.swingMultiplier > clearFlat.swingMultiplier, 'Overcast Green pitch must have higher swing than Clear Flat pitch');
+  });
+
+  // Test 4: Evening Dew condition reduces spin grip
+  await test('Phase 9 - 4. Evening Dew condition reduces spin grip and accelerates outfield', async () => {
+    const afternoonSpin = calculateConditionMultipliers({ stadiumId: 'eden_gardens', pitchType: 'Turning', isEveningSession: false });
+    const eveningDewSpin = calculateConditionMultipliers({ stadiumId: 'eden_gardens', pitchType: 'Turning', isEveningSession: true });
+
+    assert.ok(eveningDewSpin.spinMultiplier < afternoonSpin.spinMultiplier, 'Evening dew must reduce spin multiplier due to slick ball');
+    assert.ok(eveningDewSpin.boundaryDifficulty < afternoonSpin.boundaryDifficulty, 'Evening dew must reduce boundary difficulty as ball skids faster');
+  });
+
+  // Test 5: Cracked pitch & Day 4/5 variable bounce and wicket hazards
+  await test('Phase 9 - 5. Cracked pitch & Day 4/5 variable bounce and wicket hazards', async () => {
+    const day1Flat = calculateConditionMultipliers({ stadiumId: 'scg', pitchType: 'Flat', dayOfTest: 1 });
+    const day5Cracked = calculateConditionMultipliers({ stadiumId: 'scg', pitchType: 'Cracked', dayOfTest: 5 });
+
+    assert.ok(day5Cracked.wicketHazardMultiplier >= 1.4, `Day 5 Cracked pitch wicket hazard must be >= 1.4 (actual: ${day5Cracked.wicketHazardMultiplier})`);
+    assert.ok(day5Cracked.wicketHazardMultiplier > day1Flat.wicketHazardMultiplier, 'Day 5 Cracked pitch must have higher wicket hazard than Day 1 Flat');
+  });
+
+  // Test 6: Test match 4-innings cycle and declarations
+  await test('Phase 9 - 6. Test match 4-innings cycle and declarations', async () => {
+    const testMatchId = `TEST_FORMAT_DECL_${Date.now()}`;
+    const engine = await matchEngineService.getOrCreateMatchEngine(testMatchId);
+    engine.format = 'TEST';
+    engine.teamA.score = 350;
+    engine.teamA.wickets = 4;
+    engine.teamA.overs = 85.0;
+
+    const declResult = await matchEngineService.declareInnings(testMatchId, 'test_captain_usr');
+    assert.strictEqual(declResult.success, true);
+    assert.strictEqual(declResult.declared, true);
+    assert.strictEqual(engine.currentInnings, 2, 'Must transition to 2nd innings after declaration');
+    assert.strictEqual(engine.battingTeamKey, 'teamB', 'Team B must bat in 2nd innings');
+    assert.strictEqual(engine.testDetails.declarations.length, 1);
+    assert.strictEqual(engine.testDetails.declarations[0].score, 350);
+  });
+
+  // Test 7: Test match follow-on enforcement when lead >= 200
+  await test('Phase 9 - 7. Test match follow-on enforcement when lead >= 200', async () => {
+    const followOnMatchId = `TEST_FOLLOW_ON_${Date.now()}`;
+    const engine = await matchEngineService.getOrCreateMatchEngine(followOnMatchId);
+    engine.format = 'TEST';
+    engine.currentInnings = 2;
+    engine.teamA.score = 450; // Team 1 scored 450 in Innings 1
+    engine.teamB.score = 180; // Team 2 bowled out for 180 in Innings 2 (Lead = 270 >= 200)
+
+    // Verify eligibility
+    assert.strictEqual(canEnforceFollowOn(engine.teamA.score, engine.teamB.score, 'TEST'), true);
+
+    const followOnRes = await matchEngineService.enforceFollowOn(followOnMatchId, 'captain_usr');
+    assert.strictEqual(followOnRes.success, true);
+    assert.strictEqual(followOnRes.followOnEnforced, true);
+    assert.strictEqual(engine.currentInnings, 3);
+    assert.strictEqual(engine.battingTeamKey, 'teamB', 'Team B must bat again in Innings 3 under follow-on');
+
+    // Negative check: Lead < 200 rejects follow-on
+    const smallLeadMatchId = `TEST_SMALL_LEAD_${Date.now()}`;
+    const smallEngine = await matchEngineService.getOrCreateMatchEngine(smallLeadMatchId);
+    smallEngine.format = 'TEST';
+    smallEngine.currentInnings = 2;
+    smallEngine.teamA.score = 300;
+    smallEngine.teamB.score = 250; // Lead = 50 (< 200)
+
+    let failedAsExpected = false;
+    try {
+      await matchEngineService.enforceFollowOn(smallLeadMatchId, 'captain_usr');
+    } catch (err) {
+      failedAsExpected = true;
+      assert.strictEqual(err.code, 'LEAD_INSUFFICIENT_FOR_FOLLOW_ON');
+    }
+    assert.strictEqual(failedAsExpected, true, 'Must reject follow-on when lead < 200');
+  });
+
+  // Test 8: Test match Day 5 Draw detection after 450 overs
+  await test('Phase 9 - 8. Test match Day 5 Draw detection after 450 overs', async () => {
+    const dayInfo449 = calculateTestSessionAndDay(449.5);
+    assert.strictEqual(dayInfo449.day, 5);
+    assert.strictEqual(dayInfo449.isMatchDrawn, false);
+
+    const dayInfo450 = calculateTestSessionAndDay(450.0);
+    assert.strictEqual(dayInfo450.day, 5);
+    assert.strictEqual(dayInfo450.isMatchDrawn, true, 'Match must be drawn at 450 overs in Test Cricket');
+  });
+
+  // Test 9: ODI DLS rain target calculation with exponential resource curve
+  await test('Phase 9 - 9. ODI DLS rain target calculation with exponential resource curve', async () => {
+    const dlsCalc = calculateDLSRevision({
+      team1Score: 280,
+      team1Overs: 50,
+      team2OversLost: 10,
+      targetTeamOversTotal: 50
+    });
+
+    assert.strictEqual(dlsCalc.isDLSActive, true);
+    assert.strictEqual(dlsCalc.revisedOvers, 40);
+    assert.ok(dlsCalc.revisedTarget < 281, 'Revised target must be lower when team 2 loses 10 overs');
+    assert.ok(dlsCalc.requiredRate > 5.6, 'Required rate increases due to fewer overs to chase');
+
+    // Integration via matchEngineService
+    const odiMatchId = `TEST_ODI_DLS_${Date.now()}`;
+    const engine = await matchEngineService.getOrCreateMatchEngine(odiMatchId);
+    engine.format = 'ODI';
+    engine.teamA.score = 290;
+    engine.teamA.overs = 50;
+
+    const dlsRes = await matchEngineService.applyDLSRevision(odiMatchId, { oversLost: 10, targetTeamOversTotal: 50 });
+    assert.strictEqual(dlsRes.success, true);
+    assert.strictEqual(engine.weather.isDLSActive, true);
+    assert.strictEqual(engine.teamB.maxOvers, 40);
+    assert.ok(engine.targetScore > 200);
+  });
+
+  // Test 10: T20 tactical timeout execution, pause state and resumption
+  await test('Phase 9 - 10. T20 tactical timeout execution, pause state and resumption', async () => {
+    const t20MatchId = `TEST_T20_TIMEOUT_${Date.now()}`;
+    const engine = await matchEngineService.getOrCreateMatchEngine(t20MatchId);
+    engine.format = 'T20';
+
+    // 1. Call timeout
+    const timeoutRes = await matchEngineService.callTacticalTimeout(t20MatchId, 'tactician_usr');
+    assert.strictEqual(timeoutRes.success, true);
+    assert.strictEqual(timeoutRes.isTimeoutActive, true);
+    assert.strictEqual(engine.tacticalTimeouts.isTimeoutActive, true);
+    assert.strictEqual(engine.tacticalTimeouts.teamATimeoutsUsed, 1);
+
+    // 2. Playing delivery during active timeout is blocked
+    let blockedDelivery = false;
+    try {
+      await matchEngineService.submitBowlingDecision(t20MatchId, 'bowler_usr', {
+        deliverySeq: 1,
+        line: 'Off Stump',
+        length: 'Good Length',
+        variation: 'Seam'
+      });
+    } catch (err) {
+      blockedDelivery = true;
+      assert.strictEqual(err.code, 'TIMEOUT_ACTIVE');
+    }
+    assert.strictEqual(blockedDelivery, true, 'Delivery must be rejected while tactical timeout is active');
+
+    // 3. Resume timeout
+    const resumeRes = await matchEngineService.resumeTacticalTimeout(t20MatchId);
+    assert.strictEqual(resumeRes.success, true);
+    assert.strictEqual(engine.tacticalTimeouts.isTimeoutActive, false);
+
+    // 4. Exhaust 2nd timeout
+    await matchEngineService.callTacticalTimeout(t20MatchId, 'tactician_usr');
+    await matchEngineService.resumeTacticalTimeout(t20MatchId);
+    assert.strictEqual(engine.tacticalTimeouts.teamATimeoutsUsed, 2);
+
+    // 5. 3rd timeout attempt must fail
+    let exhaustedFailed = false;
+    try {
+      await matchEngineService.callTacticalTimeout(t20MatchId, 'tactician_usr');
+    } catch (err) {
+      exhaustedFailed = true;
+      assert.strictEqual(err.code, 'TIMEOUTS_EXHAUSTED');
+    }
+    assert.strictEqual(exhaustedFailed, true, '3rd tactical timeout must be rejected');
+  });
+
+  // Test 11: Format bowler over limitations & Powerplay stages
+  await test('Phase 9 - 11. Format bowler over limitations & Powerplay stages', async () => {
+    assert.strictEqual(getMaxBowlerLimitForFormat('T20', 20), 4, 'T20 max 4 overs per bowler');
+    assert.strictEqual(getMaxBowlerLimitForFormat('ODI', 50), 10, 'ODI max 10 overs per bowler');
+    assert.strictEqual(getMaxBowlerLimitForFormat('TEST', 450), Infinity, 'Test unlimited overs per bowler');
+
+    const ppT20 = getFormatPowerplayStage(4.0, 'T20');
+    assert.strictEqual(ppT20.stage, 'Powerplay');
+    assert.strictEqual(ppT20.maxOutsideCircle, 2);
+
+    const deathT20 = getFormatPowerplayStage(18.0, 'T20');
+    assert.strictEqual(deathT20.stage, 'Death Overs');
+
+    const ppODI = getFormatPowerplayStage(8.0, 'ODI');
+    assert.strictEqual(ppODI.stage, 'Powerplay 1');
+    assert.strictEqual(ppODI.maxOutsideCircle, 2);
+  });
+
+  // Test 12: REST API: GET /api/stadiums and GET /api/stadiums/:id
+  await test('Phase 9 - 12. REST API: GET /api/stadiums and GET /api/stadiums/:id', async () => {
+    const resAll = await callApp({ method: 'GET', url: '/api/stadiums' });
+    assert.strictEqual(resAll.status, 200);
+    assert.strictEqual(resAll.body.success, true);
+    assert.strictEqual(resAll.body.count, 15);
+
+    const resSingle = await callApp({ method: 'GET', url: '/api/stadiums/mcg' });
+    assert.strictEqual(resSingle.status, 200);
+    assert.strictEqual(resSingle.body.success, true);
+    assert.strictEqual(resSingle.body.stadium.name, 'MCG');
+    assert.ok(resSingle.body.conditions);
+    assert.ok(resSingle.body.conditions.boundaryDifficulty > 1.2);
+  });
+
   // Match Center & Simulation
   await test('GET /api/matches returns live match data', async () => {
     const res = await callApp({ method: 'GET', url: '/api/matches' });

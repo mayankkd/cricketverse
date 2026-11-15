@@ -1,7 +1,17 @@
 const storeService = require('./storeService');
+const { getStadiumById, getAllStadiums } = require('../data/stadiumsData');
+const {
+  calculateConditionMultipliers,
+  calculateDLSRevision,
+  calculateTestSessionAndDay,
+  canEnforceFollowOn,
+  getFormatPowerplayStage,
+  getMaxBowlerLimitForFormat,
+  evaluateBowlerFatigue
+} = require('./stadiumConditionsService');
 
 // ==========================================
-// PHASE 8: MULTIPLAYER DETERMINISTIC MATCH ENGINE
+// PHASE 8 & 9: MULTIPLAYER DETERMINISTIC MATCH ENGINE & STADIUM CONDITIONS
 // ==========================================
 
 // 1. Deterministic Pseudo-Random Number Generator (Mulberry32)
@@ -41,11 +51,50 @@ const getOrCreateMatchEngine = async (matchId) => {
     ? (typeof rawMatch.toObject === 'function' ? rawMatch.toObject() : { ...rawMatch })
     : { matchId };
 
+  const matchFormat = (matchDoc.format || 'T20').toUpperCase();
+  const defaultMaxOvers = matchFormat === 'TEST' ? 450 : (matchFormat === 'ODI' ? 50 : 20);
+
+  // Stadium profile
+  const initialStadium = matchDoc.stadium || (matchDoc.stadiumId ? getStadiumById(matchDoc.stadiumId) : getStadiumById('eden_gardens'));
+
+  // Weather profile
+  const initialWeather = matchDoc.weather || {
+    condition: initialStadium.weatherProfile?.typicalCondition || 'Clear',
+    temperature: 29,
+    windSpeedKmH: 14,
+    windDirection: 'Crosswind',
+    humidityPercent: initialStadium.weatherProfile?.humidityPercent || 65,
+    isDLSActive: false,
+    dlsDetails: null
+  };
+
+  // Test match details
+  const initialTestDetails = matchDoc.testDetails || {
+    day: 1,
+    session: 'Morning',
+    sessionOvers: 0,
+    totalOversInDay: 0,
+    totalOversAcrossMatch: 0,
+    maxOversPerDay: 90,
+    followOnEnforced: false,
+    followOnEligible: false,
+    declarations: [],
+    pitchDeteriorationLevel: 1
+  };
+
+  // Tactical timeouts
+  const initialTimeouts = matchDoc.tacticalTimeouts || {
+    teamATimeoutsUsed: 0,
+    teamBTimeoutsUsed: 0,
+    isTimeoutActive: false,
+    timeoutRemainingSec: 0
+  };
+
   const engineState = {
     matchId: matchDoc.matchId || matchId,
     title: matchDoc.title || 'Multiplayer Championship Match',
-    venue: matchDoc.venue || 'Eden Gardens, Kolkata (Night)',
-    format: matchDoc.format || 'T20',
+    venue: initialStadium.fullName || matchDoc.venue || 'Eden Gardens, Kolkata (Night)',
+    format: matchFormat,
     status: matchDoc.status || 'live',
     seed: matchDoc.seed || `seed_${matchId}_2026`,
     seq: matchDoc.seq || 0,
@@ -62,13 +111,19 @@ const getOrCreateMatchEngine = async (matchId) => {
       bowlingDecision: null,
       battingDecision: null
     },
+    stadium: { ...initialStadium },
+    weather: { ...initialWeather },
+    testDetails: { ...initialTestDetails },
+    tacticalTimeouts: { ...initialTimeouts },
+    inningsHistory: matchDoc.inningsHistory || [],
+    bowlerFatigue: matchDoc.bowlerFatigue || {},
     teamA: {
       name: matchDoc.teamA?.name || 'Bangalore Royal Titans',
       shortCode: matchDoc.teamA?.shortCode || 'BRT',
       score: matchDoc.teamA?.score || 0,
       wickets: matchDoc.teamA?.wickets || 0,
       overs: matchDoc.teamA?.overs || 0,
-      maxOvers: matchDoc.teamA?.maxOvers || 20,
+      maxOvers: matchDoc.teamA?.maxOvers || defaultMaxOvers,
       color: matchDoc.teamA?.color || '#DC2626'
     },
     teamB: {
@@ -77,7 +132,7 @@ const getOrCreateMatchEngine = async (matchId) => {
       score: matchDoc.teamB?.score || 0,
       wickets: matchDoc.teamB?.wickets || 0,
       overs: matchDoc.teamB?.overs || 0,
-      maxOvers: matchDoc.teamB?.maxOvers || 20,
+      maxOvers: matchDoc.teamB?.maxOvers || defaultMaxOvers,
       color: matchDoc.teamB?.color || '#2563EB'
     },
     currentStriker: {
@@ -208,6 +263,18 @@ const getMatchSnapshot = (matchId) => {
   const currentBatting = match.battingTeamKey === 'teamA' ? match.teamA : match.teamB;
   const currentBowling = match.bowlingTeamKey === 'teamA' ? match.teamA : match.teamB;
 
+  const isEvening = match.testDetails?.session === 'Evening' || match.weather?.condition === 'Humid';
+  const conditions = calculateConditionMultipliers({
+    stadiumId: match.stadium?.id || 'eden_gardens',
+    pitchType: match.stadium?.pitchType || 'Turning',
+    weather: match.weather?.condition || 'Clear',
+    dayOfTest: match.testDetails?.day || 1,
+    isEveningSession: isEvening
+  });
+
+  const powerplayStage = getFormatPowerplayStage(currentBatting.overs, match.format);
+  const maxBowlerLimit = getMaxBowlerLimitForFormat(match.format, currentBatting.maxOvers);
+
   return {
     matchId: match.matchId,
     title: match.title,
@@ -227,6 +294,15 @@ const getMatchSnapshot = (matchId) => {
     currentTurn: {
       ...match.currentTurn
     },
+    stadium: { ...match.stadium },
+    weather: { ...match.weather },
+    testDetails: { ...match.testDetails },
+    tacticalTimeouts: { ...match.tacticalTimeouts },
+    inningsHistory: [...match.inningsHistory],
+    bowlerFatigue: { ...match.bowlerFatigue },
+    conditions,
+    powerplayStage,
+    maxBowlerLimit,
     teamA: { ...match.teamA },
     teamB: { ...match.teamB },
     currentBattingScore: {
@@ -296,7 +372,15 @@ const submitBowlingDecision = async (matchId, userId, {
   // 1. Spectator Permission Check
   verifyActionPermission(match, userId, 'submit bowling decision');
 
-  // 2. Duplicate / Idempotency Check
+  // 2. Timeout Check
+  if (match.tacticalTimeouts?.isTimeoutActive) {
+    const err = new Error('Tactical timeout in progress. Resume timeout before bowling.');
+    err.status = 400;
+    err.code = 'TIMEOUT_ACTIVE';
+    throw err;
+  }
+
+  // 3. Duplicate / Idempotency Check
   if (idempotencyKey && match.processedActionIds.has(idempotencyKey)) {
     return {
       duplicate: true,
@@ -305,7 +389,7 @@ const submitBowlingDecision = async (matchId, userId, {
     };
   }
 
-  // 3. Turn Phase Check
+  // 4. Turn Phase Check
   if (match.turnPhase !== 'waiting_bowling') {
     const err = new Error(`Invalid turn phase '${match.turnPhase}'. Expected 'waiting_bowling'.`);
     err.status = 400;
@@ -313,7 +397,7 @@ const submitBowlingDecision = async (matchId, userId, {
     throw err;
   }
 
-  // 4. Player Authorization Check: only bowling player or host can bowl
+  // 5. Player Authorization Check: only bowling player or host can bowl
   if (match.bowlingUserId && match.bowlingUserId !== userId) {
     const participant = match.participants.find(p => p.userId === userId);
     if (participant && participant.teamKey !== match.bowlingTeamKey) {
@@ -324,7 +408,7 @@ const submitBowlingDecision = async (matchId, userId, {
     }
   }
 
-  // 5. Input validation
+  // 6. Input validation
   const VALID_LINES = ['Outside Off', 'Off Stump', 'Middle Stump', 'Leg Stump'];
   const VALID_LENGTHS = ['Yorker', 'Full', 'Good Length', 'Short'];
   const VALID_VARIATIONS = ['Yorker', 'Bouncer', 'Swing', 'Seam', 'Slower ball', 'Off-spin', 'Leg-spin'];
@@ -402,7 +486,15 @@ const submitBattingDecision = async (matchId, userId, {
   // 1. Spectator Permission Check
   verifyActionPermission(match, userId, 'submit batting decision');
 
-  // 2. Duplicate / Idempotency Check
+  // 2. Timeout Check
+  if (match.tacticalTimeouts?.isTimeoutActive) {
+    const err = new Error('Tactical timeout in progress. Resume timeout before batting.');
+    err.status = 400;
+    err.code = 'TIMEOUT_ACTIVE';
+    throw err;
+  }
+
+  // 3. Duplicate / Idempotency Check
   if (idempotencyKey && match.processedActionIds.has(idempotencyKey)) {
     return {
       duplicate: true,
@@ -411,7 +503,7 @@ const submitBattingDecision = async (matchId, userId, {
     };
   }
 
-  // 3. Turn Phase Check
+  // 4. Turn Phase Check
   if (match.turnPhase !== 'waiting_batting') {
     const err = new Error(`Invalid turn phase '${match.turnPhase}'. Expected 'waiting_batting'.`);
     err.status = 400;
@@ -419,7 +511,7 @@ const submitBattingDecision = async (matchId, userId, {
     throw err;
   }
 
-  // 4. Player Authorization Check: only batting player or host can bat
+  // 5. Player Authorization Check: only batting player or host can bat
   if (match.battingUserId && match.battingUserId !== userId) {
     const participant = match.participants.find(p => p.userId === userId);
     if (participant && participant.teamKey !== match.battingTeamKey) {
@@ -430,7 +522,7 @@ const submitBattingDecision = async (matchId, userId, {
     }
   }
 
-  // 5. Input Validation
+  // 6. Input Validation
   const VALID_SHOTS = ['Drive', 'Lofted Drive', 'Pull / Hook', 'Cut', 'Sweep', 'Defensive Block', 'Ramp / Scoop'];
   const VALID_TIMINGS = ['Early', 'Good', 'Perfect', 'Late'];
 
@@ -477,6 +569,16 @@ const submitBattingDecision = async (matchId, userId, {
   const strikerOvr = match.currentStriker?.ovr || 115;
   const bowlerOvr = match.currentBowler?.ovr || 118;
 
+  // Compute active physics multipliers
+  const isEvening = match.testDetails?.session === 'Evening' || match.weather?.condition === 'Humid';
+  const conditions = calculateConditionMultipliers({
+    stadiumId: match.stadium?.id || 'eden_gardens',
+    pitchType: match.stadium?.pitchType || 'Turning',
+    weather: match.weather?.condition || 'Clear',
+    dayOfTest: match.testDetails?.day || 1,
+    isEveningSession: isEvening
+  });
+
   let outcome = null;
 
   const isTimingPerfect = timing === 'Perfect';
@@ -489,16 +591,39 @@ const submitBattingDecision = async (matchId, userId, {
   const isSpinHazard = (bowlingDecision.variation === 'Off-spin' || bowlingDecision.variation === 'Leg-spin') &&
                        (shotType === 'Ramp / Scoop' || shotType === 'Lofted Drive') && !isTimingPerfect;
 
+  // Dew impact: slick ball reduces spin stumping hazard
+  const isDewActive = conditions.isEveningSession && match.stadium?.dewConditions?.hasEveningDew;
+  const isSpinStumpingHazard = isSpinHazard && !isDewActive;
+
+  // Swing hazard: Green pitch & Overcast conditions boost swing edge wickets
+  const isSwingHazard = (conditions.swingMultiplier >= 1.25) && (bowlingDecision.variation === 'Swing' || bowlingDecision.variation === 'Seam');
+
+  // Cracked pitch / Days 4-5 variable bounce: shooters stay low -> bowled/lbw
+  const isCrackedPitchHazard = (conditions.pitchType === 'Cracked' || conditions.dayOfTest >= 4) &&
+                               (bowlingDecision.length === 'Good Length' || bowlingDecision.length === 'Full');
+
   if (isTimingPerfect) {
     if (shotType === 'Lofted Drive' || shotType === 'Pull / Hook') {
-      outcome = {
-        ball: '6',
-        runs: 6,
-        isWicket: false,
-        wicketType: null,
-        badge: 'SIX',
-        commentary: `MAXIMUM! ${strikerName} connected with pristine perfection! The ball sails 102 meters deep into the stands for SIX!`
-      };
+      // On colossal grounds (MCG: boundaryDifficulty >= 1.25), requires exceptional batter OVR to clear 88m!
+      if (conditions.boundaryDifficulty >= 1.25 && strikerOvr < 105 && rng() < 0.25) {
+        outcome = {
+          ball: '4',
+          runs: 4,
+          isWicket: false,
+          wicketType: null,
+          badge: 'FOUR',
+          commentary: `Magnificent strike! But the huge ${match.stadium?.name || 'stadium'} boundaries hold it up—one bounce over the rope for FOUR!`
+        };
+      } else {
+        outcome = {
+          ball: '6',
+          runs: 6,
+          isWicket: false,
+          wicketType: null,
+          badge: 'SIX',
+          commentary: `MAXIMUM! ${strikerName} connected with pristine perfection! The ball sails 102 meters into the stands for SIX!`
+        };
+      }
     } else if (shotType === 'Defensive Block') {
       outcome = {
         ball: '0',
@@ -520,9 +645,10 @@ const submitBattingDecision = async (matchId, userId, {
     }
   } else if (isTimingGood) {
     if (shotType === 'Lofted Drive') {
-      // Deterministic power check
       const powerRoll = rng() * 100;
-      if (strikerOvr >= 110 || powerRoll > 50) {
+      // Stadium boundary factor: MCG (1.38) makes six harder; Chinnaswamy (0.82) makes six easier!
+      const sixHurdle = 50 * conditions.boundaryDifficulty;
+      if (powerRoll >= sixHurdle && strikerOvr >= 105) {
         outcome = {
           ball: '6',
           runs: 6,
@@ -531,7 +657,17 @@ const submitBattingDecision = async (matchId, userId, {
           badge: 'SIX',
           commentary: `High and handsome! Power hitting carries the ball just beyond the boundary rope for SIX!`
         };
-      } else {
+      } else if (conditions.boundaryDifficulty >= 1.25 && powerRoll < 30) {
+        // Deep boundary catch hazard at massive venues
+        outcome = {
+          ball: 'W',
+          runs: 0,
+          isWicket: true,
+          wicketType: 'Caught',
+          badge: 'WICKET',
+          commentary: `OUT! CAUGHT AT THE ROPE! The colossal ${match.stadium?.name || 'stadium'} outfield claims another victim! Taken just inside the boundary!`
+        };
+      } else if (powerRoll >= 35) {
         outcome = {
           ball: '4',
           runs: 4,
@@ -539,6 +675,15 @@ const submitBattingDecision = async (matchId, userId, {
           wicketType: null,
           badge: 'FOUR',
           commentary: `One bounce over the boundary! Cracking lofted drive into the gap for FOUR!`
+        };
+      } else {
+        outcome = {
+          ball: '2',
+          runs: 2,
+          isWicket: false,
+          wicketType: null,
+          badge: 'TWO',
+          commentary: `Deep into the pocket! Great placement yields a brace.`
         };
       }
     } else if (shotType === 'Defensive Block') {
@@ -551,18 +696,39 @@ const submitBattingDecision = async (matchId, userId, {
         commentary: `Defended softly onto the pitch. No run.`
       };
     } else {
-      const runs = runsAttempted >= 2 ? 2 : 1;
-      outcome = {
-        ball: String(runs),
-        runs,
-        isWicket: false,
-        wicketType: null,
-        badge: runs === 2 ? 'TWO' : 'SINGLE',
-        commentary: `Crisp stroke into the outfield. Rapid running between wickets yields ${runs} run${runs > 1 ? 's' : ''}.`
-      };
+      // Ground shots on wet dew outfield travel faster to boundary
+      if (isDewActive && rng() > 0.65) {
+        outcome = {
+          ball: '4',
+          runs: 4,
+          isWicket: false,
+          wicketType: null,
+          badge: 'FOUR',
+          commentary: `Skidding off the dew-slick outfield! The wet grass accelerates the ball across the boundary for FOUR!`
+        };
+      } else {
+        const runs = runsAttempted >= 2 ? 2 : 1;
+        outcome = {
+          ball: String(runs),
+          runs,
+          isWicket: false,
+          wicketType: null,
+          badge: runs === 2 ? 'TWO' : 'SINGLE',
+          commentary: `Crisp stroke into the outfield. Rapid running between wickets yields ${runs} run${runs > 1 ? 's' : ''}.`
+        };
+      }
     }
   } else if (isTimingLate || isTimingEarly) {
-    if (bowlingDecision.line === 'Middle Stump' && (bowlingDecision.length === 'Yorker' || bowlingDecision.variation === 'Yorker') && isTimingLate) {
+    if (isCrackedPitchHazard && isTimingLate && rng() < 0.65) {
+      outcome = {
+        ball: 'W',
+        runs: 0,
+        isWicket: true,
+        wicketType: rng() > 0.5 ? 'LBW' : 'Bowled',
+        badge: 'WICKET',
+        commentary: `OUT! UNPLAYABLE SHOOTER! The cracked Day ${match.testDetails?.day || 4} pitch keeps unpredictably low! Stumps shattered!`
+      };
+    } else if (bowlingDecision.line === 'Middle Stump' && (bowlingDecision.length === 'Yorker' || bowlingDecision.variation === 'Yorker') && isTimingLate) {
       outcome = {
         ball: 'W',
         runs: 0,
@@ -580,14 +746,14 @@ const submitBattingDecision = async (matchId, userId, {
         badge: 'WICKET',
         commentary: `OUT! BOWLED! Yorker beats the late bat and shatters the timber! What a delivery by ${bowlerName}!`
       };
-    } else if (isSpinHazard) {
+    } else if (isSpinStumpingHazard) {
       outcome = {
         ball: 'W',
         runs: 0,
         isWicket: true,
         wicketType: 'Stumped',
         badge: 'WICKET',
-        commentary: `OUT! STUMPED! Deceived by the flight and sharp spin, wicketkeeper whips off the bails in a flash!`
+        commentary: `OUT! STUMPED! Deceived by the flight and sharp spin on this turning pitch, keeper whips off bails!`
       };
     } else if (isBouncerHazard || isTimingEarly) {
       outcome = {
@@ -598,14 +764,14 @@ const submitBattingDecision = async (matchId, userId, {
         badge: 'WICKET',
         commentary: `OUT! CAUGHT! Early mistimed stroke loops into the air and is comfortably taken by the fielder!`
       };
-    } else if (isTimingLate && (bowlingDecision.variation === 'Swing' || bowlingDecision.variation === 'Seam')) {
+    } else if (isTimingLate && (isSwingHazard || bowlingDecision.variation === 'Swing' || bowlingDecision.variation === 'Seam')) {
       outcome = {
         ball: 'W',
         runs: 0,
         isWicket: true,
         wicketType: 'Caught',
         badge: 'WICKET',
-        commentary: `OUT! EDGED AND CAUGHT! Faint nick carries straight to the keeper!`
+        commentary: `OUT! EDGED AND CAUGHT! Heavy lateral movement produces a thick nick straight to the slips!`
       };
     } else {
       outcome = {
@@ -661,13 +827,32 @@ const submitBattingDecision = async (matchId, userId, {
   if (outcome.badge === 'FOUR') match.currentStriker.fours += 1;
   if (outcome.badge === 'SIX') match.currentStriker.sixes += 1;
 
-  // Bowler stats
+  // Bowler stats & fatigue
   match.currentBowler.runs += outcome.runs;
   if (outcome.isWicket) match.currentBowler.wickets += 1;
+  match.bowlerFatigue[bowlerName] = Number(((match.bowlerFatigue[bowlerName] || 0) + 0.166).toFixed(2));
 
   // Recent deliveries strip
   match.recentBalls.unshift(outcome.ball);
   if (match.recentBalls.length > 8) match.recentBalls.pop();
+
+  // Test match overs progression & pitch deterioration
+  const totalMatchOversBefore = match.testDetails.totalOversAcrossMatch || 0;
+  const totalMatchOversNow = Number((totalMatchOversBefore + 0.166).toFixed(2));
+  match.testDetails.totalOversAcrossMatch = totalMatchOversNow;
+
+  if (match.format === 'TEST') {
+    const dayInfo = calculateTestSessionAndDay(totalMatchOversNow);
+    match.testDetails.day = dayInfo.day;
+    match.testDetails.session = dayInfo.session;
+    match.testDetails.sessionOvers = dayInfo.sessionOvers;
+    match.testDetails.pitchDeteriorationLevel = dayInfo.pitchDeteriorationLevel;
+
+    // Pitch deteriorates to Cracked by Day 4 and Day 5
+    if (dayInfo.day >= 4 && match.stadium.pitchType !== 'Cracked') {
+      match.stadium.pitchType = 'Cracked';
+    }
+  }
 
   // Commentary log
   match.commentary.unshift({
@@ -683,60 +868,172 @@ const submitBattingDecision = async (matchId, userId, {
   let inningsEnded = false;
   let matchCompleted = false;
 
-  if (match.currentInnings === 1) {
-    // End of 1st Innings: 10 wickets down or overs completed
-    if (battingTeam.wickets >= 10 || newOvers >= battingTeam.maxOvers) {
+  if (match.format === 'TEST') {
+    // ----------------------------------------------------
+    // TEST CRICKET INNINGS & MATCH RESOLUTION (4 Innings)
+    // ----------------------------------------------------
+    const isDay5Expired = totalMatchOversNow >= 450;
+
+    if (battingTeam.wickets >= 10) {
       inningsEnded = true;
-      match.targetScore = battingTeam.score + 1;
-      match.currentInnings = 2;
 
-      // Swap batting and bowling sides
-      const tempKey = match.battingTeamKey;
-      match.battingTeamKey = match.bowlingTeamKey;
-      match.bowlingTeamKey = tempKey;
-
-      const tempUser = match.battingUserId;
-      match.battingUserId = match.bowlingUserId;
-      match.bowlingUserId = tempUser;
-
-      match.turnPhase = 'innings_break';
-      match.currentDeliverySeq = 1;
-      match.currentTurn = { deliverySeq: 1 };
-
-      match.commentary.unshift({
-        id: `comm_innings_break_${Date.now()}`,
-        over: newOvers.toFixed(1),
-        text: `INNINGS BREAK! ${battingTeam.name} set a target of ${match.targetScore} runs.`,
-        badge: 'TARGET',
-        timestamp: new Date()
+      // Record current innings in history
+      match.inningsHistory.push({
+        innings: match.currentInnings,
+        teamKey: match.battingTeamKey,
+        teamName: battingTeam.name,
+        score: battingTeam.score,
+        wickets: battingTeam.wickets,
+        overs: battingTeam.overs,
+        declared: false
       });
+
+      if (match.currentInnings === 1) {
+        // Innings 1 ends -> Innings 2 starts (Team B bats)
+        match.currentInnings = 2;
+        swapBattingBowlingSides(match);
+        match.turnPhase = 'innings_break';
+      } else if (match.currentInnings === 2) {
+        // Innings 2 ends
+        const team1 = match.teamA;
+        const team2 = match.teamB;
+        const lead = team1.score - team2.score;
+
+        if (canEnforceFollowOn(team1.score, team2.score, 'TEST')) {
+          match.testDetails.followOnEligible = true;
+        }
+
+        if (match.testDetails.followOnEnforced) {
+          // Follow-on enforced: Team B bats Innings 3 again!
+          match.currentInnings = 3;
+          match.turnPhase = 'innings_break';
+        } else {
+          // Normal: Team A bats Innings 3
+          match.currentInnings = 3;
+          swapBattingBowlingSides(match);
+          match.turnPhase = 'innings_break';
+        }
+      } else if (match.currentInnings === 3) {
+        // Innings 3 ends -> Innings 4 starts (Target set)
+        match.currentInnings = 4;
+        swapBattingBowlingSides(match);
+
+        // Compute 4th innings target
+        const inn1 = match.inningsHistory.find(i => i.innings === 1)?.score || 0;
+        const inn2 = match.inningsHistory.find(i => i.innings === 2)?.score || 0;
+        const inn3 = match.inningsHistory.find(i => i.innings === 3)?.score || 0;
+
+        let target = 0;
+        if (match.testDetails.followOnEnforced) {
+          target = (inn2 + inn3) - inn1 + 1;
+        } else {
+          target = (inn1 + inn3) - inn2 + 1;
+        }
+        match.targetScore = Math.max(1, target);
+        match.turnPhase = 'innings_break';
+      } else if (match.currentInnings === 4) {
+        // Innings 4 ends: all out
+        matchCompleted = true;
+        match.status = 'completed';
+        match.turnPhase = 'completed';
+        if (battingTeam.score >= match.targetScore) {
+          match.result = `${battingTeam.name} won by ${10 - battingTeam.wickets} wickets!`;
+        } else {
+          match.result = `${bowlingTeam.name} won by ${match.targetScore - 1 - battingTeam.score} runs!`;
+        }
+      }
+    } else if (match.currentInnings === 4 && battingTeam.score >= match.targetScore) {
+      // Chasing team reaches target in 4th innings
+      matchCompleted = true;
+      match.status = 'completed';
+      match.turnPhase = 'completed';
+      match.result = `${battingTeam.name} won by ${10 - battingTeam.wickets} wickets!`;
+    } else if (isDay5Expired && match.status !== 'completed') {
+      // 5 Days (450 overs) completed without target chase or all out
+      matchCompleted = true;
+      match.status = 'completed';
+      match.turnPhase = 'completed';
+      match.result = 'Match Drawn! 5 Full Days (450 overs) Completed without a Target Chase.';
     } else {
       match.turnPhase = 'waiting_bowling';
       match.currentDeliverySeq += 1;
       match.currentTurn = { deliverySeq: match.currentDeliverySeq };
     }
   } else {
-    // 2nd Innings Check: Target chased or overs/wickets exhausted
-    if (battingTeam.score >= match.targetScore) {
-      matchCompleted = true;
-      match.status = 'completed';
-      match.turnPhase = 'completed';
-      match.result = `${battingTeam.name} won by ${10 - battingTeam.wickets} wickets!`;
-    } else if (battingTeam.wickets >= 10 || newOvers >= battingTeam.maxOvers) {
-      matchCompleted = true;
-      match.status = 'completed';
-      match.turnPhase = 'completed';
-      const defendingTeam = bowlingTeam;
-      if (battingTeam.score === match.targetScore - 1) {
-        match.result = 'Match Tied! Heading to Super Over!';
+    // ----------------------------------------------------
+    // LIMITED OVERS (ODI & T20) INNINGS & MATCH RESOLUTION
+    // ----------------------------------------------------
+    if (match.currentInnings === 1) {
+      if (battingTeam.wickets >= 10 || newOvers >= battingTeam.maxOvers) {
+        inningsEnded = true;
+        match.targetScore = battingTeam.score + 1;
+        match.currentInnings = 2;
+
+        match.inningsHistory.push({
+          innings: 1,
+          teamKey: match.battingTeamKey,
+          teamName: battingTeam.name,
+          score: battingTeam.score,
+          wickets: battingTeam.wickets,
+          overs: battingTeam.overs,
+          declared: false
+        });
+
+        swapBattingBowlingSides(match);
+
+        match.turnPhase = 'innings_break';
+        match.currentDeliverySeq = 1;
+        match.currentTurn = { deliverySeq: 1 };
+
+        match.commentary.unshift({
+          id: `comm_innings_break_${Date.now()}`,
+          over: newOvers.toFixed(1),
+          text: `INNINGS BREAK! ${battingTeam.name} set a target of ${match.targetScore} runs.`,
+          badge: 'TARGET',
+          timestamp: new Date()
+        });
       } else {
-        match.result = `${defendingTeam.name} won by ${match.targetScore - 1 - battingTeam.score} runs!`;
+        match.turnPhase = 'waiting_bowling';
+        match.currentDeliverySeq += 1;
+        match.currentTurn = { deliverySeq: match.currentDeliverySeq };
       }
     } else {
-      match.turnPhase = 'waiting_bowling';
-      match.currentDeliverySeq += 1;
-      match.currentTurn = { deliverySeq: match.currentDeliverySeq };
+      // 2nd Innings Check: Target chased or overs/wickets exhausted
+      if (battingTeam.score >= match.targetScore) {
+        matchCompleted = true;
+        match.status = 'completed';
+        match.turnPhase = 'completed';
+        match.result = `${battingTeam.name} won by ${10 - battingTeam.wickets} wickets!`;
+      } else if (battingTeam.wickets >= 10 || newOvers >= battingTeam.maxOvers) {
+        matchCompleted = true;
+        match.status = 'completed';
+        match.turnPhase = 'completed';
+        const defendingTeam = bowlingTeam;
+        if (battingTeam.score === match.targetScore - 1) {
+          match.result = 'Match Tied! Heading to Super Over!';
+        } else {
+          match.result = `${defendingTeam.name} won by ${match.targetScore - 1 - battingTeam.score} runs!`;
+        }
+      } else {
+        match.turnPhase = 'waiting_bowling';
+        match.currentDeliverySeq += 1;
+        match.currentTurn = { deliverySeq: match.currentDeliverySeq };
+      }
     }
+  }
+
+  // Helper swap
+  function swapBattingBowlingSides(m) {
+    const tempKey = m.battingTeamKey;
+    m.battingTeamKey = m.bowlingTeamKey;
+    m.bowlingTeamKey = tempKey;
+
+    const tempUser = m.battingUserId;
+    m.battingUserId = m.bowlingUserId;
+    m.bowlingUserId = tempUser;
+
+    m.currentDeliverySeq = 1;
+    m.currentTurn = { deliverySeq: 1 };
   }
 
   // Update Worm data
@@ -799,7 +1096,13 @@ const submitBattingDecision = async (matchId, userId, {
     recentBalls: match.recentBalls,
     commentary: match.commentary,
     wormData: match.wormData,
-    result: match.result
+    result: match.result,
+    stadium: match.stadium,
+    weather: match.weather,
+    testDetails: match.testDetails,
+    tacticalTimeouts: match.tacticalTimeouts,
+    inningsHistory: match.inningsHistory,
+    bowlerFatigue: match.bowlerFatigue
   });
 
   return {
@@ -847,6 +1150,382 @@ const submitFullDeliveryTurn = async (matchId, userId, deliveryInput = {}) => {
 };
 
 /**
+ * Test Cricket Innings Declaration
+ */
+const declareInnings = async (matchId, userId) => {
+  const match = await getOrCreateMatchEngine(matchId);
+  verifyActionPermission(match, userId, 'declare innings');
+
+  if (match.format !== 'TEST') {
+    const err = new Error('Innings declarations are only permitted in Test Cricket.');
+    err.status = 400;
+    err.code = 'DECLARATION_NOT_PERMITTED';
+    throw err;
+  }
+
+  if (match.currentInnings >= 4) {
+    const err = new Error('Cannot declare in the 4th innings.');
+    err.status = 400;
+    err.code = 'INVALID_INNINGS_FOR_DECLARATION';
+    throw err;
+  }
+
+  const battingTeam = match.battingTeamKey === 'teamA' ? match.teamA : match.teamB;
+
+  // Record declaration
+  const declRecord = {
+    innings: match.currentInnings,
+    teamKey: match.battingTeamKey,
+    teamName: battingTeam.name,
+    score: battingTeam.score,
+    wickets: battingTeam.wickets,
+    overs: battingTeam.overs,
+    declaredAt: new Date()
+  };
+  match.testDetails.declarations.push(declRecord);
+
+  match.inningsHistory.push({
+    innings: match.currentInnings,
+    teamKey: match.battingTeamKey,
+    teamName: battingTeam.name,
+    score: battingTeam.score,
+    wickets: battingTeam.wickets,
+    overs: battingTeam.overs,
+    declared: true
+  });
+
+  // Transition innings
+  if (match.currentInnings === 1) {
+    match.currentInnings = 2;
+    swapSides(match);
+  } else if (match.currentInnings === 2) {
+    match.currentInnings = 3;
+    swapSides(match);
+  } else if (match.currentInnings === 3) {
+    match.currentInnings = 4;
+    swapSides(match);
+    // Calculate target
+    const inn1 = match.inningsHistory.find(i => i.innings === 1)?.score || 0;
+    const inn2 = match.inningsHistory.find(i => i.innings === 2)?.score || 0;
+    const inn3 = match.inningsHistory.find(i => i.innings === 3)?.score || 0;
+    match.targetScore = Math.max(1, (inn1 + inn3) - inn2 + 1);
+  }
+
+  function swapSides(m) {
+    const tempKey = m.battingTeamKey;
+    m.battingTeamKey = m.bowlingTeamKey;
+    m.bowlingTeamKey = tempKey;
+
+    const tempUser = m.battingUserId;
+    m.battingUserId = m.bowlingUserId;
+    m.bowlingUserId = tempUser;
+
+    m.turnPhase = 'innings_break';
+    m.currentDeliverySeq = 1;
+    m.currentTurn = { deliverySeq: 1 };
+  }
+
+  match.seq += 1;
+  const event = {
+    seq: match.seq,
+    type: 'INNINGS_DECLARED',
+    matchId,
+    timestamp: new Date().toISOString(),
+    payload: {
+      inningsDeclared: match.currentInnings - 1,
+      teamKey: battingTeam.name,
+      score: battingTeam.score,
+      wickets: battingTeam.wickets,
+      overs: battingTeam.overs,
+      targetScore: match.targetScore
+    }
+  };
+  match.eventLog.push(event);
+
+  await storeService.updateMatch(matchId, {
+    currentInnings: match.currentInnings,
+    battingTeamKey: match.battingTeamKey,
+    bowlingTeamKey: match.bowlingTeamKey,
+    testDetails: match.testDetails,
+    inningsHistory: match.inningsHistory,
+    targetScore: match.targetScore
+  });
+
+  return {
+    success: true,
+    event,
+    declared: true,
+    snapshot: getMatchSnapshot(matchId)
+  };
+};
+
+/**
+ * Test Cricket Follow-On Enforcement
+ */
+const enforceFollowOn = async (matchId, userId) => {
+  const match = await getOrCreateMatchEngine(matchId);
+  verifyActionPermission(match, userId, 'enforce follow-on');
+
+  if (match.format !== 'TEST') {
+    const err = new Error('Follow-on can only be enforced in Test Cricket.');
+    err.status = 400;
+    err.code = 'FOLLOW_ON_NOT_ALLOWED';
+    throw err;
+  }
+
+  const team1 = match.teamA;
+  const team2 = match.teamB;
+  const lead = team1.score - team2.score;
+
+  if (!canEnforceFollowOn(team1.score, team2.score, 'TEST')) {
+    const err = new Error(`Follow-on requires a lead of >= 200 runs. Current lead is ${lead} runs.`);
+    err.status = 400;
+    err.code = 'LEAD_INSUFFICIENT_FOR_FOLLOW_ON';
+    throw err;
+  }
+
+  match.testDetails.followOnEnforced = true;
+  match.currentInnings = 3;
+  // Team B continues batting in 3rd innings!
+  match.battingTeamKey = 'teamB';
+  match.bowlingTeamKey = 'teamA';
+  match.turnPhase = 'waiting_bowling';
+  match.currentDeliverySeq = 1;
+  match.currentTurn = { deliverySeq: 1 };
+
+  match.seq += 1;
+  const event = {
+    seq: match.seq,
+    type: 'FOLLOW_ON_ENFORCED',
+    matchId,
+    timestamp: new Date().toISOString(),
+    payload: {
+      enforcedBy: team1.name,
+      teamBattingAgain: team2.name,
+      lead
+    }
+  };
+  match.eventLog.push(event);
+
+  await storeService.updateMatch(matchId, {
+    currentInnings: match.currentInnings,
+    battingTeamKey: match.battingTeamKey,
+    bowlingTeamKey: match.bowlingTeamKey,
+    testDetails: match.testDetails
+  });
+
+  return {
+    success: true,
+    event,
+    followOnEnforced: true,
+    snapshot: getMatchSnapshot(matchId)
+  };
+};
+
+/**
+ * T20 Tactical Timeout (2 per team per innings)
+ */
+const callTacticalTimeout = async (matchId, userId) => {
+  const match = await getOrCreateMatchEngine(matchId);
+  verifyActionPermission(match, userId, 'call tactical timeout');
+
+  if (match.format !== 'T20') {
+    const err = new Error('Tactical timeouts are only available in T20 format.');
+    err.status = 400;
+    err.code = 'TIMEOUT_ONLY_T20';
+    throw err;
+  }
+
+  if (match.tacticalTimeouts.isTimeoutActive) {
+    const err = new Error('A tactical timeout is already in progress.');
+    err.status = 400;
+    err.code = 'TIMEOUT_ALREADY_ACTIVE';
+    throw err;
+  }
+
+  const participant = match.participants.find(p => p.userId === userId);
+  const isTeamA = participant ? participant.teamKey === 'teamA' : true;
+
+  if (isTeamA) {
+    if (match.tacticalTimeouts.teamATimeoutsUsed >= 2) {
+      const err = new Error('Team A has exhausted all tactical timeouts (2/2 used).');
+      err.status = 400;
+      err.code = 'TIMEOUTS_EXHAUSTED';
+      throw err;
+    }
+    match.tacticalTimeouts.teamATimeoutsUsed += 1;
+  } else {
+    if (match.tacticalTimeouts.teamBTimeoutsUsed >= 2) {
+      const err = new Error('Team B has exhausted all tactical timeouts (2/2 used).');
+      err.status = 400;
+      err.code = 'TIMEOUTS_EXHAUSTED';
+      throw err;
+    }
+    match.tacticalTimeouts.teamBTimeoutsUsed += 1;
+  }
+
+  match.tacticalTimeouts.isTimeoutActive = true;
+  match.tacticalTimeouts.timeoutRemainingSec = 150;
+
+  match.seq += 1;
+  const event = {
+    seq: match.seq,
+    type: 'TACTICAL_TIMEOUT_CALLED',
+    matchId,
+    timestamp: new Date().toISOString(),
+    payload: {
+      calledByTeam: isTeamA ? match.teamA.name : match.teamB.name,
+      teamATimeoutsUsed: match.tacticalTimeouts.teamATimeoutsUsed,
+      teamBTimeoutsUsed: match.tacticalTimeouts.teamBTimeoutsUsed,
+      durationSec: 150
+    }
+  };
+  match.eventLog.push(event);
+
+  await storeService.updateMatch(matchId, {
+    tacticalTimeouts: match.tacticalTimeouts
+  });
+
+  return {
+    success: true,
+    event,
+    isTimeoutActive: true,
+    snapshot: getMatchSnapshot(matchId)
+  };
+};
+
+/**
+ * Resume Play after Tactical Timeout
+ */
+const resumeTacticalTimeout = async (matchId) => {
+  const match = await getOrCreateMatchEngine(matchId);
+  match.tacticalTimeouts.isTimeoutActive = false;
+  match.tacticalTimeouts.timeoutRemainingSec = 0;
+
+  match.seq += 1;
+  const event = {
+    seq: match.seq,
+    type: 'TACTICAL_TIMEOUT_RESUMED',
+    matchId,
+    timestamp: new Date().toISOString(),
+    payload: {
+      isTimeoutActive: false
+    }
+  };
+  match.eventLog.push(event);
+
+  await storeService.updateMatch(matchId, {
+    tacticalTimeouts: match.tacticalTimeouts
+  });
+
+  return {
+    success: true,
+    event,
+    isTimeoutActive: false,
+    snapshot: getMatchSnapshot(matchId)
+  };
+};
+
+/**
+ * Simplified DLS Rain Target Adjustment for Limited Overs
+ */
+const applyDLSRevision = async (matchId, { oversLost = 10, targetTeamOversTotal = 50 }) => {
+  const match = await getOrCreateMatchEngine(matchId);
+
+  if (match.format === 'TEST') {
+    const err = new Error('DLS method is only applicable in limited overs matches (ODI / T20).');
+    err.status = 400;
+    err.code = 'DLS_NOT_APPLICABLE_IN_TEST';
+    throw err;
+  }
+
+  const team1 = match.teamA;
+  const dlsResult = calculateDLSRevision({
+    team1Score: team1.score || 250,
+    team1Overs: team1.overs || targetTeamOversTotal,
+    team2OversLost: oversLost,
+    targetTeamOversTotal
+  });
+
+  match.weather.isDLSActive = true;
+  match.weather.dlsDetails = dlsResult;
+  match.targetScore = dlsResult.revisedTarget;
+  match.teamB.maxOvers = dlsResult.revisedOvers;
+
+  match.seq += 1;
+  const event = {
+    seq: match.seq,
+    type: 'DLS_REVISION_APPLIED',
+    matchId,
+    timestamp: new Date().toISOString(),
+    payload: dlsResult
+  };
+  match.eventLog.push(event);
+
+  await storeService.updateMatch(matchId, {
+    weather: match.weather,
+    targetScore: match.targetScore,
+    teamB: match.teamB
+  });
+
+  return {
+    success: true,
+    event,
+    dls: dlsResult,
+    snapshot: getMatchSnapshot(matchId)
+  };
+};
+
+/**
+ * Set Stadium & Weather Conditions
+ */
+const setStadiumAndConditions = async (matchId, { stadiumId, pitchType, weather, dayOfTest }) => {
+  const match = await getOrCreateMatchEngine(matchId);
+
+  if (stadiumId) {
+    const s = getStadiumById(stadiumId);
+    match.stadium = { ...s };
+    match.venue = s.fullName;
+  }
+  if (pitchType) {
+    match.stadium.pitchType = pitchType;
+  }
+  if (weather) {
+    match.weather.condition = weather;
+  }
+  if (dayOfTest && match.testDetails) {
+    match.testDetails.day = dayOfTest;
+  }
+
+  match.seq += 1;
+  const event = {
+    seq: match.seq,
+    type: 'CONDITIONS_UPDATED',
+    matchId,
+    timestamp: new Date().toISOString(),
+    payload: {
+      stadium: match.stadium.name,
+      pitchType: match.stadium.pitchType,
+      weather: match.weather.condition,
+      dayOfTest: match.testDetails?.day
+    }
+  };
+  match.eventLog.push(event);
+
+  await storeService.updateMatch(matchId, {
+    stadium: match.stadium,
+    weather: match.weather,
+    testDetails: match.testDetails
+  });
+
+  return {
+    success: true,
+    event,
+    snapshot: getMatchSnapshot(matchId)
+  };
+};
+
+/**
  * Reconnection Recovery & Event Synchronization
  */
 const syncMatch = async (matchId, { fromSeq = 0, userId = null, socketId = null }) => {
@@ -891,5 +1570,11 @@ module.exports = {
   submitBowlingDecision,
   submitBattingDecision,
   submitFullDeliveryTurn,
+  declareInnings,
+  enforceFollowOn,
+  callTacticalTimeout,
+  resumeTacticalTimeout,
+  applyDLSRevision,
+  setStadiumAndConditions,
   syncMatch
 };

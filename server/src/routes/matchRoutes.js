@@ -11,7 +11,13 @@ const {
   getMatchSnapshot,
   syncMatch,
   submitBowlingDecision,
-  submitBattingDecision
+  submitBattingDecision,
+  declareInnings,
+  enforceFollowOn,
+  callTacticalTimeout,
+  resumeTacticalTimeout,
+  applyDLSRevision,
+  setStadiumAndConditions
 } = require('../controllers/matchController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -26,6 +32,12 @@ router.post('/:id/bowling-decision', submitBowlingDecision);
 router.post('/:id/batting-decision', submitBattingDecision);
 router.post('/:id/simulate-ball', simulateBall);
 router.post('/:id/play-delivery', playDelivery);
+router.post('/:id/declare', declareInnings);
+router.post('/:id/follow-on', enforceFollowOn);
+router.post('/:id/timeout', callTacticalTimeout);
+router.post('/:id/timeout/resume', resumeTacticalTimeout);
+router.post('/:id/dls', applyDLSRevision);
+router.post('/:id/conditions', setStadiumAndConditions);
 
 module.exports = router;
 

@@ -24,6 +24,9 @@ const fixtureSchema = new mongoose.Schema({
 });
 
 const tournamentSchema = new mongoose.Schema({
+  _id: {
+    type: String
+  },
   tournamentId: {
     type: String,
     required: true,

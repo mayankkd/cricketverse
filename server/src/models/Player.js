@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 
 const playerSchema = new mongoose.Schema({
+  _id: {
+    type: String
+  },
   // Unique real-world cricketer identifier (e.g. 'cric_virat_kohli').
   // Multiple card variants of the same cricketer share this exact playerId.
   playerId: {

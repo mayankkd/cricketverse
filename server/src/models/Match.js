@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 
 const matchSchema = new mongoose.Schema({
+  _id: {
+    type: String
+  },
   matchId: {
     type: String,
     required: true,

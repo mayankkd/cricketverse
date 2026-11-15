@@ -14,7 +14,7 @@ const participantSchema = new mongoose.Schema({
   isConnected: { type: Boolean, default: true },
   socketId: { type: String, default: null },
   budgetRemaining: { type: Number, default: 30 }, // Fixed purse in points: Test: 50, ODI: 40, T20: 30
-  squad: [{ type: String }], // Card IDs won
+  squad: [mongoose.Schema.Types.Mixed], // Card IDs won or squad card metadata
   t2VetoTokens: { type: Number, default: 2 }, // Fixed rule: exactly 2 T2 Veto tokens per participant
   vetoedPlayers: [{ type: String }], // Unique cricketer playerIds vetoed by this participant
   joinedAt: { type: Date, default: Date.now }
@@ -136,6 +136,9 @@ const auctionStateSchema = new mongoose.Schema({
 }, { _id: false });
 
 const roomSchema = new mongoose.Schema({
+  _id: {
+    type: String
+  },
   roomCode: {
     type: String,
     required: true,

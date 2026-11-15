@@ -501,6 +501,101 @@ export const api = {
       headers: getAuthHeaders()
     });
     return await res.json();
+  },
+
+  // Phase 11: Tournaments & Game Modes
+  async getGameModes() {
+    const res = await fetch(`${API_BASE}/tournaments/modes`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getHistoricalChallenges() {
+    const res = await fetch(`${API_BASE}/tournaments/historical-challenges`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getRivalries() {
+    const res = await fetch(`${API_BASE}/tournaments/rivalries`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getScenarios() {
+    const res = await fetch(`${API_BASE}/tournaments/scenarios`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async createCustomTournament(data = {}) {
+    const res = await fetch(`${API_BASE}/tournaments/custom`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return await res.json();
+  },
+
+  async getTournamentAwards(id) {
+    const res = await fetch(`${API_BASE}/tournaments/${id}/awards`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async simulateTournamentFixture(tournamentId, fixtureId) {
+    const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/matches/${fixtureId}/simulate`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  // Phase 11: Franchise Legacy & Multi-Season Retention
+  async getFranchiseLegacy(teamId) {
+    const res = await fetch(`${API_BASE}/teams/${teamId}/legacy`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async getSeasonRecap(teamId, seasonId) {
+    const res = await fetch(`${API_BASE}/teams/${teamId}/legacy/recap${seasonId ? `?seasonId=${seasonId}` : ''}`, {
+      headers: getAuthHeaders()
+    });
+    return await res.json();
+  },
+
+  async retainPlayers(teamId, retentions = []) {
+    const res = await fetch(`${API_BASE}/teams/${teamId}/legacy/retentions`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ retentions })
+    });
+    return await res.json();
+  },
+
+  async transferPlayer(data = {}) {
+    const res = await fetch(`${API_BASE}/teams/legacy/transfer`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return await res.json();
+  },
+
+  async rolloverToNextSeason(teamId, data = {}) {
+    const res = await fetch(`${API_BASE}/teams/${teamId}/legacy/rollover`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    return await res.json();
   }
 };
 

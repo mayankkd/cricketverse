@@ -136,3 +136,4 @@ export default function MatchSummaryCard({ matchSummary = {}, match = {} }) {
     </div>
   );
 }
+

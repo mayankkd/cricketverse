@@ -3381,6 +3381,39 @@ const getTournamentById = async (id) => {
   return memoryStore.tournaments.find(t => t.tournamentId === id || t._id === id) || null;
 };
 
+const createTournament = async (tournamentData) => {
+  if (isMongoConnected()) {
+    const created = new Tournament(tournamentData);
+    return await created.save();
+  }
+  const item = {
+    _id: `tour_${Date.now()}`,
+    ...tournamentData,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+  memoryStore.tournaments.push(item);
+  return item;
+};
+
+const updateTournament = async (tournamentId, updateFields) => {
+  if (isMongoConnected()) {
+    return await Tournament.findOneAndUpdate(
+      { tournamentId },
+      { $set: updateFields },
+      { new: true }
+    );
+  }
+  const idx = memoryStore.tournaments.findIndex(t => t.tournamentId === tournamentId || t._id === tournamentId);
+  if (idx === -1) return null;
+  memoryStore.tournaments[idx] = {
+    ...memoryStore.tournaments[idx],
+    ...updateFields,
+    updatedAt: new Date()
+  };
+  return memoryStore.tournaments[idx];
+};
+
 module.exports = {
   seedMongoIfEmpty,
   findUserByEmail,
@@ -3414,6 +3447,8 @@ module.exports = {
   getMatchById,
   getTournaments,
   getTournamentById,
+  createTournament,
+  updateTournament,
   // Live Auction Engine
   getFormatPurse,
   initAuctionForRoom,

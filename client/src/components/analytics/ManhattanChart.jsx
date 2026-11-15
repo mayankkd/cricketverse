@@ -105,3 +105,4 @@ export default function ManhattanChart({ data = [], title = 'Manhattan Chart' })
     </div>
   );
 }
+

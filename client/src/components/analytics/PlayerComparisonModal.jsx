@@ -221,3 +221,4 @@ export default function PlayerComparisonModal({ isOpen, onClose, matchId, player
     </div>
   );
 }
+

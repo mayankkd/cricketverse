@@ -104,3 +104,4 @@ export default function PartnershipGraph({ partnerships = [] }) {
     </div>
   );
 }
+

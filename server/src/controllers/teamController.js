@@ -192,6 +192,104 @@ const updateTeamTactics = async (req, res, next) => {
   }
 };
 
+const franchiseLegacyService = require('../services/franchiseLegacyService');
+
+// @desc    Get Franchise Legacy Profile (history, seasons, trophies, rivalries, Hall of Fame)
+// @route   GET /api/teams/:id/legacy
+// @access  Public / Private
+const getFranchiseLegacy = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const legacy = await franchiseLegacyService.getFranchiseLegacy(id);
+    res.status(200).json({
+      success: true,
+      legacy
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Generate Authentic Season Recap from Actual Stored Data
+// @route   GET /api/teams/:id/legacy/recap
+// @access  Public / Private
+const getSeasonRecap = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { seasonId } = req.query;
+    const recap = await franchiseLegacyService.generateSeasonRecap(id, seasonId);
+    res.status(200).json({
+      success: true,
+      recap
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Set Retained Players between seasons (max 5)
+// @route   POST /api/teams/:id/legacy/retentions
+// @access  Private (Owner only)
+const retainPlayers = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { retentions } = req.body;
+    const result = await franchiseLegacyService.retainPlayers(id, retentions || []);
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Execute Inter-Franchise Player Transfer / Trade
+// @route   POST /api/teams/legacy/transfer
+// @access  Private
+const transferPlayer = async (req, res, next) => {
+  try {
+    const result = await franchiseLegacyService.transferPlayer(req.body || {});
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
+// @desc    Conclude season and roll over to next season while preserving history
+// @route   POST /api/teams/:id/legacy/rollover
+// @access  Private (Owner only)
+const rolloverToNextSeason = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await franchiseLegacyService.rolloverToNextSeason(id, req.body || {});
+    res.status(200).json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, code: err.code, message: err.message });
+    }
+    next(err);
+  }
+};
+
 module.exports = {
   getMyTeam,
   getTeamsByRoom,
@@ -200,5 +298,10 @@ module.exports = {
   swapPlayer,
   configureSquadLimits,
   getTeamTactics,
-  updateTeamTactics
+  updateTeamTactics,
+  getFranchiseLegacy,
+  getSeasonRecap,
+  retainPlayers,
+  transferPlayer,
+  rolloverToNextSeason
 };

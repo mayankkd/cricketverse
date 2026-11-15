@@ -125,3 +125,4 @@ export default function RunRateGraph({ wormData = [], targetScore = null, maxOve
     </div>
   );
 }
+

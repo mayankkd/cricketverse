@@ -32,6 +32,7 @@ import { SquadAnalyticsModal } from '../components/team/SquadAnalyticsModal';
 import { EditTeamIdentityModal } from '../components/team/EditTeamIdentityModal';
 import { ConfigureSquadLimitsModal } from '../components/team/ConfigureSquadLimitsModal';
 import { TacticalManagementModal } from '../components/tactics/TacticalManagementModal';
+import FranchiseLegacyTab from '../components/team/FranchiseLegacyTab';
 import { sound } from '../services/sound';
 
 export const TeamDashboard = () => {
@@ -66,6 +67,9 @@ export const TeamDashboard = () => {
 
   // Swap bench target
   const [swapTargetPlayerId, setSwapTargetPlayerId] = useState(null);
+
+  // Main Dashboard Tab: 'squad' | 'legacy'
+  const [activeMainTab, setActiveMainTab] = useState('squad');
 
   // Load Team Data
   useEffect(() => {
@@ -505,7 +509,43 @@ export const TeamDashboard = () => {
         </div>
       </div>
 
-      {/* Main Playing XI Section */}
+      {/* Primary Dashboard Navigation Tabs */}
+      <div className="flex items-center gap-3 bg-stadium-950 p-2 rounded-2xl border border-white/5">
+        <button
+          onClick={() => {
+            sound.playClick();
+            setActiveMainTab('squad');
+          }}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-display uppercase font-bold text-xs transition-all ${
+            activeMainTab === 'squad'
+              ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
+              : 'text-slate-400 hover:text-white bg-stadium-900/60'
+          }`}
+        >
+          <Shirt className="w-4 h-4" /> Squad & Lineup Tactics
+        </button>
+
+        <button
+          onClick={() => {
+            sound.playClick();
+            setActiveMainTab('legacy');
+          }}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-display uppercase font-bold text-xs transition-all ${
+            activeMainTab === 'legacy'
+              ? 'bg-gradient-to-r from-amber-500 to-gold-500 text-slate-950 shadow-gold-glow'
+              : 'text-slate-400 hover:text-white bg-stadium-900/60'
+          }`}
+        >
+          <Trophy className="w-4 h-4 text-amber-400" /> Franchise Legacy & Career
+          <span className="bg-amber-400/20 text-amber-300 text-[10px] font-mono px-2 py-0.5 rounded-full border border-amber-400/30">
+            SEASONS & RECAPS
+          </span>
+        </button>
+      </div>
+
+      {activeMainTab === 'squad' && (
+        <>
+          {/* Main Playing XI Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -764,8 +804,21 @@ export const TeamDashboard = () => {
           </div>
         )}
       </div>
+    </>
+  )}
 
-      {/* Player Profile Detail Modal */}
+  {/* Franchise Legacy & Career History Section */}
+  {activeMainTab === 'legacy' && (
+    <div className="pt-2">
+      <FranchiseLegacyTab
+        teamId={team?._id}
+        team={team}
+        isOwner={!isReadOnly}
+      />
+    </div>
+  )}
+
+  {/* Player Profile Detail Modal */}
       {profileModalPlayer && (
         <PlayerProfileModal
           player={profileModalPlayer}

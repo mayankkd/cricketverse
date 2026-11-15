@@ -3316,6 +3316,309 @@ const runAllTests = async () => {
     assert.ok(resComp.body.comparison.radarMetrics.length >= 6);
   });
 
+  // ==========================================
+  // PHASE 11: TOURNAMENTS & FRANCHISE LEGACY TESTS
+  // ==========================================
+  console.log('\n--- PHASE 11: TOURNAMENTS & FRANCHISE LEGACY TESTS ---');
+
+  const {
+    GAME_MODES,
+    generateTournamentFixtures,
+    calculatePointsTable,
+    calculateTournamentAwards
+  } = require('../src/services/tournamentService');
+  const franchiseLegacyService = require('../src/services/franchiseLegacyService');
+
+  // Test 1: All 10 Game Modes
+  await test('Phase 11 - 1. Game Modes: All 10 distinct game modes defined with descriptions and limits', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/tournaments/modes' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.modes.length, 10, 'Must support all 10 distinct game modes');
+
+    const expectedModes = [
+      'Auction League',
+      'World Cup',
+      'Legends',
+      'Practice',
+      'Super Over',
+      'Draft',
+      'Historical Challenges',
+      'Rivalry Matches',
+      'Scenario Challenges',
+      'Custom Tournaments'
+    ];
+
+    expectedModes.forEach(modeName => {
+      const found = res.body.modes.find(m => m.name === modeName);
+      assert.ok(found, `Game mode '${modeName}' must be defined`);
+      assert.ok(found.description, `Game mode '${modeName}' must have a description`);
+    });
+  });
+
+  // Test 2: Team Limits (2 to 6 teams)
+  await test('Phase 11 - 2. Team Limits: Supports 2 to 6 teams, rejects < 2 or > 6', async () => {
+    // 1 team -> rejected with 400 INVALID_TEAM_COUNT
+    const res1 = await callApp({
+      method: 'POST',
+      url: '/api/tournaments/custom',
+      body: { name: 'Invalid 1 Team', teams: ['Team Alpha'] }
+    });
+    assert.strictEqual(res1.status, 400);
+    assert.strictEqual(res1.body.code, 'INVALID_TEAM_COUNT');
+
+    // 7 teams -> rejected with 400 TEAM_LIMIT_EXCEEDED
+    const res7 = await callApp({
+      method: 'POST',
+      url: '/api/tournaments/custom',
+      body: {
+        name: 'Invalid 7 Teams',
+        teams: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+      }
+    });
+    assert.strictEqual(res7.status, 400);
+    assert.strictEqual(res7.body.code, 'TEAM_LIMIT_EXCEEDED');
+
+    // 4 teams -> successfully created
+    const res4 = await callApp({
+      method: 'POST',
+      url: '/api/tournaments/custom',
+      body: {
+        name: 'Four Nations Cup',
+        teams: ['Titans', 'Kings', 'Warriors', 'Knights']
+      }
+    });
+    assert.strictEqual(res4.status, 201);
+    assert.strictEqual(res4.body.success, true);
+    assert.strictEqual(res4.body.hasByes, false);
+    assert.strictEqual(res4.body.tournament.fixtures.length, 6, '4 teams round robin = 6 matches');
+  });
+
+  // Test 3: Odd Team Count & Byes (3 teams & 5 teams)
+  await test('Phase 11 - 3. Odd Team Count & Byes: 3 teams and 5 teams automatically receive scheduled byes', async () => {
+    // 3 teams
+    const res3 = await callApp({
+      method: 'POST',
+      url: '/api/tournaments/custom',
+      body: {
+        name: 'Tri-Series Championship',
+        teams: ['India', 'Australia', 'England']
+      }
+    });
+    assert.strictEqual(res3.status, 201);
+    assert.strictEqual(res3.body.hasByes, true);
+    const byes3 = res3.body.tournament.fixtures.filter(f => f.isBye);
+    assert.strictEqual(byes3.length, 3, '3 teams must have exactly 3 scheduled byes (1 per round)');
+
+    // 5 teams
+    const res5 = await callApp({
+      method: 'POST',
+      url: '/api/tournaments/custom',
+      body: {
+        name: 'Five Stars League',
+        teams: ['BRT', 'MKX', 'CSV', 'HSC', 'KNK']
+      }
+    });
+    assert.strictEqual(res5.status, 201);
+    assert.strictEqual(res5.body.hasByes, true);
+    const byes5 = res5.body.tournament.fixtures.filter(f => f.isBye);
+    assert.strictEqual(byes5.length, 5, '5 teams must have exactly 5 scheduled byes');
+  });
+
+  // Test 4: Points Table & Net Run Rate (NRR) Formula
+  await test('Phase 11 - 4. Points Table & Official ICC Net Run Rate (NRR) Formula', async () => {
+    const teams = ['Team Alpha', 'Team Beta'];
+    const matches = [
+      {
+        team1: 'Team Alpha',
+        team2: 'Team Beta',
+        team1Runs: 180,
+        team1Overs: 20,
+        team2Runs: 140,
+        team2Overs: 20,
+        winner: 'Team Alpha',
+        completed: true
+      }
+    ];
+
+    const table = calculatePointsTable(teams, matches);
+    assert.strictEqual(table[0].teamName, 'Team Alpha');
+    assert.strictEqual(table[0].won, 1);
+    assert.strictEqual(table[0].points, 2);
+    // Team Alpha NRR = (180/20) - (140/20) = 9.0 - 7.0 = +2.000
+    assert.strictEqual(table[0].nrr, 2.0);
+
+    assert.strictEqual(table[1].teamName, 'Team Beta');
+    assert.strictEqual(table[1].lost, 1);
+    assert.strictEqual(table[1].points, 0);
+    // Team Beta NRR = (140/20) - (180/20) = 7.0 - 9.0 = -2.000
+    assert.strictEqual(table[1].nrr, -2.0);
+  });
+
+  // Test 5: Tournament Individual Awards & Caps
+  await test('Phase 11 - 5. Tournament Individual Awards & Caps (Orange, Purple, MVP, Best Captain)', async () => {
+    const res = await callApp({ method: 'GET', url: '/api/tournaments/IPL-2026-CHAMP/awards' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.awards.orangeCap, 'Must have Orange Cap (Leading Run Scorer)');
+    assert.ok(res.body.awards.orangeCap.runs > 0);
+    assert.ok(res.body.awards.purpleCap, 'Must have Purple Cap (Leading Wicket Taker)');
+    assert.ok(res.body.awards.purpleCap.wickets > 0);
+    assert.ok(res.body.awards.mvp, 'Must have MVP award');
+    assert.ok(Array.isArray(res.body.awards.mostSixes), 'Must have Most Sixes leaderboard');
+    assert.ok(Array.isArray(res.body.awards.mostWickets), 'Must have Most Wickets leaderboard');
+    assert.ok(res.body.awards.bestCaptain, 'Must have Best Captain award');
+  });
+
+  // Test 6: Historical Challenges, Rivalries & Scenarios Catalogs
+  await test('Phase 11 - 6. Historical Challenges, Rivalries & Scenario Catalogs', async () => {
+    const resHist = await callApp({ method: 'GET', url: '/api/tournaments/historical-challenges' });
+    assert.strictEqual(resHist.status, 200);
+    assert.strictEqual(resHist.body.success, true);
+    assert.ok(resHist.body.challenges.length >= 5);
+
+    const resRiv = await callApp({ method: 'GET', url: '/api/tournaments/rivalries' });
+    assert.strictEqual(resRiv.status, 200);
+    assert.strictEqual(resRiv.body.success, true);
+    assert.ok(resRiv.body.rivalries.length >= 4);
+
+    const resScen = await callApp({ method: 'GET', url: '/api/tournaments/scenarios' });
+    assert.strictEqual(resScen.status, 200);
+    assert.strictEqual(resScen.body.success, true);
+    assert.ok(resScen.body.scenarios.length >= 5);
+  });
+
+  // Test 7: Tournament Match Simulation & Live Points Table Update
+  await test('Phase 11 - 7. Tournament Match Simulation & Live Points Table Update', async () => {
+    const simRes = await callApp({
+      method: 'POST',
+      url: '/api/tournaments/IPL-2026-CHAMP/matches/f2/simulate'
+    });
+    assert.strictEqual(simRes.status, 200);
+    assert.strictEqual(simRes.body.success, true);
+    assert.strictEqual(simRes.body.fixture.status, 'completed');
+    assert.ok(simRes.body.standings.length > 0);
+  });
+
+  // Test 8: Franchise Legacy Profile
+  await test('Phase 11 - 8. Franchise Legacy Profile: history, seasons, trophies, rivalries, Hall of Fame', async () => {
+    const res = await callApp({ method: 'GET', url: `/api/teams/${p5Team1._id}/legacy` });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.legacy.establishedYear, 'Must have established year');
+    assert.ok(res.body.legacy.motto, 'Must have franchise motto');
+    assert.ok(res.body.legacy.allTimeRecord, 'Must have all-time win-loss record');
+    assert.ok(Array.isArray(res.body.legacy.seasons), 'Must have seasons history');
+    assert.ok(Array.isArray(res.body.legacy.trophies), 'Must have trophy cabinet');
+    assert.ok(Array.isArray(res.body.legacy.acquisitions), 'Must have player acquisitions');
+    assert.ok(Array.isArray(res.body.legacy.retentions), 'Must have player retentions');
+    assert.ok(Array.isArray(res.body.legacy.transfers), 'Must have player transfers');
+    assert.ok(res.body.legacy.careerStats, 'Must have career stats');
+    assert.ok(Array.isArray(res.body.legacy.rivalries), 'Must have rivalries history');
+    assert.ok(Array.isArray(res.body.legacy.hallOfFame), 'Must have Hall of Fame');
+    assert.ok(Array.isArray(res.body.legacy.historicalMatches), 'Must have historical match results');
+  });
+
+  // Test 9: Season Recap Generation from Actual Stored Data
+  await test('Phase 11 - 9. Season Recap Generation from Actual Stored Data', async () => {
+    const res = await callApp({ method: 'GET', url: `/api/teams/${p5Team1._id}/legacy/recap?seasonId=season_1` });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.recap.seasonName);
+    assert.ok(res.body.recap.record);
+    assert.ok(res.body.recap.topBatter);
+    assert.ok(res.body.recap.topBowler);
+    assert.ok(Array.isArray(res.body.recap.highlights));
+  });
+
+  // Test 10: Inter-Season Retentions (Max 5)
+  await test('Phase 11 - 10. Inter-Season Retentions (Max 5 players enforced)', async () => {
+    // 6 retentions -> rejected with 400 RETENTION_LIMIT_EXCEEDED
+    const sixRetentions = [
+      { playerId: 'p1', playerName: 'P1' },
+      { playerId: 'p2', playerName: 'P2' },
+      { playerId: 'p3', playerName: 'P3' },
+      { playerId: 'p4', playerName: 'P4' },
+      { playerId: 'p5', playerName: 'P5' },
+      { playerId: 'p6', playerName: 'P6' }
+    ];
+    const resOver = await callApp({
+      method: 'POST',
+      url: `/api/teams/${p5Team1._id}/legacy/retentions`,
+      body: { retentions: sixRetentions },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(resOver.status, 400);
+    assert.strictEqual(resOver.body.code, 'RETENTION_LIMIT_EXCEEDED');
+
+    // 3 retentions -> successfully registered
+    const validRetentions = [
+      { playerId: p5Team1.squad[0], playerName: 'Star Batter', retentionTier: 'Tier 1' },
+      { playerId: p5Team1.squad[1], playerName: 'Pace Ace', retentionTier: 'Tier 1' },
+      { playerId: p5Team1.squad[2], playerName: 'Spin Wizard', retentionTier: 'Tier 2' }
+    ];
+    const resValid = await callApp({
+      method: 'POST',
+      url: `/api/teams/${p5Team1._id}/legacy/retentions`,
+      body: { retentions: validRetentions },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(resValid.status, 200);
+    assert.strictEqual(resValid.body.success, true);
+    assert.strictEqual(resValid.body.retentions.length, 3);
+  });
+
+  // Test 11: Inter-Franchise Player Transfers
+  await test('Phase 11 - 11. Inter-Franchise Player Transfers update squads and transfer logs', async () => {
+    const tradedPlayerId = p5Team1.squad[3];
+    const transferRes = await callApp({
+      method: 'POST',
+      url: '/api/teams/legacy/transfer',
+      body: {
+        fromTeamId: p5Team1._id,
+        toTeamId: p5Team2._id,
+        playerId: tradedPlayerId,
+        terms: 'Direct Trade + 2 Points',
+        season: 'Season 2026'
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(transferRes.status, 200);
+    assert.strictEqual(transferRes.body.success, true);
+    assert.strictEqual(transferRes.body.transfer.playerId, tradedPlayerId);
+
+    // Verify player is now in Team 2 squad
+    const updatedTeam2 = await callApp({ method: 'GET', url: `/api/teams/${p5Team2._id}` });
+    assert.ok(updatedTeam2.body.team.squad.includes(tradedPlayerId));
+  });
+
+  // Test 12: Inter-Season Roll-Over & History Preservation
+  await test('Phase 11 - 12. Inter-Season Roll-Over preserves legacy, updates trophies and rolls over to next season', async () => {
+    const rolloverRes = await callApp({
+      method: 'POST',
+      url: `/api/teams/${p5Team1._id}/legacy/rollover`,
+      body: {
+        seasonName: 'Season 3 Championship',
+        position: 1,
+        won: 11,
+        lost: 3,
+        trophy: 'Champions',
+        topBatter: { name: 'Virat Kohli', runs: 680 },
+        topBowler: { name: 'Jasprit Bumrah', wickets: 24 }
+      },
+      headers: { authorization: `Bearer ${p5Host.token}` }
+    });
+    assert.strictEqual(rolloverRes.status, 200);
+    assert.strictEqual(rolloverRes.body.success, true);
+    assert.strictEqual(rolloverRes.body.newSeason.trophy, 'Champions');
+    assert.ok(rolloverRes.body.allTimeRecord.won > 19);
+
+    // Verify legacy endpoint reflects the newly archived season
+    const legacyCheck = await callApp({ method: 'GET', url: `/api/teams/${p5Team1._id}/legacy` });
+    const foundSeason = legacyCheck.body.legacy.seasons.find(s => s.seasonName === 'Season 3 Championship');
+    assert.ok(foundSeason, 'Archived season must persist in franchise history');
+  });
+
   // Match Center & Simulation
   await test('GET /api/matches returns live match data', async () => {
     const res = await callApp({ method: 'GET', url: '/api/matches' });

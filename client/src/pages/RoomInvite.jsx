@@ -22,7 +22,7 @@ import { sound } from '../services/sound';
 export const RoomInvite = () => {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { user, demoLogin } = useAuth();
+  const { user, demoLogin, guestLogin } = useAuth();
   const { addToast } = useNotification();
 
   const [room, setRoom] = useState(null);
@@ -64,14 +64,28 @@ export const RoomInvite = () => {
       return;
     }
 
-    if (!user) {
+    let currentUser = user;
+    const isCurrentHost = currentUser && room && (String(currentUser._id || currentUser.id) === String(room.hostId));
+
+    if (!currentUser || (isCurrentHost && targetRole === 'player')) {
       try {
-        await demoLogin();
+        const guestName = teamName ? teamName.replace(/\s*(XI|Super XI|Titans|Riders|Challengers)$/i, '').trim() : undefined;
+        const guestRes = await guestLogin({
+          username: guestName || undefined,
+          teamName: targetRole === 'player' ? teamName : 'Spectator Dugout'
+        });
+        if (guestRes.success && guestRes.user) {
+          currentUser = guestRes.user;
+        }
       } catch {
-        // Fallback to login if automatic guest session fails
-        localStorage.setItem('cricketverse_redirect', `/rooms/invite/${token}`);
-        navigate(`/login?redirect=/rooms/invite/${token}`);
-        return;
+        // Fallback to demo login if automatic guest session fails
+        try {
+          await demoLogin();
+        } catch {
+          localStorage.setItem('cricketverse_redirect', `/rooms/invite/${token}`);
+          navigate(`/login?redirect=/rooms/invite/${token}`);
+          return;
+        }
       }
     }
 

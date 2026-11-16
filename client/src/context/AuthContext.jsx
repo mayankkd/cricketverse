@@ -171,6 +171,40 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const guestLogin = async (guestData = {}) => {
+    try {
+      const res = await api.guestLogin(guestData);
+      if (res.success && res.token && res.user) {
+        localStorage.setItem('cricketverse_token', res.token);
+        localStorage.setItem('cricketverse_cached_user', JSON.stringify(res.user));
+        setToken(res.token);
+        setUser(res.user);
+        addToast({
+          type: 'success',
+          title: 'GUEST PROFILE CREATED',
+          message: `Signed in as Manager ${res.user.username}!`
+        });
+        return { success: true, user: res.user, token: res.token };
+      }
+      return { success: false, message: res.message };
+    } catch (err) {
+      const uniqueGuestId = `usr_guest_${Date.now()}`;
+      const fallbackGuest = {
+        _id: uniqueGuestId,
+        id: uniqueGuestId,
+        username: guestData.username || `Manager_${Math.floor(1000 + Math.random() * 9000)}`,
+        role: 'user',
+        favoriteTeam: guestData.teamName || 'Royal Challengers Bengaluru',
+        isGuest: true
+      };
+      setUser(fallbackGuest);
+      setToken(`mock_guest_token_${uniqueGuestId}`);
+      localStorage.setItem('cricketverse_token', `mock_guest_token_${uniqueGuestId}`);
+      localStorage.setItem('cricketverse_cached_user', JSON.stringify(fallbackGuest));
+      return { success: true, user: fallbackGuest, token: `mock_guest_token_${uniqueGuestId}` };
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('cricketverse_token');
     localStorage.removeItem('cricketverse_cached_user');
@@ -218,6 +252,7 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         demoLogin,
+        guestLogin,
         logout,
         updateUserProfile
       }}

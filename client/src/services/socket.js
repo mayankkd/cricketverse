@@ -47,11 +47,16 @@ class SocketService {
   }
 
   joinRoom(roomCode, options = {}) {
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('cricketverse_token') : null;
     const socket = this.getSocket();
+    if (token && socket.auth?.token !== token) {
+      socket.auth = { token };
+    }
     socket.emit('join_room', {
       roomCode,
       role: options.role || 'player',
-      teamName: options.teamName || ''
+      teamName: options.teamName || '',
+      token
     });
   }
 

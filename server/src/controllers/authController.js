@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { signToken } = require('../config/jwt');
 const storeService = require('../services/storeService');
 
@@ -32,7 +33,7 @@ const register = async (req, res, next) => {
       favoriteTeam: favoriteTeam || 'Royal Challengers Bengaluru'
     });
 
-    const token = signToken({ id: user._id, role: user.role });
+    const token = signToken({ id: user._id, _id: user._id, username: user.username, role: user.role });
 
     res.status(201).json({
       success: true,
@@ -81,7 +82,7 @@ const login = async (req, res, next) => {
       });
     }
 
-    const token = signToken({ id: user._id, role: user.role });
+    const token = signToken({ id: user._id, _id: user._id, username: user.username, role: user.role });
 
     res.status(200).json({
       success: true,
@@ -120,7 +121,7 @@ const demoLogin = async (req, res, next) => {
       });
     }
 
-    const token = signToken({ id: user._id, role: user.role });
+    const token = signToken({ id: user._id, _id: user._id, username: user.username, role: user.role });
 
     res.status(200).json({
       success: true,
@@ -179,10 +180,58 @@ const updateProfile = async (req, res, next) => {
   }
 };
 
+// @desc    Guest 1-click login for multiplayer invites & multi-device play
+// @route   POST /api/auth/guest
+// @access  Public
+const guestLogin = async (req, res, next) => {
+  try {
+    const { username, teamName } = req.body || {};
+    const guestId = `usr_guest_${crypto.randomBytes(8).toString('hex')}`;
+    const baseName = (username && username.trim().length >= 3)
+      ? username.trim().substring(0, 16)
+      : `Manager_${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const user = await storeService.createUser({
+      _id: guestId,
+      username: `${baseName}`,
+      email: `${guestId}@guest.cricketverse.app`,
+      password: crypto.randomBytes(16).toString('hex'),
+      favoriteTeam: teamName || 'Royal Challengers Bengaluru'
+    });
+
+    const token = signToken({
+      id: user._id,
+      _id: user._id,
+      username: user.username,
+      role: 'user',
+      isGuest: true
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Welcome to the arena, Manager ${user.username}!`,
+      token,
+      user: {
+        id: user._id,
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        favoriteTeam: user.favoriteTeam,
+        avatar: user.avatar,
+        isGuest: true
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   register,
   login,
   demoLogin,
+  guestLogin,
   getMe,
   updateProfile
 };

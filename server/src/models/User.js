@@ -1,9 +1,11 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
   _id: {
-    type: String
+    type: String,
+    default: () => `usr_${crypto.randomBytes(12).toString('hex')}`
   },
   username: {
     type: String,

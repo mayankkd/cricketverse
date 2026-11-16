@@ -13,7 +13,13 @@ const initMultiplayerSockets = (io) => {
           token,
           process.env.JWT_SECRET || 'cricketverse_super_secret_jwt_key_2026'
         );
-        socket.user = decoded;
+        const uId = String(decoded._id || decoded.id || '');
+        socket.user = {
+          ...decoded,
+          _id: uId,
+          id: uId,
+          username: decoded.username || 'Guest'
+        };
       } catch (err) {
         // Continue as guest socket
         socket.user = null;
@@ -26,10 +32,27 @@ const initMultiplayerSockets = (io) => {
     console.log(`[Socket] Connection established: ${socket.id} (User: ${socket.user?.username || 'Guest'})`);
 
     // Join room lobby channel
-    socket.on('join_room', async ({ roomCode, role = 'player', teamName = '' }) => {
+    socket.on('join_room', async ({ roomCode, role = 'player', teamName = '', token: joinToken }) => {
       try {
         if (!roomCode) return;
         const code = roomCode.toUpperCase();
+
+        if (!socket.user && joinToken) {
+          try {
+            const decoded = jwt.verify(
+              joinToken,
+              process.env.JWT_SECRET || 'cricketverse_super_secret_jwt_key_2026'
+            );
+            const uId = String(decoded._id || decoded.id || '');
+            socket.user = {
+              ...decoded,
+              _id: uId,
+              id: uId,
+              username: decoded.username || 'Guest'
+            };
+          } catch {}
+        }
+
         const room = await storeService.getRoomByCode(code);
         if (!room) {
           return socket.emit('action_error', { code: 'ROOM_NOT_FOUND', message: 'Room not found.' });
@@ -39,8 +62,9 @@ const initMultiplayerSockets = (io) => {
         socket.currentRoomCode = code;
 
         // If authenticated user, track connection
-        if (socket.user?._id) {
-          const participant = (room.participants || []).find(p => p.userId === socket.user._id);
+        const currentUserId = String(socket.user?._id || socket.user?.id || '');
+        if (currentUserId) {
+          const participant = (room.participants || []).find(p => String(p.userId) === currentUserId);
           if (participant) {
             participant.isConnected = true;
             participant.socketId = socket.id;

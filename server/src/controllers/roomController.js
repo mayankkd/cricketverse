@@ -155,7 +155,7 @@ const joinRoom = async (req, res, next) => {
 
     const io = req.app.get('io');
     if (io) {
-      const code = (result.room?.roomCode || roomCode).toUpperCase();
+      const code = (result.room?.roomCode || preview?.roomCode || '').toUpperCase();
       io.to(code).emit('room_state', result.room);
       io.to(code).emit('room_notification', {
         type: 'USER_JOINED',
@@ -227,7 +227,7 @@ const joinByInvite = async (req, res, next) => {
 
     const io = req.app.get('io');
     if (io) {
-      const code = (result.room?.roomCode || roomCode).toUpperCase();
+      const code = (result.room?.roomCode || preview?.roomCode || '').toUpperCase();
       io.to(code).emit('room_state', result.room);
       io.to(code).emit('room_notification', {
         type: 'USER_JOINED',

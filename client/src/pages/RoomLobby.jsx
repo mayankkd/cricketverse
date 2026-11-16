@@ -171,8 +171,13 @@ export const RoomLobby = () => {
       }
     });
 
+    const pollInterval = setInterval(() => {
+      if (mounted) fetchRoom();
+    }, 3000);
+
     return () => {
       mounted = false;
+      clearInterval(pollInterval);
       unsubRoomState();
       unsubStadiumSelected();
       unsubChat();

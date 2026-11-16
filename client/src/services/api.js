@@ -109,6 +109,15 @@ export const api = {
     return await res.json();
   },
 
+  async guestLogin(data = {}) {
+    const res = await safeFetch(`${API_BASE}/auth/guest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return await res.json();
+  },
+
   async getMe() {
     const res = await safeFetch(`${API_BASE}/auth/me`, {
       headers: getAuthHeaders()

@@ -144,17 +144,21 @@ const findUserByUsername = async (username) => {
 };
 
 const createUser = async (userData) => {
+  const userId = userData._id || `usr_${crypto.randomBytes(12).toString('hex')}`;
+  const completeUserData = {
+    ...userData,
+    _id: userId
+  };
   if (isMongoConnected()) {
-    const newUser = new User(userData);
+    const newUser = new User(completeUserData);
     return await newUser.save();
   }
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(userData.password, salt);
   
   const newUser = {
-    _id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    username: userData.username,
-    email: userData.email.toLowerCase(),
+    _id: userId,
+    ...completeUserData,
     password: hashedPassword,
     role: 'user',
     avatar: userData.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',

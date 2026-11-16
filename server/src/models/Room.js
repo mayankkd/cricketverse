@@ -45,6 +45,8 @@ const auctionLotSchema = new mongoose.Schema({
   country: { type: String },
   countryFlag: { type: String },
   role: { type: String },
+  battingStyle: { type: String, default: 'Right-hand bat' },
+  bowlingStyle: { type: String, default: 'Right-arm medium fast' },
   format: { type: String },
   cardVariant: { type: String },
   ovr: { type: mongoose.Schema.Types.Mixed },
@@ -80,10 +82,17 @@ const auctionStateSchema = new mongoose.Schema({
     enum: ['idle', 'active', 'paused', 'completed'],
     default: 'idle'
   },
+  stage: {
+    type: String,
+    enum: ['WAITING', 'PLAYER_NOMINATED', 'BIDDING', 'RESOLVED', 'NEXT_PLAYER', 'AUCTION_COMPLETED'],
+    default: 'WAITING'
+  },
   format: { type: String, default: 'T20' },
   initialPurse: { type: Number, default: 30 }, // Test: 50, ODI: 40, T20: 30
   bidIncrement: { type: Number, default: 1 }, // Host configurable, default 1 point
   currentLot: { type: auctionLotSchema, default: null },
+  auctionQueue: [auctionLotSchema], // Complete randomized queue of unique real-world cricketers
+  queueIndex: { type: Number, default: 0 },
   nominatedPlayerIds: [{ type: String }], // Real-world cricketer playerIds nominated in this auction (Sold, Unsold, or Vetoed)
   soldLots: [{
     lot: auctionLotSchema,
@@ -131,8 +140,8 @@ const auctionStateSchema = new mongoose.Schema({
   currentTurnIndex: { type: Number, default: 0 },
   nominationMode: {
     type: String,
-    enum: ['manual', 'rotating', 'random'],
-    default: 'rotating'
+    enum: ['manual', 'rotating', 'random', 'automatic'],
+    default: 'automatic'
   }
 }, { _id: false });
 

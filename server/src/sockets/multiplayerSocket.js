@@ -1,9 +1,13 @@
 const jwt = require('jsonwebtoken');
 const storeService = require('../services/storeService');
 const matchEngineService = require('../services/matchEngineService');
+const auctionEngineService = require('../services/auctionEngineService');
 const { getStadiumById } = require('../data/stadiumsData');
 
 const initMultiplayerSockets = (io) => {
+  // Bind Socket.IO instance to auction engine for automatic server-side countdowns
+  auctionEngineService.bindSocketIO(io);
+
   // Socket Handshake Authentication Middleware
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
@@ -317,6 +321,10 @@ const initMultiplayerSockets = (io) => {
         const updatedRoom = await storeService.startRoomGame(code, userId);
         io.to(code).emit('game_started', updatedRoom);
         io.to(code).emit('room_state', updatedRoom);
+        io.to(code).emit('auction_state', updatedRoom.auctionState);
+        if (updatedRoom.auctionState?.currentLot) {
+          io.to(code).emit('player_nominated', updatedRoom.auctionState.currentLot);
+        }
       } catch (err) {
         socket.emit('action_error', {
           code: err.code || 'START_ERROR',

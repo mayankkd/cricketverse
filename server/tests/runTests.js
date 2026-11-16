@@ -3832,7 +3832,14 @@ const runAllTests = async () => {
   // ==========================================
   const { runStadiumAndSimplificationTests } = require('./stadiumAndSimplificationTests');
   await runStadiumAndSimplificationTests({ callApp, test });
-  // (passed and failed are incremented directly inside test callback)
+
+  // ==========================================
+  // AUTOMATIC RANDOM AUCTION ENGINE TESTS
+  // ==========================================
+  const { runAutomaticAuctionTests } = require('./testAutomaticRandomAuctionFlow');
+  await test('Automatic Random Auction: Full 12-rule lifecycle execution', async () => {
+    await runAutomaticAuctionTests();
+  });
 
   console.log(`\n🎯 --- ALL TESTS PASSED: ${passed} PASSED, ${failed} FAILED --- 🎯\n`);
   process.exit(failed > 0 ? 1 : 0);

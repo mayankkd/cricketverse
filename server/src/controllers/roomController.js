@@ -352,6 +352,17 @@ const startRoomGame = async (req, res, next) => {
     const { roomCode } = req.params;
     const updated = await storeService.startRoomGame(roomCode, req.user._id);
 
+    const io = req.app.get('io');
+    if (io) {
+      const code = (roomCode || '').toUpperCase();
+      io.to(code).emit('game_started', updated);
+      io.to(code).emit('room_state', updated);
+      io.to(code).emit('auction_state', updated.auctionState);
+      if (updated.auctionState?.currentLot) {
+        io.to(code).emit('player_nominated', updated.auctionState.currentLot);
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: 'Arena game launched successfully!',

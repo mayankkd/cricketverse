@@ -26,7 +26,6 @@ import { useNotification } from '../context/NotificationContext';
 import { FutCard } from '../components/common/FutCard';
 import { socketService } from '../services/socket';
 import { sound } from '../services/sound';
-import { NominationModal } from '../components/auction/NominationModal';
 import { T2VetoModal } from '../components/auction/T2VetoModal';
 import { AuctionReplayModal } from '../components/auction/AuctionReplayModal';
 import { AuctionAwardsModal } from '../components/auction/AuctionAwardsModal';
@@ -183,17 +182,20 @@ export const AuctionDashboard = () => {
       if (lot) {
         sound.playGavelStrike();
         setCurrentLot(lot);
-        setCurrentBid(lot.startingPrice || 1);
-        setHighestBidder('Starting Price (Uncontested)');
-        setHighestBidderTeam(null);
-        setHighestBidderId(null);
-        setTimeLeft(15);
+        setCurrentBid(lot.currentBid || lot.startingPrice || 1);
+        setHighestBidder(lot.highestBidderUsername || 'Starting Price (Uncontested)');
+        setHighestBidderTeam(lot.highestBidderTeam || null);
+        setHighestBidderId(lot.highestBidderId || null);
+        const rem = lot.timerExpiresAt
+          ? Math.max(0, Math.round((new Date(lot.timerExpiresAt) - Date.now()) / 1000))
+          : (lot.timerRemaining || 15);
+        setTimeLeft(rem);
         setIsSold(false);
         setIsVetoed(false);
         setBidHistory([]);
         addToast({
           type: 'gold',
-          title: 'LOT NOMINATED',
+          title: 'NEXT CRICKETER ON BLOCK',
           message: `${lot.playerName} (${lot.cardVariant}) on the block at 1 point starting price!`
         });
       }
@@ -228,6 +230,24 @@ export const AuctionDashboard = () => {
       });
     });
 
+    const socket = socketService.getSocket();
+    const handleTimerTick = (data) => {
+      if (data && data.timerRemaining !== undefined) {
+        setTimeLeft(data.timerRemaining);
+      }
+    };
+    socket.on('auction_timer_tick', handleTimerTick);
+
+    const handleAuctionCompleted = () => {
+      sound.playBidChime();
+      addToast({
+        type: 'gold',
+        title: 'MEGA AUCTION COMPLETED!',
+        message: 'All franchise rosters finalized. Proceed to match day!'
+      });
+    };
+    socket.on('auction_completed', handleAuctionCompleted);
+
     return () => {
       unsubRoom();
       unsubAuction();
@@ -236,6 +256,8 @@ export const AuctionDashboard = () => {
       unsubVeto();
       unsubHammer();
       unsubError();
+      socket.off('auction_timer_tick', handleTimerTick);
+      socket.off('auction_completed', handleAuctionCompleted);
     };
   }, [user]);
 
@@ -250,6 +272,12 @@ export const AuctionDashboard = () => {
       setHighestBidderId(state.currentLot.highestBidderId || null);
       setIsSold(state.currentLot.status === 'sold');
       setIsVetoed(state.currentLot.status === 'vetoed');
+      if (state.currentLot.timerExpiresAt) {
+        const remaining = Math.max(0, Math.round((new Date(state.currentLot.timerExpiresAt) - Date.now()) / 1000));
+        setTimeLeft(remaining);
+      } else if (state.currentLot.timerRemaining) {
+        setTimeLeft(state.currentLot.timerRemaining);
+      }
     }
     if (state.bidHistory) {
       setBidHistory(state.bidHistory);
@@ -590,42 +618,20 @@ export const AuctionDashboard = () => {
         </div>
       </div>
 
-      {/* Top Action Ribbon: Nominate Button, Replay Logs, Unsold Round */}
+      {/* Top Action Ribbon: Automatic Random Queue Status & Modals */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-stadium-900 border border-stadium-800 p-3.5 rounded-2xl">
         <div className="flex items-center gap-2">
-          {!isSpectator && (
-            <button
-              onClick={() => setNominationOpen(true)}
-              className="bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-slate-950 font-display font-bold uppercase text-xs px-4 py-2.5 rounded-xl shadow-gold-glow flex items-center gap-1.5 transition-transform active:scale-95"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" /> NOMINATE CRICKETER
-            </button>
-          )}
-
-          {!isSpectator && (
-            <button
-              onClick={handleNominateRandom}
-              className="bg-stadium-950 hover:bg-stadium-850 border border-stadium-700 text-slate-300 font-display font-bold uppercase text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors"
-            >
-              <Dices className="w-4 h-4 text-amber-400" /> RANDOM
-            </button>
-          )}
-
-          {isHost && (
-            <button
-              onClick={handleStartUnsoldRound}
-              className="bg-pitch-900/30 hover:bg-pitch-900/50 border border-pitch-500/40 text-pitch-300 font-display font-bold uppercase text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" /> START UNSOLD ROUND
-            </button>
-          )}
+          <span className="flex items-center gap-1.5 bg-pitch-500/20 text-pitch-300 font-mono text-xs font-bold px-3 py-1.5 rounded-xl border border-pitch-500/40">
+            <Sparkles className="w-4 h-4 text-pitch-400" />
+            AUTOMATIC RANDOM NOMINATION
+          </span>
+          <span className="text-xs font-mono text-slate-400 bg-stadium-950 px-3 py-1.5 rounded-xl border border-white/5">
+            Queue Lot: <strong className="text-gold-400">{(auctionState?.queueIndex !== undefined ? auctionState.queueIndex + 1 : 1)}</strong>
+            {auctionState?.auctionQueueLength ? ` of ${auctionState.auctionQueueLength}` : ''}
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-xs font-mono text-slate-400">
-            Nomination Turn: <strong className="text-gold-400">{currentTurnUserName}</strong>
-          </span>
-
           <button
             onClick={() => setReplayModalOpen(true)}
             className="bg-stadium-950 hover:bg-stadium-850 border border-white/10 text-slate-300 hover:text-white font-mono text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors"
@@ -692,31 +698,60 @@ export const AuctionDashboard = () => {
                   ovr: currentLot.ovr,
                   imageUrl: currentLot.playerImage,
                   avatarUrl: currentLot.playerImage,
-                  basePrice: 1
+                  basePrice: 1,
+                  battingStyle: currentLot.battingStyle,
+                  bowlingStyle: currentLot.bowlingStyle
                 }}
                 compact={false}
               />
+
+              {/* Batting and Bowling Styles Info Display */}
+              <div className="mt-3 w-full bg-stadium-950/90 border border-white/10 rounded-xl p-2.5 text-center text-xs font-mono text-slate-300 shadow-inner">
+                <div className="flex items-center justify-around">
+                  <span>🏏 <strong className="text-white">Bat:</strong> {currentLot.battingStyle || 'Right-hand bat'}</span>
+                  <span className="text-slate-600">•</span>
+                  <span>⚡ <strong className="text-white">Bowl:</strong> {currentLot.bowlingStyle || 'Right-arm medium fast'}</span>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="w-full h-80 flex flex-col items-center justify-center border-2 border-dashed border-stadium-800 rounded-2xl text-center p-6 text-slate-500">
-              <Gavel className="w-12 h-12 text-slate-700 mb-3" />
+              <Gavel className="w-12 h-12 text-slate-700 mb-3 animate-pulse" />
               <p className="font-display font-bold uppercase text-slate-400 text-sm">
-                No Cricketer Nominated
+                Preparing Auction Lot
               </p>
               <p className="text-xs font-mono mt-1">
-                Click "Nominate Cricketer" or "Random" above to bring a player to the block.
+                The auctioneer is presenting the next cricketer from the randomized queue...
               </p>
             </div>
           )}
 
-          {/* Post-lot next button */}
+          {/* Post-lot automatic progression banner */}
           {(isSold || isVetoed) && (
-            <div className="mt-4 w-full text-center">
+            <div className="mt-4 w-full text-center p-3 rounded-xl bg-pitch-950/50 border border-pitch-500/30 animate-pulse">
+              <span className="text-xs font-mono text-pitch-300 flex items-center justify-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-pitch-400" />
+                {isSold
+                  ? `SOLD to ${highestBidder}! Presenting next cricketer automatically...`
+                  : 'VETOED! Presenting next cricketer automatically...'}
+              </span>
+            </div>
+          )}
+
+          {/* Auction Completed Banner */}
+          {(auctionState?.status === 'completed' || auctionState?.stage === 'AUCTION_COMPLETED') && (
+            <div className="mt-4 w-full text-center p-4 rounded-xl bg-gold-950/60 border border-gold-500/50 shadow-gold-glow">
+              <span className="font-display font-black text-sm text-gold-300 uppercase block mb-1">
+                🏆 AUCTION COMPLETED
+              </span>
+              <p className="text-[11px] font-mono text-slate-300 mb-3">
+                All franchise rosters are finalized. Head over to squad management to configure your Playing XI!
+              </p>
               <button
-                onClick={() => setNominationOpen(true)}
-                className="w-full bg-pitch-600 hover:bg-pitch-500 text-white font-display uppercase font-bold text-xs py-3 rounded-xl shadow-pitch-glow flex items-center justify-center gap-2 transition-transform active:scale-95"
+                onClick={() => window.location.href = `/teams?room=${roomCode}`}
+                className="w-full bg-gold-500 hover:bg-gold-400 text-slate-950 font-display font-bold uppercase text-xs py-2.5 rounded-lg shadow-gold-glow transition-transform active:scale-95"
               >
-                NOMINATE NEXT LOT <ArrowRight className="w-4 h-4" />
+                PROCEED TO SQUAD MANAGEMENT
               </button>
             </div>
           )}
@@ -856,20 +891,6 @@ export const AuctionDashboard = () => {
           </div>
         </div>
       </div>
-
-      {/* Nomination Modal */}
-      <NominationModal
-        isOpen={nominationOpen}
-        onClose={() => setNominationOpen(false)}
-        players={allPlayers}
-        nominatedPlayerIds={auctionState?.nominatedPlayerIds || []}
-        vetoedLots={auctionState?.vetoedLots || []}
-        onNominate={handleNominatePlayer}
-        onNominateRandom={handleNominateRandom}
-        isHost={isHost}
-        isMyTurn={isMyTurn}
-        currentTurnUser={currentTurnUserName}
-      />
 
       {/* T2 Veto Modal */}
       <T2VetoModal

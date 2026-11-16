@@ -649,6 +649,94 @@ const joinRoomWithRole = async ({ roomCode, user, role = 'player', teamName = ''
   });
 };
 
+// Build randomized auction queue of unique real-world cricketers
+// Enforces:
+// 1. Format eligibility (Test, ODI, T20)
+// 2. Real-world cricketer uniqueness: Each cricketer appears exactly once across all card variants/OVRs
+// 3. Guaranteed valid starting price = 1 point
+// 4. Server-side randomized queue
+const buildAuctionQueueForRoom = async (format) => {
+  const allPlayers = isMongoConnected() ? await Player.find() : memoryStore.players;
+  const roomFmt = (format || 'T20').toLowerCase();
+
+  // Filter available players by format eligibility
+  const eligible = (allPlayers || []).filter(p => {
+    if (['test', 'odi', 't20'].includes(roomFmt)) {
+      if (p.formatEligibility && p.formatEligibility[roomFmt] !== true) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // Group by unique real-world cricketer playerId
+  const playerGroups = new Map();
+  for (const card of eligible) {
+    const realPlayerId = card.playerId || card._id;
+    if (!playerGroups.has(realPlayerId)) {
+      playerGroups.set(realPlayerId, []);
+    }
+    playerGroups.get(realPlayerId).push(card);
+  }
+
+  // For each unique real-world cricketer, pick exactly ONE card variant
+  // (prefers Peak, else highest OVR for this format)
+  const selectedCards = [];
+  for (const [realPlayerId, variants] of playerGroups.entries()) {
+    variants.sort((a, b) => {
+      if (a.cardVariant === 'Peak') return -1;
+      if (b.cardVariant === 'Peak') return 1;
+      const ovrA = typeof a.ovr === 'object' ? (a.ovr[roomFmt] || 90) : (a.overallRating || 90);
+      const ovrB = typeof b.ovr === 'object' ? (b.ovr[roomFmt] || 90) : (b.overallRating || 90);
+      return ovrB - ovrA;
+    });
+    selectedCards.push(variants[0]);
+  }
+
+  // Fisher-Yates random shuffle
+  for (let i = selectedCards.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [selectedCards[i], selectedCards[j]] = [selectedCards[j], selectedCards[i]];
+  }
+
+  // Construct auction lot objects with starting price 1 point
+  return selectedCards.map(card => {
+    const realPlayerId = card.playerId || card._id;
+    let formatOvr = card.overallRating || 90;
+    if (card.ovr && typeof card.ovr === 'object') {
+      if (roomFmt === 'test' && card.ovr.test) formatOvr = card.ovr.test;
+      else if (roomFmt === 'odi' && card.ovr.odi) formatOvr = card.ovr.odi;
+      else if (card.ovr.t20) formatOvr = card.ovr.t20;
+    }
+
+    return {
+      cardId: card._id,
+      playerId: realPlayerId,
+      playerName: card.name,
+      playerImage: card.imageUrl || card.avatarUrl || card.image,
+      country: card.country,
+      countryFlag: card.countryFlag,
+      role: card.role,
+      battingStyle: card.battingStyle || 'Right-hand bat',
+      bowlingStyle: card.bowlingStyle || 'Right-arm medium fast',
+      format: format || 'T20',
+      cardVariant: card.cardVariant || 'Peak',
+      ovr: formatOvr,
+      startingPrice: 1, // Fixed starting price: 1 point
+      currentBid: 1,
+      bidIncrement: 1,
+      highestBidderId: null,
+      highestBidderUsername: null,
+      highestBidderTeam: null,
+      status: 'nominated',
+      timerRemaining: 15,
+      timerExpiresAt: new Date(Date.now() + 15000),
+      nominatedBy: 'SYSTEM',
+      nominatedAt: new Date()
+    };
+  });
+};
+
 // MINIMUM PLAYER REQUIREMENT VALIDATION & STARTING
 const startRoomGame = async (roomCode, hostId, options = {}) => {
   const code = roomCode.toUpperCase();
@@ -692,28 +780,35 @@ const startRoomGame = async (roomCode, hostId, options = {}) => {
 
   const turnOrder = activePlayers.map(p => p.userId);
 
+  // Generate randomized auction queue of unique real-world cricketers
+  const queue = await buildAuctionQueueForRoom(room.format);
+  const firstLot = queue.length > 0 ? { ...queue[0] } : null;
+
   const updatedAuctionState = {
     ...(room.auctionState || {}),
     status: 'active',
+    stage: firstLot ? 'BIDDING' : 'WAITING',
     format: room.format,
     initialPurse: purse,
     bidIncrement: options.bidIncrement || room.auctionState?.bidIncrement || 1,
-    currentLot: null,
-    nominatedPlayerIds: room.auctionState?.nominatedPlayerIds || [],
+    auctionQueue: queue,
+    queueIndex: 0,
+    currentLot: firstLot,
+    nominatedPlayerIds: firstLot ? [firstLot.playerId] : [],
     soldLots: room.auctionState?.soldLots || [],
     unsoldLots: room.auctionState?.unsoldLots || [],
     vetoedLots: room.auctionState?.vetoedLots || [],
     unsoldRoundActive: false,
-    bidHistory: room.auctionState?.bidHistory || [],
+    bidHistory: [],
     spendingHistory: room.auctionState?.spendingHistory || [],
     vetoHistory: room.auctionState?.vetoHistory || [],
     replayLogs: [
       ...(room.auctionState?.replayLogs || []),
-      { event: 'AUCTION_STARTED', data: { format: room.format, purse }, timestamp: new Date() }
+      { event: 'AUCTION_STARTED', data: { format: room.format, purse, queueSize: queue.length }, timestamp: new Date() }
     ],
     turnOrder,
     currentTurnIndex: 0,
-    nominationMode: options.nominationMode || room.auctionState?.nominationMode || 'rotating'
+    nominationMode: 'automatic'
   };
 
   const updatedMessages = [
@@ -722,17 +817,38 @@ const startRoomGame = async (roomCode, hostId, options = {}) => {
       id: `msg_${Date.now()}`,
       sender: 'System',
       senderRole: 'system',
-      text: `Host ${room.hostUsername} launched the arena! Live Auction has begun (${room.format}: ${purse} points purse).`,
+      text: `Host ${room.hostUsername} launched the arena! Live Auction has begun (${room.format}: ${purse} points purse). Automatic queue of ${queue.length} cricketers generated.`,
       timestamp: new Date()
     }
   ];
 
-  return await updateRoom(code, {
+  if (firstLot) {
+    updatedMessages.push({
+      id: `msg_${Date.now() + 1}`,
+      sender: 'System',
+      senderRole: 'system',
+      text: `📢 Auctioneer presented opening lot: ${firstLot.playerName} (${firstLot.country} • ${firstLot.role} • ${firstLot.cardVariant})! Starting price: 1 point.`,
+      timestamp: new Date()
+    });
+  }
+
+  const updatedRoomResult = await updateRoom(code, {
     status: 'auction',
     participants: updatedParticipants,
     auctionState: updatedAuctionState,
     chatMessages: updatedMessages
   });
+
+  try {
+    const auctionEngineService = require('./auctionEngineService');
+    if (firstLot) {
+      auctionEngineService.startAuctionTimer(code, 15);
+    }
+  } catch (err) {
+    // Engine timer start non-blocking
+  }
+
+  return updatedRoomResult;
 };
 
 // INVITATION MANAGEMENT: Generate, Regenerate, Revoke
@@ -945,10 +1061,13 @@ const getAuctionState = async (roomCode) => {
   return {
     roomCode: room.roomCode,
     status: room.auctionState?.status || room.status,
+    stage: room.auctionState?.stage || (room.auctionState?.currentLot ? 'BIDDING' : 'WAITING'),
     format: room.format,
     initialPurse: room.auctionState?.initialPurse || getFormatPurse(room.format),
     bidIncrement: room.auctionState?.bidIncrement || 1,
     currentLot: room.auctionState?.currentLot || null,
+    auctionQueueLength: room.auctionState?.auctionQueue?.length || 0,
+    queueIndex: room.auctionState?.queueIndex || 0,
     nominatedPlayerIds: room.auctionState?.nominatedPlayerIds || [],
     soldLots: room.auctionState?.soldLots || [],
     unsoldLots: room.auctionState?.unsoldLots || [],
@@ -960,7 +1079,7 @@ const getAuctionState = async (roomCode) => {
     replayLogs: room.auctionState?.replayLogs || [],
     turnOrder: room.auctionState?.turnOrder || [],
     currentTurnIndex: room.auctionState?.currentTurnIndex || 0,
-    nominationMode: room.auctionState?.nominationMode || 'rotating',
+    nominationMode: room.auctionState?.nominationMode || 'automatic',
     participants: room.participants || []
   };
 };
@@ -990,10 +1109,12 @@ const nominatePlayerForAuction = async (roomCode, userId, { cardId, playerId }) 
 
     // Check if a lot is currently active and nominated
     if (auctionState.currentLot && auctionState.currentLot.status === 'nominated') {
-      const err = new Error(`Lot in progress: ${auctionState.currentLot.playerName} is currently active on the gavel block.`);
-      err.status = 400;
-      err.code = 'LOT_IN_PROGRESS';
-      throw err;
+      if (auctionState.currentLot.highestBidderId) {
+        const err = new Error(`Lot in progress: ${auctionState.currentLot.playerName} is currently active on the gavel block.`);
+        err.status = 400;
+        err.code = 'LOT_IN_PROGRESS';
+        throw err;
+      }
     }
 
     // Rotating turn order check (host can also intervene if needed)
@@ -1030,17 +1151,6 @@ const nominatePlayerForAuction = async (roomCode, userId, { cardId, playerId }) 
     // Real-world cricketer ID
     const realPlayerId = card.playerId || card._id;
 
-    // RULE: ONE CRICKETER ONLY ONCE PER AUCTION
-    // If Virat Kohli is nominated with Peak 120 OVR, then Best 105, Average 92, etc. all become unavailable.
-    // This rule applies whether the nominated player is Sold, Unsold, or Vetoed.
-    const nominatedPlayerIds = auctionState.nominatedPlayerIds || [];
-    if (nominatedPlayerIds.includes(realPlayerId)) {
-      const err = new Error(`Cricketer '${card.name}' (ID: ${realPlayerId}) has already been nominated in this auction. Each cricketer can appear only once per auction across all card variants, OVRs, and formats.`);
-      err.status = 400;
-      err.code = 'CRICKETER_ALREADY_NOMINATED';
-      throw err;
-    }
-
     // Check if cricketer was vetoed (strictly barred even in unsold round!)
     const vetoedLots = auctionState.vetoedLots || [];
     const wasVetoed = vetoedLots.some(v => v.lot?.playerId === realPlayerId);
@@ -1048,6 +1158,22 @@ const nominatePlayerForAuction = async (roomCode, userId, { cardId, playerId }) 
       const err = new Error(`Cricketer '${card.name}' was vetoed by T2 Veto and is permanently barred from returning to this auction.`);
       err.status = 400;
       err.code = 'VETOED_PLAYER_CANNOT_RETURN';
+      throw err;
+    }
+
+    // RULE: ONE CRICKETER ONLY ONCE PER AUCTION
+    // If Virat Kohli is nominated with Peak 120 OVR, then Best 105, Average 92, etc. all become unavailable.
+    // Check if this cricketer was already sold or unsold (unless unsold round is active)
+    const soldLots = auctionState.soldLots || [];
+    const unsoldLots = auctionState.unsoldLots || [];
+    const wasSold = soldLots.some(s => s.lot?.playerId === realPlayerId);
+    const wasUnsoldBeforeRound = !auctionState.unsoldRoundActive && unsoldLots.some(u => u.lot?.playerId === realPlayerId);
+    const nominatedPlayerIds = auctionState.nominatedPlayerIds || [];
+
+    if (wasSold || wasUnsoldBeforeRound || (nominatedPlayerIds.includes(realPlayerId) && auctionState.currentLot?.playerId !== realPlayerId)) {
+      const err = new Error(`Cricketer '${card.name}' (ID: ${realPlayerId}) has already been nominated in this auction. Each cricketer can appear only once per auction across all card variants, OVRs, and formats.`);
+      err.status = 400;
+      err.code = 'CRICKETER_ALREADY_NOMINATED';
       throw err;
     }
 
@@ -1069,6 +1195,8 @@ const nominatePlayerForAuction = async (roomCode, userId, { cardId, playerId }) 
       country: card.country,
       countryFlag: card.countryFlag,
       role: card.role,
+      battingStyle: card.battingStyle || 'Right-hand bat',
+      bowlingStyle: card.bowlingStyle || 'Right-arm medium fast',
       format: rawRoom.format,
       cardVariant: card.cardVariant || 'Peak',
       ovr: formatOvr,
@@ -1085,7 +1213,7 @@ const nominatePlayerForAuction = async (roomCode, userId, { cardId, playerId }) 
       nominatedAt: new Date()
     };
 
-    const updatedNominatedIds = [...nominatedPlayerIds, realPlayerId];
+    const updatedNominatedIds = Array.from(new Set([...nominatedPlayerIds, realPlayerId]));
     const updatedReplayLogs = [
       ...(auctionState.replayLogs || []),
       {
@@ -1105,15 +1233,25 @@ const nominatePlayerForAuction = async (roomCode, userId, { cardId, playerId }) 
     const updatedAuctionState = {
       ...auctionState,
       status: 'active',
+      stage: 'BIDDING',
       currentLot: newLot,
       nominatedPlayerIds: updatedNominatedIds,
       replayLogs: updatedReplayLogs
     };
 
-    return await updateRoom(code, {
+    const updatedRoomResult = await updateRoom(code, {
       status: 'auction',
       auctionState: updatedAuctionState
     });
+
+    try {
+      const auctionEngineService = require('./auctionEngineService');
+      auctionEngineService.startAuctionTimer(code, 15);
+    } catch (e) {
+      // Non-blocking
+    }
+
+    return updatedRoomResult;
   });
 };
 
@@ -1237,12 +1375,23 @@ const placeAuctionBid = async (roomCode, userId, { amount }) => {
 
     const updatedAuctionState = {
       ...auctionState,
+      status: 'active',
+      stage: 'BIDDING',
       currentLot: updatedLot,
       bidHistory: updatedBidHistory,
       replayLogs: updatedReplayLogs
     };
 
-    return await updateRoom(code, { auctionState: updatedAuctionState });
+    const updatedRoomResult = await updateRoom(code, { auctionState: updatedAuctionState });
+
+    try {
+      const auctionEngineService = require('./auctionEngineService');
+      auctionEngineService.onBidPlaced(code, newTimer);
+    } catch (e) {
+      // Non-blocking
+    }
+
+    return updatedRoomResult;
   });
 };
 
@@ -1359,6 +1508,7 @@ const useT2Veto = async (roomCode, userId) => {
 
     const updatedAuctionState = {
       ...auctionState,
+      stage: 'RESOLVED',
       currentLot: vetoedLotRecord,
       vetoedLots: updatedVetoedLots,
       vetoHistory: updatedVetoHistory,
@@ -1376,11 +1526,20 @@ const useT2Veto = async (roomCode, userId) => {
 
     const updatedMessages = [...(rawRoom.chatMessages || []), systemMessage];
 
-    return await updateRoom(code, {
+    const updatedRoomResult = await updateRoom(code, {
       participants,
       auctionState: updatedAuctionState,
       chatMessages: updatedMessages
     });
+
+    try {
+      const auctionEngineService = require('./auctionEngineService');
+      auctionEngineService.onVetoPlayed(code);
+    } catch (e) {
+      // Non-blocking
+    }
+
+    return updatedRoomResult;
   });
 };
 
@@ -1489,6 +1648,7 @@ const hammerCurrentLot = async (roomCode, hostId) => {
 
     const updatedAuctionState = {
       ...auctionState,
+      stage: 'RESOLVED',
       currentLot: resolvedLot,
       soldLots: updatedSoldLots,
       unsoldLots: updatedUnsoldLots,
@@ -1507,11 +1667,155 @@ const hammerCurrentLot = async (roomCode, hostId) => {
 
     const updatedMessages = [...(rawRoom.chatMessages || []), systemMessage];
 
-    return await updateRoom(code, {
+    const updatedRoomResult = await updateRoom(code, {
       participants,
       auctionState: updatedAuctionState,
       chatMessages: updatedMessages
     });
+
+    try {
+      const auctionEngineService = require('./auctionEngineService');
+      auctionEngineService.onLotHammered(code);
+    } catch (e) {
+      // Non-blocking
+    }
+
+    return updatedRoomResult;
+  });
+};
+
+// Advance to next cricketer from the randomized auction queue
+// Enforces:
+// 1. Uniqueness: skips any cricketers previously vetoed, sold, or unsold
+// 2. Format eligibility
+// 3. Auction completion detection: all squads full or queue exhausted
+// 4. Starting price: exactly 1 point
+// 5. Timer reset to 15s
+const advanceToNextAuctionPlayer = async (roomCode) => {
+  return await withRoomLock(roomCode, async () => {
+    const code = roomCode.toUpperCase();
+    const rawRoom = isMongoConnected()
+      ? await Room.findOne({ roomCode: code })
+      : memoryStore.rooms.find(r => r.roomCode.toUpperCase() === code);
+
+    if (!rawRoom) return null;
+
+    const auctionState = rawRoom.auctionState || {};
+    const queue = auctionState.auctionQueue || [];
+    const participants = rawRoom.participants || [];
+    const activePlayers = participants.filter(p => p.role === 'player');
+
+    // Check completion criteria:
+    // 1. Queue is finished
+    // 2. All managers have filled max squad size (T20: 13, ODI: 15, Test: 15)
+    // 3. All managers have exhausted budget (< 1 point remaining)
+    const fmt = (rawRoom.format || 'T20').toUpperCase();
+    const maxSquad = fmt === 'T20' ? 13 : 15;
+    const allSquadsFull = activePlayers.length > 0 && activePlayers.every(p => (p.squad || []).length >= maxSquad);
+    const allBudgetsExhausted = activePlayers.length > 0 && activePlayers.every(p => (p.budgetRemaining || 0) < 1);
+
+    const vetoedIds = new Set((auctionState.vetoedLots || []).map(v => v.lot?.playerId));
+    const soldIds = new Set((auctionState.soldLots || []).map(s => s.lot?.playerId));
+    const unsoldIds = new Set((auctionState.unsoldLots || []).map(u => u.lot?.playerId));
+
+    // Find next eligible index in queue
+    let nextIndex = (auctionState.queueIndex !== undefined ? auctionState.queueIndex + 1 : 0);
+    while (nextIndex < queue.length) {
+      const candidate = queue[nextIndex];
+      const pId = candidate.playerId || candidate.cardId;
+      if (!vetoedIds.has(pId) && !soldIds.has(pId) && !unsoldIds.has(pId)) {
+        break;
+      }
+      nextIndex++;
+    }
+
+    if (allSquadsFull || allBudgetsExhausted || nextIndex >= queue.length) {
+      // Auction completed!
+      const updatedAuctionState = {
+        ...auctionState,
+        status: 'completed',
+        stage: 'AUCTION_COMPLETED',
+        currentLot: null
+      };
+
+      const completionMessage = {
+        id: `msg_${Date.now()}`,
+        sender: 'System',
+        senderRole: 'system',
+        text: '🏆 MEGA AUCTION COMPLETED! All franchise rosters are finalized. Prepare your Playing XI for match day!',
+        timestamp: new Date()
+      };
+
+      const updatedMessages = [...(rawRoom.chatMessages || []), completionMessage];
+
+      const savedRoom = await updateRoom(code, {
+        auctionState: updatedAuctionState,
+        chatMessages: updatedMessages
+      });
+
+      return { completed: true, room: savedRoom };
+    }
+
+    // Next lot found!
+    const nextLotRaw = queue[nextIndex];
+    const newLot = {
+      ...nextLotRaw,
+      status: 'nominated',
+      startingPrice: 1,
+      currentBid: 1,
+      bidIncrement: auctionState.bidIncrement || 1,
+      highestBidderId: null,
+      highestBidderUsername: null,
+      highestBidderTeam: null,
+      timerRemaining: 15,
+      timerExpiresAt: new Date(Date.now() + 15000),
+      nominatedBy: 'SYSTEM',
+      nominatedAt: new Date()
+    };
+
+    const updatedNominatedIds = Array.from(new Set([...(auctionState.nominatedPlayerIds || []), newLot.playerId]));
+    const updatedReplayLogs = [
+      ...(auctionState.replayLogs || []),
+      {
+        event: 'PLAYER_NOMINATED',
+        data: {
+          cardId: newLot.cardId,
+          playerId: newLot.playerId,
+          playerName: newLot.playerName,
+          ovr: newLot.ovr,
+          cardVariant: newLot.cardVariant,
+          nominatedBy: 'SYSTEM'
+        },
+        timestamp: new Date()
+      }
+    ];
+
+    const systemMessage = {
+      id: `msg_${Date.now()}`,
+      sender: 'System',
+      senderRole: 'system',
+      text: `📢 Auctioneer presented ${newLot.playerName} (${newLot.country} • ${newLot.role} • ${newLot.cardVariant})! Starting price: 1 point.`,
+      timestamp: new Date()
+    };
+
+    const updatedAuctionState = {
+      ...auctionState,
+      status: 'active',
+      stage: 'BIDDING',
+      queueIndex: nextIndex,
+      currentLot: newLot,
+      nominatedPlayerIds: updatedNominatedIds,
+      replayLogs: updatedReplayLogs
+    };
+
+    const updatedMessages = [...(rawRoom.chatMessages || []), systemMessage];
+
+    const savedRoom = await updateRoom(code, {
+      auctionState: updatedAuctionState,
+      chatMessages: updatedMessages
+    });
+
+    return { completed: false, currentLot: newLot, room: savedRoom };
   });
 };
 
@@ -3495,6 +3799,8 @@ module.exports = {
   getFormatPurse,
   initAuctionForRoom,
   getAuctionState,
+  buildAuctionQueueForRoom,
+  advanceToNextAuctionPlayer,
   nominatePlayerForAuction,
   placeAuctionBid,
   useT2Veto,

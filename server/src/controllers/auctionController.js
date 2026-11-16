@@ -30,6 +30,18 @@ const initAuction = async (req, res, next) => {
       bidIncrement,
       nominationMode
     });
+
+    const io = req.app.get('io');
+    if (io) {
+      const code = (roomCode || '').toUpperCase();
+      io.to(code).emit('game_started', room);
+      io.to(code).emit('room_state', room);
+      io.to(code).emit('auction_state', room.auctionState);
+      if (room.auctionState?.currentLot) {
+        io.to(code).emit('player_nominated', room.auctionState.currentLot);
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: 'Live Auction arena initialized.',

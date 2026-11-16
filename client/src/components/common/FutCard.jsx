@@ -23,13 +23,15 @@ export const FutCard = ({
 
   // Determine format-specific OVR (1–120 scale)
   const formatKey = (format || activeFormat || 't20').toLowerCase();
-  let displayOvr = player.ovr?.[formatKey];
+  let displayOvr = typeof player.ovr === 'number' ? player.ovr : player.ovr?.[formatKey];
 
   if (!displayOvr) {
     if (player.formatEligibility?.[formatKey] === false) {
       displayOvr = 'N/A';
     } else {
-      displayOvr = player.ovr?.t20 || player.ovr?.odi || player.ovr?.test || player.overallRating || 95;
+      displayOvr = typeof player.ovr === 'object'
+        ? (player.ovr?.t20 || player.ovr?.odi || player.ovr?.test || player.overallRating || 95)
+        : (player.overallRating || 95);
     }
   }
 
@@ -212,10 +214,10 @@ export const FutCard = ({
         {/* Player Name Banner */}
         <div className="mt-2 text-center border-t border-b border-white/10 py-1.5 bg-stadium-900/50">
           <h3 className="font-display text-base font-bold text-white tracking-wide uppercase truncate">
-            {player.shortName || player.name}
+            {player.shortName || player.name || player.playerName || 'Cricketer'}
           </h3>
           <p className="text-[10px] text-slate-400 truncate font-mono">
-            {player.battingStyle} • {player.bowlingStyle}
+            {player.battingStyle || 'Right-hand bat'} • {player.bowlingStyle || 'Right-arm medium'}
           </p>
         </div>
 
@@ -248,7 +250,7 @@ export const FutCard = ({
         </div>
 
         {/* Traits Pills */}
-        {player.specialTraits && player.specialTraits.length > 0 && !compact && (
+        {Array.isArray(player.specialTraits) && player.specialTraits.length > 0 && !compact && (
           <div className="flex flex-wrap gap-1 mb-2">
             {player.specialTraits.slice(0, 2).map((trait, i) => (
               <span

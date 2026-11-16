@@ -1432,17 +1432,6 @@ const useT2Veto = async (roomCode, userId) => {
     // Spectator permission check
     await verifyPlayerActionPermission(code, userId, 'use T2 Veto');
 
-    const auctionState = rawRoom.auctionState || {};
-    const currentLot = auctionState.currentLot;
-
-    // Check if lot is active and nominated
-    if (!currentLot || currentLot.status !== 'nominated') {
-      const err = new Error('No active nomination to veto. Sold or already vetoed lots cannot be vetoed.');
-      err.status = 400;
-      err.code = 'LOT_NOT_ACTIVE_OR_ALREADY_RESOLVED';
-      throw err;
-    }
-
     const participants = rawRoom.participants ? [...rawRoom.participants] : [];
     const participantIndex = participants.findIndex(p => p.userId === userId);
     if (participantIndex === -1) {
@@ -1458,6 +1447,17 @@ const useT2Veto = async (roomCode, userId) => {
       const err = new Error('You have exhausted your 2 T2 Veto tokens. Veto tokens cannot be refunded or transferred.');
       err.status = 400;
       err.code = 'INSUFFICIENT_VETO_TOKENS';
+      throw err;
+    }
+
+    const auctionState = rawRoom.auctionState || {};
+    const currentLot = auctionState.currentLot;
+
+    // Check if lot is active and nominated
+    if (!currentLot || currentLot.status !== 'nominated') {
+      const err = new Error('No active nomination to veto. Sold or already vetoed lots cannot be vetoed.');
+      err.status = 400;
+      err.code = 'LOT_NOT_ACTIVE_OR_ALREADY_RESOLVED';
       throw err;
     }
 

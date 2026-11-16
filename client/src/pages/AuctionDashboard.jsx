@@ -24,7 +24,9 @@ import {
   Radio,
   Layers,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Home,
+  AlertCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
@@ -48,6 +50,8 @@ export const AuctionDashboard = () => {
   const [allPlayers, setAllPlayers] = useState([]);
   const [isSpectator, setIsSpectator] = useState(false);
   const [isHost, setIsHost] = useState(false);
+  const [isLoadingRoom, setIsLoadingRoom] = useState(true);
+  const [roomError, setRoomError] = useState(null);
 
   // Active Lot & Bidding
   const [currentLot, setCurrentLot] = useState(null);
@@ -100,6 +104,8 @@ export const AuctionDashboard = () => {
 
     // Fetch Room & Auction State
     const loadRoomData = async () => {
+      setIsLoadingRoom(true);
+      setRoomError(null);
       try {
         const res = await api.getRoom(code);
         if (res.success && res.room) {
@@ -129,9 +135,14 @@ export const AuctionDashboard = () => {
           if (room.auctionState) {
             syncAuctionState(room.auctionState);
           }
+        } else {
+          setRoomError(res?.message || `Room with code '${code}' not found.`);
         }
       } catch (err) {
         console.warn('Could not load specific room, operating in sandbox mode:', err.message);
+        setRoomError(err.message || `Unable to load room '${code}'.`);
+      } finally {
+        setIsLoadingRoom(false);
       }
     };
 
@@ -141,6 +152,20 @@ export const AuctionDashboard = () => {
     socketService.joinRoom(code, {
       role: isSpectator ? 'spectator' : 'player',
       teamName: user ? `${user.username}'s XI` : 'Franchise'
+    });
+
+    const unsubGameStarted = socketService.onGameStarted((startedRoom) => {
+      if (startedRoom) {
+        setRoomData(startedRoom);
+        if (startedRoom.auctionState) {
+          syncAuctionState(startedRoom.auctionState);
+        }
+        addToast({
+          type: 'gold',
+          title: 'AUCTION ARENA LAUNCHED!',
+          message: 'The host has launched the live mega auction!'
+        });
+      }
     });
 
     // Listeners
@@ -278,6 +303,7 @@ export const AuctionDashboard = () => {
     socket.on('auction_completed', handleAuctionCompleted);
 
     return () => {
+      unsubGameStarted();
       unsubRoom();
       unsubAuction();
       unsubBid();
@@ -527,6 +553,34 @@ export const AuctionDashboard = () => {
     }
   };
 
+  // Launch auction from waiting screen (Host only)
+  const handleStartAuction = async () => {
+    try {
+      sound.playGavelStrike();
+      const res = await api.startRoomGame(roomCode);
+      if (res.success) {
+        socketService.startGame(roomCode);
+        if (res.room) {
+          setRoomData(res.room);
+          if (res.room.auctionState) {
+            syncAuctionState(res.room.auctionState);
+          }
+        }
+        addToast({
+          type: 'gold',
+          title: 'MEGA AUCTION LAUNCHED',
+          message: 'The gavel block is open and the randomized cricketer queue is rolling!'
+        });
+      }
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'COULD NOT START AUCTION',
+        message: err.message || 'Failed to start auction arena.'
+      });
+    }
+  };
+
   // Commence Unsold Round (Host only)
   const handleStartUnsoldRound = async () => {
     try {
@@ -577,6 +631,157 @@ export const AuctionDashboard = () => {
     const myTeam = activeParticipants.find(p => p.userId === user?._id);
     return myTeam || activeParticipants[0];
   }, [activeParticipants, selectedTeamUserId, user]);
+
+  // Screen 1: Loading Screen
+  if (isLoadingRoom) {
+    return (
+      <div className="min-h-screen bg-stadium-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-3xl bg-gold-500/10 border border-gold-500/30 flex items-center justify-center text-gold-400 mb-4 shadow-gold-glow animate-pulse">
+          <Gavel className="w-8 h-8 animate-bounce" />
+        </div>
+        <h2 className="font-display font-black text-2xl uppercase tracking-wider text-white">
+          ENTERING THE HAMMER ARENA
+        </h2>
+        <p className="text-xs font-mono text-slate-400 mt-2">
+          Synchronizing room <span className="text-gold-400 font-bold">{roomCode}</span> with authoritative MongoDB ledger...
+        </p>
+      </div>
+    );
+  }
+
+  // Screen 2: Error Screen
+  if (roomError && !roomData) {
+    return (
+      <div className="min-h-screen bg-stadium-950 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-stadium-900 border border-red-500/40 rounded-3xl p-6 shadow-2xl text-center space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 mx-auto">
+            <ShieldAlert className="w-7 h-7" />
+          </div>
+          <h1 className="font-display font-black text-2xl uppercase text-white tracking-wide">
+            ROOM NOT AVAILABLE
+          </h1>
+          <p className="text-xs text-slate-400 font-mono leading-relaxed">
+            {roomError}
+          </p>
+          <div className="flex gap-2 justify-center pt-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-gold-500 hover:bg-gold-400 text-slate-950 font-display uppercase font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition-transform active:scale-95 shadow-gold-glow"
+            >
+              <RefreshCw className="w-4 h-4" /> RETRY
+            </button>
+            <button
+              onClick={() => window.location.href = '/'}
+              className="bg-stadium-950 hover:bg-stadium-850 text-slate-300 font-display uppercase font-bold text-xs px-4 py-2.5 rounded-xl border border-stadium-700 flex items-center gap-1.5"
+            >
+              <Home className="w-4 h-4" /> HOME
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Screen 3: Auction Not Started Yet Screen
+  const isAuctionUnstarted = roomData && roomData.status === 'waiting' && (!auctionState || auctionState.status === 'idle');
+  if (isAuctionUnstarted) {
+    const activeCount = (roomData.participants || []).filter(p => p.role === 'player').length;
+    const canStart = activeCount >= (roomData.minPlayers || 2);
+
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-12 space-y-6">
+        <div className="bg-gradient-to-r from-stadium-950 via-stadium-900 to-amber-950/40 border border-gold-500/40 p-8 rounded-3xl shadow-2xl text-center space-y-4">
+          <div className="w-16 h-16 rounded-3xl bg-gold-500/10 border border-gold-500/40 flex items-center justify-center text-gold-400 mx-auto shadow-gold-glow">
+            <Gavel className="w-8 h-8" />
+          </div>
+          <div>
+            <span className="bg-gold-500/20 text-gold-300 border border-gold-500/40 font-mono text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+              AUCTION WAITING ROOM
+            </span>
+            <h1 className="font-display font-black text-3xl sm:text-4xl uppercase text-white tracking-wide mt-3">
+              {roomData.name || 'CRICKETVERSE ARENA'}
+            </h1>
+            <p className="text-xs font-mono text-slate-400 mt-1">
+              ROOM CODE: <strong className="text-gold-400">{roomCode}</strong> • FORMAT: <strong className="text-white">{roomData.format}</strong> ({formatPurse} PTS PURSE)
+            </p>
+          </div>
+
+          <div className="bg-stadium-950/80 border border-white/10 rounded-2xl p-4 max-w-md mx-auto">
+            <div className="flex items-center justify-between text-xs font-mono mb-2">
+              <span className="text-slate-400">ACTIVE PLAYERS</span>
+              <span className="text-gold-400 font-bold">{activeCount} / {roomData.maxPlayers || 6}</span>
+            </div>
+            <div className="w-full bg-stadium-900 h-2.5 rounded-full overflow-hidden border border-white/5">
+              <div
+                className="bg-gold-500 h-full rounded-full transition-all"
+                style={{ width: `${Math.min(100, (activeCount / (roomData.maxPlayers || 6)) * 100)}%` }}
+              />
+            </div>
+            <p className="text-[11px] font-mono text-slate-500 mt-2">
+              {canStart
+                ? 'Minimum player threshold reached. Host can start the auction!'
+                : `Need at least ${roomData.minPlayers || 2} players to begin. Currently awaiting more managers.`}
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            {isHost ? (
+              <button
+                onClick={handleStartAuction}
+                disabled={!canStart}
+                className="bg-gold-500 hover:bg-gold-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-display uppercase font-black text-sm px-6 py-3.5 rounded-xl shadow-gold-glow transition-transform active:scale-95 flex items-center gap-2"
+              >
+                <Gavel className="w-5 h-5 fill-current" /> START AUCTION NOW
+              </button>
+            ) : (
+              <div className="p-3 rounded-xl bg-pitch-500/10 border border-pitch-500/30 text-pitch-300 font-mono text-xs flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-pitch-400" />
+                Waiting for host (@{roomData.hostUsername}) to launch the auction...
+              </div>
+            )}
+            <button
+              onClick={() => window.location.href = `/lobby?room=${roomCode}`}
+              className="bg-stadium-950 hover:bg-stadium-850 text-slate-300 font-display uppercase font-bold text-xs px-5 py-3.5 rounded-xl border border-white/10"
+            >
+              GO TO LOBBY
+            </button>
+          </div>
+        </div>
+
+        {/* Participants Dugout */}
+        <div className="bg-stadium-900 border border-stadium-800 rounded-3xl p-6">
+          <h3 className="font-display font-bold uppercase text-white text-sm mb-4">
+            CONNECTED MANAGERS & SPECTATORS ({roomData.participants?.length || 0})
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {(roomData.participants || []).map((p) => (
+              <div
+                key={p.userId}
+                className="bg-stadium-950 border border-white/5 p-3 rounded-xl flex items-center justify-between"
+              >
+                <div>
+                  <span className="font-display font-bold text-xs text-white block">
+                    {p.teamName || `${p.username}'s XI`}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    @{p.username} {p.isHost && '(Host)'}
+                  </span>
+                </div>
+                <span className={`text-[9px] font-mono uppercase px-2 py-0.5 rounded border ${
+                  p.role === 'player'
+                    ? 'bg-pitch-500/20 text-pitch-300 border-pitch-500/40'
+                    : 'bg-electric-500/20 text-electric-300 border-electric-500/40'
+                }`}>
+                  {p.role}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 relative">
@@ -777,7 +982,7 @@ export const AuctionDashboard = () => {
             </span>
           </div>
 
-          {currentLot ? (
+          {currentLot && (currentLot.cardId || currentLot.playerId || currentLot.playerName || currentLot.name) ? (
             <div className="w-full max-w-xs relative">
               {isVetoed && (
                 <div className="absolute inset-0 z-20 bg-red-950/80 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center p-4 text-center border-2 border-red-500">
@@ -805,18 +1010,19 @@ export const AuctionDashboard = () => {
 
               <FutCard
                 player={{
-                  name: currentLot.playerName,
-                  role: currentLot.role,
-                  country: currentLot.country,
-                  countryFlag: currentLot.countryFlag,
-                  cardVariant: currentLot.cardVariant,
-                  overallRating: typeof currentLot.ovr === 'object' ? (currentLot.ovr.t20 || 90) : currentLot.ovr,
+                  name: currentLot.playerName || currentLot.name || 'Cricketer',
+                  shortName: currentLot.shortName || currentLot.playerName || currentLot.name || 'CR',
+                  role: currentLot.role || 'Batter',
+                  country: currentLot.country || 'India',
+                  countryFlag: currentLot.countryFlag || '🏏',
+                  cardVariant: currentLot.cardVariant || 'Peak',
+                  overallRating: typeof currentLot.ovr === 'object' ? (currentLot.ovr.t20 || 90) : (currentLot.ovr || 90),
                   ovr: currentLot.ovr,
-                  imageUrl: currentLot.playerImage,
-                  avatarUrl: currentLot.playerImage,
-                  basePrice: 1,
-                  battingStyle: currentLot.battingStyle,
-                  bowlingStyle: currentLot.bowlingStyle
+                  imageUrl: currentLot.playerImage || currentLot.imageUrl || currentLot.avatarUrl,
+                  avatarUrl: currentLot.playerImage || currentLot.imageUrl || currentLot.avatarUrl,
+                  basePrice: currentLot.startingPrice || 1,
+                  battingStyle: currentLot.battingStyle || 'Right-hand bat',
+                  bowlingStyle: currentLot.bowlingStyle || 'Right-arm medium fast'
                 }}
                 compact={false}
               />
@@ -1147,25 +1353,31 @@ export const AuctionDashboard = () => {
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {(currentViewedTeam.squad || []).map((card, idx) => {
+                      const cardObj = typeof card === 'string'
+                        ? (allPlayers.find(p => p._id === card || p.playerId === card) || { _id: card, name: card, playerName: card, role: 'Batter', ovr: 85, acquiredPrice: 1 })
+                        : (card || {});
+                      const playerName = cardObj.playerName || cardObj.name || 'Cricketer';
+                      const role = cardObj.role || 'Batter';
                       const roleBadgeColor = {
                         Batter: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
                         Bowler: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
                         'All-Rounder': 'bg-purple-500/20 text-purple-300 border-purple-500/40',
                         Wicketkeeper: 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                      }[card.role] || 'bg-slate-700 text-slate-300 border-slate-600';
+                      }[role] || 'bg-slate-700 text-slate-300 border-slate-600';
 
-                      const ovrVal = typeof card.ovr === 'object' ? (card.ovr.t20 || 90) : (card.ovr || 90);
+                      const ovrVal = typeof cardObj.ovr === 'object' ? (cardObj.ovr.t20 || 90) : (cardObj.ovr || cardObj.overallRating || 90);
+                      const playerImg = cardObj.playerImage || cardObj.imageUrl || cardObj.avatarUrl;
 
                       return (
                         <div
-                          key={card.cardId || `${card.playerId}_${idx}`}
+                          key={cardObj.cardId || cardObj._id || `${cardObj.playerId || 'card'}_${idx}`}
                           className="bg-stadium-900 border border-gold-500/20 hover:border-gold-400/60 rounded-xl p-2.5 flex flex-col justify-between transition-all hover:scale-[1.02] shadow-sm relative overflow-hidden group"
                         >
                           <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden bg-stadium-950 mb-2 border border-white/5">
-                            {card.playerImage ? (
+                            {playerImg ? (
                               <img
-                                src={card.playerImage}
-                                alt={card.playerName}
+                                src={playerImg}
+                                alt={playerName}
                                 className="w-full h-full object-cover object-top"
                                 onError={(e) => { e.target.style.display = 'none'; }}
                               />
@@ -1179,14 +1391,14 @@ export const AuctionDashboard = () => {
 
                           <div>
                             <span className="font-display font-bold text-xs text-white truncate block">
-                              {card.playerName}
+                              {playerName}
                             </span>
                             <div className="flex items-center justify-between mt-1">
                               <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border font-semibold ${roleBadgeColor}`}>
-                                {card.role?.substring(0, 4).toUpperCase()}
+                                {typeof role === 'string' ? role.substring(0, 4).toUpperCase() : 'PLAY'}
                               </span>
                               <span className="text-[10px] font-mono font-bold text-gold-400">
-                                {card.acquiredPrice} PTS
+                                {cardObj.acquiredPrice || 1} PTS
                               </span>
                             </div>
                           </div>
@@ -1211,18 +1423,20 @@ export const AuctionDashboard = () => {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {(auctionState?.soldLots || []).map((sold, idx) => {
-                  const lot = sold.lot || {};
+                  const lot = sold.lot || sold || {};
+                  const lotName = lot.playerName || lot.name || 'Cricketer';
                   const ovrVal = typeof lot.ovr === 'object' ? (lot.ovr.t20 || 90) : (lot.ovr || 90);
+                  const lotImg = lot.playerImage || lot.imageUrl || lot.avatarUrl;
                   return (
                     <div
-                      key={idx}
+                      key={sold.id || idx}
                       className="bg-stadium-950 border border-gold-500/30 p-4 rounded-2xl flex items-center gap-3.5 shadow-md hover:border-gold-400 transition-colors"
                     >
                       <div className="relative w-14 h-16 rounded-xl overflow-hidden bg-stadium-900 border border-gold-500/40 flex-shrink-0">
-                        {lot.playerImage ? (
+                        {lotImg ? (
                           <img
-                            src={lot.playerImage}
-                            alt={lot.playerName}
+                            src={lotImg}
+                            alt={lotName}
                             className="w-full h-full object-cover object-top"
                           />
                         ) : (
@@ -1235,17 +1449,17 @@ export const AuctionDashboard = () => {
 
                       <div className="flex-1 min-w-0">
                         <span className="font-display font-bold text-sm text-white truncate block">
-                          {lot.playerName}
+                          {lotName}
                         </span>
                         <span className="text-[10px] font-mono text-slate-400 block truncate">
-                          {lot.country} • {lot.role}
+                          {lot.country || ''} {lot.role ? `• ${lot.role}` : ''}
                         </span>
                         <div className="mt-1 flex items-center justify-between text-xs font-mono">
                           <span className="text-pitch-300 font-bold truncate max-w-[120px]">
-                            {sold.buyerTeam}
+                            {sold.buyerTeam || 'Franchise'}
                           </span>
                           <span className="text-gold-400 font-bold font-display">
-                            {sold.finalPrice} PTS
+                            {sold.finalPrice || lot.currentBid || 1} PTS
                           </span>
                         </div>
                       </div>

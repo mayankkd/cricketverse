@@ -18,9 +18,20 @@ export const PlayerImage = ({
   const formatImg = player.formatSpecificImage?.[formatKey];
   const photoUrl = formatImg || player.imageUrl || player.avatarUrl;
 
-  const initials = player.shortName
-    ? player.shortName.split(' ').map(p => p[0]).join('').slice(0, 3)
-    : player.name.slice(0, 2).toUpperCase();
+  const getInitials = () => {
+    if (typeof player.shortName === 'string' && player.shortName.trim().length > 0) {
+      const parts = player.shortName.trim().split(/\s+/).map(p => p[0] || '').join('');
+      return (parts.slice(0, 3) || 'CR').toUpperCase();
+    }
+    const nameStr = (typeof player.name === 'string' && player.name.trim().length > 0)
+      ? player.name.trim()
+      : (typeof player.playerName === 'string' && player.playerName.trim().length > 0)
+      ? player.playerName.trim()
+      : 'CR';
+    return nameStr.slice(0, 2).toUpperCase();
+  };
+
+  const initials = getInitials();
 
   const countryGradients = {
     India: 'from-blue-900 via-slate-900 to-amber-950',
@@ -49,7 +60,7 @@ export const PlayerImage = ({
       {photoUrl && !imageError ? (
         <img
           src={photoUrl}
-          alt={player.name}
+          alt={player.name || player.playerName || 'Player'}
           loading="lazy"
           onLoad={() => setImageLoaded(true)}
           onError={() => setImageError(true)}
@@ -70,10 +81,10 @@ export const PlayerImage = ({
             </span>
           </div>
           <span className="text-[10px] font-mono text-gold-400 font-bold uppercase mt-1">
-            #{player.jerseyNumber || 18} • {player.countryFlag}
+            #{player.jerseyNumber || 18} • {player.countryFlag || '🏏'}
           </span>
           <span className="text-[9px] font-mono text-slate-400 uppercase tracking-wider truncate max-w-[90%]">
-            {player.shortName || player.name}
+            {player.shortName || player.name || player.playerName || 'Cricketer'}
           </span>
         </div>
       )}
@@ -98,7 +109,7 @@ export const PlayerImage = ({
               onClick={(e) => e.stopPropagation()}
               className="absolute bottom-6 right-0 w-48 p-2 rounded-xl bg-stadium-900 border border-stadium-700 shadow-2xl text-[10px] font-mono text-slate-300 z-50 backdrop-blur-md"
             >
-              <p className="font-bold text-white mb-0.5 truncate">📷 {player.name}</p>
+              <p className="font-bold text-white mb-0.5 truncate">📷 {player.name || player.playerName || 'Cricketer'}</p>
               <p className="text-slate-400 truncate">Source: {player.imageSource || 'Wikimedia Commons'}</p>
               <p className="text-slate-400 truncate">Credit: {player.attribution || 'Open Media Archive'}</p>
               <p className="text-gold-400 font-bold mt-1">Licence: {player.licenceInfo || 'CC BY-SA 4.0'}</p>

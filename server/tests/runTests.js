@@ -3849,6 +3849,12 @@ const runAllTests = async () => {
     await runCompetitiveAuctionTests();
   });
 
+  // ==========================================
+  // AUCTION PAGE CRASH & RESILIENCE TESTS
+  // ==========================================
+  const { runAuctionPageCrashFixTests } = require('./testAuctionPageCrashFix');
+  await runAuctionPageCrashFixTests({ callApp, test });
+
   console.log(`\n🎯 --- ALL TESTS PASSED: ${passed} PASSED, ${failed} FAILED --- 🎯\n`);
   process.exit(failed > 0 ? 1 : 0);
 };

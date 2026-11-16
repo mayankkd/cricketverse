@@ -127,26 +127,31 @@ export const JoinRoom = () => {
           <span className="text-[10px] font-mono text-gold-400 font-bold uppercase tracking-wider block">
             PRIVATE OR TOURNAMENT ACCESS
           </span>
-          <h3 className="font-display text-xl font-bold uppercase text-white mt-0.5">
+          <h2 className="font-display text-xl font-bold uppercase text-white mt-0.5">
             JOIN VIA UNIQUE ROOM CODE
-          </h3>
+          </h2>
           <p className="text-xs text-slate-400 mt-1">
             Have a room pass from your league host? Enter it below.
           </p>
         </div>
 
         <form onSubmit={handleJoinByCode} className="flex items-center gap-3 w-full md:w-auto">
+          <label htmlFor="direct-room-code-input" className="sr-only">
+            Room Code
+          </label>
           <input
+            id="direct-room-code-input"
             type="text"
             required
             value={roomCodeInput}
             onChange={(e) => setRoomCodeInput(e.target.value)}
-            placeholder="e.g. IPL-2026"
-            className="bg-stadium-950 border border-gold-500/50 rounded-xl px-4 py-3 text-sm text-white font-mono uppercase tracking-widest placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-gold-500 w-full md:w-48 text-center font-bold"
+            placeholder="e.g. CRIC-7821"
+            className="bg-stadium-950 border border-gold-500/50 rounded-xl px-4 py-3 text-sm text-white font-mono uppercase tracking-widest placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-gold-500 focus-visible:ring-2 focus-visible:ring-gold-400 w-full md:w-48 text-center font-bold"
           />
           <button
             type="submit"
-            className="bg-gold-500 hover:bg-gold-400 text-slate-950 font-display uppercase font-bold text-xs px-6 py-3.5 rounded-xl shadow-gold-glow flex-shrink-0 transition-transform active:scale-95"
+            aria-label="Enter arena room"
+            className="bg-gold-500 hover:bg-gold-400 text-slate-950 font-display uppercase font-bold text-xs px-6 py-3.5 rounded-xl shadow-gold-glow flex-shrink-0 transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-gold-300 focus-visible:outline-none"
           >
             ENTER ARENA
           </button>
@@ -157,18 +162,23 @@ export const JoinRoom = () => {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         {/* Search */}
         <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <label htmlFor="search-rooms-input" className="sr-only">
+            Search Rooms
+          </label>
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
+            id="search-rooms-input"
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder="Search room title or code..."
-            className="w-full bg-stadium-900 border border-stadium-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-stadium-700"
+            aria-label="Search rooms by title or room code"
+            className="w-full bg-stadium-900 border border-stadium-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-stadium-700 focus-visible:ring-2 focus-visible:ring-gold-400"
           />
         </div>
 
         {/* Format Filter Tabs */}
-        <div className="flex items-center gap-1.5 bg-stadium-900 p-1 rounded-xl border border-stadium-800 self-stretch sm:self-auto overflow-x-auto">
+        <div className="flex items-center gap-1.5 bg-stadium-900 p-1 rounded-xl border border-stadium-800 self-stretch sm:self-auto overflow-x-auto" role="group" aria-label="Filter rooms by format">
           {['All', 'T20', 'The Hundred', 'Super Over'].map((fmt) => (
             <button
               key={fmt}
@@ -176,10 +186,11 @@ export const JoinRoom = () => {
                 sound.playClick();
                 setSelectedFormat(fmt);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-display uppercase font-bold transition-colors ${
+              aria-pressed={selectedFormat === fmt}
+              className={`px-3 py-1.5 rounded-lg text-xs font-display uppercase font-bold transition-colors focus-visible:ring-1 focus-visible:ring-gold-400 focus-visible:outline-none ${
                 selectedFormat === fmt
                   ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
-                  : 'text-slate-400 hover:text-white'
+                  : 'text-slate-300 hover:text-white'
               }`}
             >
               {fmt}

@@ -57,9 +57,9 @@ export const Login = () => {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gold-500/10 border border-gold-500/40 text-gold-400 mb-3 shadow-gold-glow">
             <Shield className="w-7 h-7" />
           </div>
-          <h2 className="font-display text-3xl font-black uppercase text-white tracking-wide">
+          <h1 className="font-display text-3xl font-black uppercase text-white tracking-wide">
             MANAGER SIGN IN
-          </h2>
+          </h1>
           <p className="text-xs text-slate-400 mt-1 font-mono">
             ACCESS YOUR CRICKETVERSE DUGOUT
           </p>
@@ -73,35 +73,37 @@ export const Login = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-mono font-bold uppercase text-slate-300 mb-1.5">
+            <label htmlFor="login-email" className="block text-xs font-mono font-bold uppercase text-slate-300 mb-1.5">
               Email Address
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
+                id="login-email"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="captain@cricketverse.com"
-                className="w-full bg-stadium-950 border border-stadium-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 transition-colors"
+                className="w-full bg-stadium-950 border border-stadium-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 transition-colors focus-visible:ring-2 focus-visible:ring-gold-400"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-mono font-bold uppercase text-slate-300 mb-1.5">
+            <label htmlFor="login-password" className="block text-xs font-mono font-bold uppercase text-slate-300 mb-1.5">
               Password
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
+                id="login-password"
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-stadium-950 border border-stadium-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 transition-colors"
+                className="w-full bg-stadium-950 border border-stadium-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 transition-colors focus-visible:ring-2 focus-visible:ring-gold-400"
               />
             </div>
           </div>

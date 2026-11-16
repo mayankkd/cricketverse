@@ -36,9 +36,9 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['Rajdhani', 'Impact', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace']
+        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        display: ['Rajdhani', 'Impact', 'Arial Black', 'Trebuchet MS', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Menlo', 'Monaco', 'Courier New', 'monospace']
       },
       boxShadow: {
         'gold-glow': '0 0 25px -5px rgba(245, 158, 11, 0.45)',

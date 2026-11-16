@@ -100,11 +100,15 @@ export const Navbar = () => {
                       sound.playClick();
                       setProfileDropdownOpen(!profileDropdownOpen);
                     }}
-                    className="flex items-center gap-2.5 p-1.5 rounded-xl bg-stadium-900 border border-stadium-750 hover:border-gold-500/50 transition-colors"
+                    aria-label="User Account Menu"
+                    aria-expanded={profileDropdownOpen}
+                    className="flex items-center gap-2.5 p-1.5 rounded-xl bg-stadium-900 border border-stadium-750 hover:border-gold-500/50 transition-colors focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:outline-none"
                   >
                     <img
                       src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80'}
-                      alt={user?.username}
+                      alt={user?.username || 'User avatar'}
+                      width="32"
+                      height="32"
                       className="w-8 h-8 rounded-lg object-cover border border-white/10"
                     />
                     <span className="font-display font-bold text-xs text-slate-200 hidden sm:inline max-w-[120px] truncate">
@@ -191,7 +195,9 @@ export const Navbar = () => {
               {/* Mobile Hamburger Button */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden p-2 rounded-xl bg-stadium-900 border border-stadium-800 text-slate-300 hover:text-white"
+                aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={mobileMenuOpen}
+                className="md:hidden p-2 rounded-xl bg-stadium-900 border border-stadium-800 text-slate-300 hover:text-white focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:outline-none"
               >
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>

@@ -80,19 +80,19 @@ export const Landing = () => {
           <Link
             to="/rooms/create"
             onClick={() => sound.playClick()}
-            className="group p-6 rounded-2xl bg-stadium-900 border border-pitch-500/40 hover:border-pitch-400 hover:bg-stadium-850 transition-all shadow-lg hover:shadow-pitch-glow flex items-start gap-4 active:scale-98"
+            className="group p-6 rounded-2xl bg-stadium-900 border border-pitch-500/40 hover:border-pitch-400 hover:bg-stadium-850 transition-all shadow-lg hover:shadow-pitch-glow flex items-start gap-4 active:scale-98 focus-visible:ring-2 focus-visible:ring-pitch-400 focus-visible:outline-none"
           >
             <div className="w-12 h-12 rounded-xl bg-pitch-500/20 border border-pitch-500/40 flex items-center justify-center text-pitch-400 group-hover:scale-110 transition-transform">
               <PlusCircle className="w-6 h-6" />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <h3 className="font-display font-black text-lg uppercase text-white group-hover:text-pitch-300 transition-colors">
+                <h2 className="font-display font-black text-lg uppercase text-white group-hover:text-pitch-300 transition-colors">
                   CREATE ROOM
-                </h3>
-                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-pitch-400 group-hover:translate-x-1 transition-all" />
+                </h2>
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-pitch-400 group-hover:translate-x-1 transition-all" />
               </div>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-300 mt-1 font-sans">
                 Host a private match. Choose Test, ODI or T20, pick a stadium, and invite friends.
               </p>
             </div>
@@ -102,19 +102,19 @@ export const Landing = () => {
           <Link
             to="/rooms/join"
             onClick={() => sound.playClick()}
-            className="group p-6 rounded-2xl bg-stadium-900 border border-gold-500/40 hover:border-gold-400 hover:bg-stadium-850 transition-all shadow-lg hover:shadow-gold-glow flex items-start gap-4 active:scale-98"
+            className="group p-6 rounded-2xl bg-stadium-900 border border-gold-500/40 hover:border-gold-400 hover:bg-stadium-850 transition-all shadow-lg hover:shadow-gold-glow flex items-start gap-4 active:scale-98 focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:outline-none"
           >
             <div className="w-12 h-12 rounded-xl bg-gold-500/20 border border-gold-500/40 flex items-center justify-center text-gold-400 group-hover:scale-110 transition-transform">
               <Users className="w-6 h-6" />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <h3 className="font-display font-black text-lg uppercase text-white group-hover:text-gold-300 transition-colors">
+                <h2 className="font-display font-black text-lg uppercase text-white group-hover:text-gold-300 transition-colors">
                   JOIN ROOM
-                </h3>
-                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-gold-400 group-hover:translate-x-1 transition-all" />
+                </h2>
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-gold-400 group-hover:translate-x-1 transition-all" />
               </div>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-300 mt-1 font-sans">
                 Enter as an active player (up to 6) or jump in as a spectator to watch live.
               </p>
             </div>
@@ -127,19 +127,19 @@ export const Landing = () => {
               sound.playClick();
               setHowToPlayOpen(true);
             }}
-            className="group p-6 rounded-2xl bg-stadium-900 border border-electric-500/30 hover:border-electric-400 hover:bg-stadium-850 transition-all shadow-lg hover:shadow-electric-glow flex items-start gap-4 active:scale-98 text-left"
+            className="group p-6 rounded-2xl bg-stadium-900 border border-electric-500/30 hover:border-electric-400 hover:bg-stadium-850 transition-all shadow-lg hover:shadow-electric-glow flex items-start gap-4 active:scale-98 text-left focus-visible:ring-2 focus-visible:ring-electric-400 focus-visible:outline-none"
           >
             <div className="w-12 h-12 rounded-xl bg-electric-500/20 border border-electric-500/40 flex items-center justify-center text-electric-400 group-hover:scale-110 transition-transform">
               <HelpCircle className="w-6 h-6" />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <h3 className="font-display font-black text-lg uppercase text-white group-hover:text-electric-300 transition-colors">
+                <h2 className="font-display font-black text-lg uppercase text-white group-hover:text-electric-300 transition-colors">
                   HOW TO PLAY
-                </h3>
-                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-electric-400 group-hover:translate-x-1 transition-all" />
+                </h2>
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-electric-400 group-hover:translate-x-1 transition-all" />
               </div>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-300 mt-1 font-sans">
                 Simple rules: Format purse (50/40/30), 1-pt auction, Playing XI, and 2D playable cricket.
               </p>
             </div>
@@ -149,19 +149,19 @@ export const Landing = () => {
           <button
             type="button"
             onClick={handleProfileClick}
-            className="group p-6 rounded-2xl bg-stadium-900 border border-stadium-750 hover:border-gold-500/40 hover:bg-stadium-850 transition-all shadow-lg flex items-start gap-4 active:scale-98 text-left"
+            className="group p-6 rounded-2xl bg-stadium-900 border border-stadium-750 hover:border-gold-500/40 hover:bg-stadium-850 transition-all shadow-lg flex items-start gap-4 active:scale-98 text-left focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:outline-none"
           >
             <div className="w-12 h-12 rounded-xl bg-stadium-800 border border-stadium-700 flex items-center justify-center text-gold-400 group-hover:scale-110 transition-transform">
               <User className="w-6 h-6" />
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <h3 className="font-display font-black text-lg uppercase text-white group-hover:text-gold-300 transition-colors">
+                <h2 className="font-display font-black text-lg uppercase text-white group-hover:text-gold-300 transition-colors">
                   MY PROFILE
-                </h3>
-                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-gold-400 group-hover:translate-x-1 transition-all" />
+                </h2>
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-gold-400 group-hover:translate-x-1 transition-all" />
               </div>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-300 mt-1 font-sans">
                 {isAuthenticated
                   ? `Signed in as ${user?.username}. View franchise team and records.`
                   : 'Sign in or start an instant 1-click demo to save matches.'}
@@ -178,16 +178,21 @@ export const Landing = () => {
           className="max-w-md mx-auto p-4 rounded-2xl bg-stadium-900/80 border border-stadium-800"
         >
           <form onSubmit={handleQuickJoin} className="flex gap-2">
+            <label htmlFor="quick-room-code-input" className="sr-only">
+              Enter Room Code
+            </label>
             <input
+              id="quick-room-code-input"
               type="text"
               value={quickCode}
               onChange={(e) => setQuickCode(e.target.value)}
               placeholder="Enter Room Code (e.g. CRIC-7821)"
-              className="flex-1 bg-stadium-950 border border-stadium-700 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold-500 font-mono uppercase"
+              className="flex-1 bg-stadium-950 border border-stadium-700 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-gold-500 font-mono uppercase focus-visible:ring-2 focus-visible:ring-gold-400"
             />
             <button
               type="submit"
-              className="bg-gold-500 hover:bg-gold-400 text-slate-950 font-display font-bold text-xs uppercase px-5 py-2.5 rounded-xl shadow-gold-glow transition-transform active:scale-95"
+              aria-label="Join room using entered code"
+              className="bg-gold-500 hover:bg-gold-400 text-slate-950 font-display font-bold text-xs uppercase px-5 py-2.5 rounded-xl shadow-gold-glow transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-gold-300 focus-visible:outline-none"
             >
               JOIN NOW
             </button>

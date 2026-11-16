@@ -65,7 +65,8 @@ export const NotificationProvider = ({ children }) => {
               </div>
               <button
                 onClick={() => removeToast(toast.id)}
-                className="text-slate-400 hover:text-white transition-colors"
+                aria-label="Dismiss notification"
+                className="text-slate-400 hover:text-white transition-colors p-1 rounded focus-visible:ring-1 focus-visible:ring-gold-400 focus-visible:outline-none"
               >
                 <X className="w-4 h-4" />
               </button>

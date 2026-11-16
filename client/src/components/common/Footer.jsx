@@ -15,22 +15,22 @@ export const Footer = () => {
             <p className="font-display font-bold text-sm text-white tracking-wider">
               CRICKET<span className="text-gold-400">VERSE</span> ENGINE
             </p>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-400 font-sans">
               Browser-Based Multiplayer Cricket • IPL Broadcast & FUT Inspired
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-6 font-display uppercase tracking-wider text-[11px] font-semibold text-slate-400">
-          <Link to="/dashboard" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors">Dashboard</Link>
-          <Link to="/players" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors">Player Database</Link>
-          <Link to="/auction" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors">Live Auction</Link>
-          <Link to="/matches" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors">Match Center</Link>
-          <Link to="/tournaments" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors">Tournaments</Link>
-          <Link to="/settings" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors">Settings</Link>
+        <div className="flex flex-wrap items-center justify-center gap-6 font-display uppercase tracking-wider text-[11px] font-semibold text-slate-300">
+          <Link to="/dashboard" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors focus-visible:ring-1 focus-visible:ring-gold-400 focus-visible:outline-none rounded px-1">Dashboard</Link>
+          <Link to="/players" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors focus-visible:ring-1 focus-visible:ring-gold-400 focus-visible:outline-none rounded px-1">Player Database</Link>
+          <Link to="/auction" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors focus-visible:ring-1 focus-visible:ring-gold-400 focus-visible:outline-none rounded px-1">Live Auction</Link>
+          <Link to="/matches" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors focus-visible:ring-1 focus-visible:ring-gold-400 focus-visible:outline-none rounded px-1">Match Center</Link>
+          <Link to="/tournaments" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors focus-visible:ring-1 focus-visible:ring-gold-400 focus-visible:outline-none rounded px-1">Tournaments</Link>
+          <Link to="/settings" onClick={() => sound.playClick()} className="hover:text-gold-400 transition-colors focus-visible:ring-1 focus-visible:ring-gold-400 focus-visible:outline-none rounded px-1">Settings</Link>
         </div>
 
-        <div className="flex items-center gap-3 text-[11px] font-mono text-slate-500">
+        <div className="flex items-center gap-3 text-[11px] font-mono text-slate-400">
           <span className="flex items-center gap-1.5 text-pitch-400 font-bold">
             <span className="w-2 h-2 rounded-full bg-pitch-500 animate-ping" /> SERVER ONLINE (18ms)
           </span>

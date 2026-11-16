@@ -215,7 +215,8 @@ export const CreateRoom = () => {
           </div>
           <button
             onClick={() => setErrorMsg('')}
-            className="text-red-400 hover:text-white font-bold text-sm"
+            aria-label="Dismiss error banner"
+            className="text-red-400 hover:text-white font-bold text-sm p-1 rounded focus-visible:ring-1 focus-visible:ring-red-400 focus-visible:outline-none"
           >
             ✕
           </button>
@@ -230,30 +231,32 @@ export const CreateRoom = () => {
         {/* Section 1: Room Name & Host Team Name */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-mono font-bold uppercase text-slate-300 mb-1.5">
+            <label htmlFor="create-room-name" className="block text-xs font-mono font-bold uppercase text-slate-300 mb-1.5">
               Room Name
             </label>
             <input
+              id="create-room-name"
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Weekend Super League"
-              className="w-full bg-stadium-950 border border-stadium-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-pitch-500 transition-colors"
+              className="w-full bg-stadium-950 border border-stadium-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-pitch-500 focus-visible:ring-2 focus-visible:ring-pitch-400 transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-mono font-bold uppercase text-slate-300 mb-1.5">
+            <label htmlFor="create-team-name" className="block text-xs font-mono font-bold uppercase text-slate-300 mb-1.5">
               Your Franchise / Team Name
             </label>
             <input
+              id="create-team-name"
               type="text"
               required
               value={teamName}
               onChange={(e) => setTeamName(e.target.value)}
               placeholder="e.g. Bengaluru Titans XI"
-              className="w-full bg-stadium-950 border border-stadium-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-pitch-500 transition-colors"
+              className="w-full bg-stadium-950 border border-stadium-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-pitch-500 focus-visible:ring-2 focus-visible:ring-pitch-400 transition-colors"
             />
           </div>
         </div>

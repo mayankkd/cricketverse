@@ -62,6 +62,7 @@ export const PlayerImage = ({
           src={photoUrl}
           alt={player.name || player.playerName || 'Player'}
           loading="lazy"
+          decoding="async"
           onLoad={() => setImageLoaded(true)}
           onError={() => setImageError(true)}
           className={`${className} transition-opacity duration-300 ${
@@ -98,7 +99,8 @@ export const PlayerImage = ({
               e.stopPropagation();
               setShowCreditTooltip(!showCreditTooltip);
             }}
-            className="p-1 rounded-md bg-stadium-950/80 hover:bg-stadium-900 text-slate-400 hover:text-gold-300 border border-white/10 backdrop-blur-sm transition-colors text-[9px]"
+            aria-label={`Photo licence attribution for ${player.name || player.playerName || 'player'}`}
+            className="p-1 rounded-md bg-stadium-950/80 hover:bg-stadium-900 text-slate-400 hover:text-gold-300 border border-white/10 backdrop-blur-sm transition-colors text-[9px] focus-visible:ring-1 focus-visible:ring-gold-400 focus-visible:outline-none"
             title="Image Source & Legal Licence Information"
           >
             <Info className="w-3 h-3" />

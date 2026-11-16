@@ -53,7 +53,12 @@ export const HowToPlayModal = ({ isOpen, onClose }) => {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stadium-950/80 backdrop-blur-md">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="how-to-play-heading"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stadium-950/80 backdrop-blur-md"
+      >
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -67,7 +72,7 @@ export const HowToPlayModal = ({ isOpen, onClose }) => {
                 <HelpCircle className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="font-display text-xl font-black uppercase text-white tracking-wide">
+                <h2 id="how-to-play-heading" className="font-display text-xl font-black uppercase text-white tracking-wide">
                   HOW TO PLAY CRICKETVERSE
                 </h2>
                 <p className="text-xs font-mono text-slate-400">
@@ -80,7 +85,8 @@ export const HowToPlayModal = ({ isOpen, onClose }) => {
                 sound.playClick();
                 onClose();
               }}
-              className="p-2 text-slate-400 hover:text-white hover:bg-stadium-800 rounded-xl transition-colors"
+              aria-label="Close how to play modal"
+              className="p-2 text-slate-400 hover:text-white hover:bg-stadium-800 rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:outline-none"
             >
               <X className="w-5 h-5" />
             </button>
@@ -132,7 +138,7 @@ export const HowToPlayModal = ({ isOpen, onClose }) => {
                 sound.playClick();
                 onClose();
               }}
-              className="px-6 py-2.5 rounded-xl bg-gold-500 hover:bg-gold-400 text-slate-950 font-display font-bold text-xs uppercase tracking-wider transition-transform active:scale-95 shadow-gold-glow"
+              className="px-6 py-2.5 rounded-xl bg-gold-500 hover:bg-gold-400 text-slate-950 font-display font-bold text-xs uppercase tracking-wider transition-transform active:scale-95 shadow-gold-glow focus-visible:ring-2 focus-visible:ring-gold-300 focus-visible:outline-none"
             >
               GOT IT, LET'S PLAY!
             </button>

@@ -65,9 +65,12 @@ export const RoomInvite = () => {
     }
 
     let currentUser = user;
-    const isCurrentHost = currentUser && room && (String(currentUser._id || currentUser.id) === String(room.hostId));
+    const isAlreadyInRoom = currentUser && room && (
+      String(currentUser._id || currentUser.id) === String(room.hostId) ||
+      (room.participants || []).some(p => String(p.userId) === String(currentUser._id || currentUser.id))
+    );
 
-    if (!currentUser || (isCurrentHost && targetRole === 'player')) {
+    if (!currentUser || (isAlreadyInRoom && targetRole === 'player')) {
       try {
         const guestName = teamName ? teamName.replace(/\s*(XI|Super XI|Titans|Riders|Challengers)$/i, '').trim() : undefined;
         const guestRes = await guestLogin({

@@ -1084,14 +1084,9 @@ const runAllTests = async () => {
   await test('Phase 4 - 15. Exactly 2 T2 Veto tokens (third veto attempt rejected)', async () => {
     const { host, players, roomCode } = await setupAuctionRoom('T20', 2);
     const p2 = players[1];
+    const auctionEngineService = require('../src/services/auctionEngineService');
 
-    // Veto 1: Nominate ply_09 (Pat Cummins) and veto
-    await callApp({
-      method: 'POST',
-      url: `/api/auction/${roomCode}/nominate`,
-      body: { cardId: 'ply_09' },
-      headers: { authorization: `Bearer ${host.token}` }
-    });
+    // Veto 1: Veto current active lot
     const v1 = await callApp({
       method: 'POST',
       url: `/api/auction/${roomCode}/veto`,
@@ -1100,13 +1095,10 @@ const runAllTests = async () => {
     assert.strictEqual(v1.status, 200);
     assert.strictEqual(v1.body.remainingTokens, 1);
 
-    // Veto 2: Nominate ply_10 (Rashid Khan) and veto
-    await callApp({
-      method: 'POST',
-      url: `/api/auction/${roomCode}/nominate`,
-      body: { cardId: 'ply_10' },
-      headers: { authorization: `Bearer ${host.token}` }
-    });
+    // Advance to next lot
+    await auctionEngineService.advanceToNextPlayer(roomCode);
+
+    // Veto 2: Veto second active lot
     const v2 = await callApp({
       method: 'POST',
       url: `/api/auction/${roomCode}/veto`,
@@ -1115,13 +1107,10 @@ const runAllTests = async () => {
     assert.strictEqual(v2.status, 200);
     assert.strictEqual(v2.body.remainingTokens, 0);
 
-    // Veto 3: Nominate ply_11 (AB de Villiers) and attempt 3rd veto
-    await callApp({
-      method: 'POST',
-      url: `/api/auction/${roomCode}/nominate`,
-      body: { cardId: 'ply_11' },
-      headers: { authorization: `Bearer ${host.token}` }
-    });
+    // Advance to next lot
+    await auctionEngineService.advanceToNextPlayer(roomCode);
+
+    // Veto 3: Attempt third veto -> rejected with 400 INSUFFICIENT_VETO_TOKENS
     const v3 = await callApp({
       method: 'POST',
       url: `/api/auction/${roomCode}/veto`,
@@ -3854,6 +3843,12 @@ const runAllTests = async () => {
   // ==========================================
   const { runAuctionPageCrashFixTests } = require('./testAuctionPageCrashFix');
   await runAuctionPageCrashFixTests({ callApp, test });
+
+  // ==========================================
+  // COMPLETE END-TO-END SCENARIO TESTS (1-14)
+  // ==========================================
+  const { runEndToEndScenarios1To14 } = require('./testEndToEndScenarios1To14');
+  await runEndToEndScenarios1To14({ callApp, test });
 
   console.log(`\n🎯 --- ALL TESTS PASSED: ${passed} PASSED, ${failed} FAILED --- 🎯\n`);
   process.exit(failed > 0 ? 1 : 0);

@@ -60,31 +60,35 @@ export default function BowlingFigures({ bowlingFigures = [] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
-            {data.map((b, idx) => (
-              <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
-                <td className="py-2.5 flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center flex-shrink-0">
-                    {b.photoUrl ? (
-                      <img src={b.photoUrl} alt={b.name} className="w-full h-full object-cover object-top" />
-                    ) : (
-                      <span className="text-[10px] font-bold text-slate-400">
-                        {b.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-200">{b.name}</div>
-                    <div className="text-[10px] text-amber-400 font-mono">{b.ovr || 100} OVR</div>
-                  </div>
-                </td>
-                <td className="py-2.5 text-center font-mono text-slate-300">{b.overs}</td>
-                <td className="py-2.5 text-center font-mono text-slate-400">{b.maidens || 0}</td>
-                <td className="py-2.5 text-center font-mono text-slate-200 font-semibold">{b.runs}</td>
-                <td className="py-2.5 text-center font-mono font-bold text-red-400">{b.wickets}</td>
-                <td className="py-2.5 text-center font-mono text-slate-400">{b.dots || 0}</td>
-                <td className="py-2.5 text-right font-mono font-bold text-emerald-400">{b.economy}</td>
-              </tr>
-            ))}
+            {data.map((b, idx) => {
+              const bName = typeof b.name === 'string' && b.name.trim() ? b.name.trim() : (b.playerName || 'Bowler');
+              const initials = bName.split(/\s+/).map(n => n[0] || '').join('').slice(0, 2).toUpperCase() || 'BW';
+              return (
+                <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
+                  <td className="py-2.5 flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center flex-shrink-0">
+                      {b.photoUrl ? (
+                        <img src={b.photoUrl} alt={bName} className="w-full h-full object-cover object-top" />
+                      ) : (
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {initials}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-200">{bName}</div>
+                      <div className="text-[10px] text-amber-400 font-mono">{b.ovr || 100} OVR</div>
+                    </div>
+                  </td>
+                  <td className="py-2.5 text-center font-mono text-slate-300">{b.overs}</td>
+                  <td className="py-2.5 text-center font-mono text-slate-400">{b.maidens || 0}</td>
+                  <td className="py-2.5 text-center font-mono text-slate-200 font-semibold">{b.runs}</td>
+                  <td className="py-2.5 text-center font-mono font-bold text-red-400">{b.wickets}</td>
+                  <td className="py-2.5 text-center font-mono text-slate-400">{b.dots || 0}</td>
+                  <td className="py-2.5 text-right font-mono font-bold text-emerald-400">{b.economy}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

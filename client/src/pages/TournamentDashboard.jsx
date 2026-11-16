@@ -368,7 +368,7 @@ export const TournamentDashboard = () => {
                         </td>
                         <td className="py-4 px-4 font-sans font-bold text-white flex items-center gap-2">
                           <span className="font-display font-black text-xs text-gold-400 px-2 py-0.5 rounded bg-gold-500/10 border border-gold-500/20">
-                            {team.shortCode || team.teamName?.slice(0, 3)?.toUpperCase()}
+                            {team.shortCode || team.teamName?.slice(0, 3)?.toUpperCase() || 'TM'}
                           </span>
                           <span>{team.teamName}</span>
                           {idx === 0 && <Crown className="w-3.5 h-3.5 text-amber-400" />}

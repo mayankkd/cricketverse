@@ -708,7 +708,7 @@ export const RoomLobby = () => {
                       {player.teamName}
                     </div>
                     <div className="text-[10px] font-mono text-gold-400">
-                      Purse: ₹{(player.budgetRemaining / 10000000).toFixed(1)} Cr
+                      Purse: {player.budgetRemaining !== undefined ? (player.budgetRemaining <= 100 ? `${player.budgetRemaining} PTS` : `₹${(player.budgetRemaining / 10000000).toFixed(1)} Cr`) : `${room.budgetPerTeam || 30} PTS`}
                     </div>
                   </div>
                 </div>

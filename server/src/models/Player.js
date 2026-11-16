@@ -1,8 +1,10 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const playerSchema = new mongoose.Schema({
   _id: {
-    type: String
+    type: String,
+    default: () => `ply_${crypto.randomBytes(12).toString('hex')}`
   },
   // Unique real-world cricketer identifier (e.g. 'cric_virat_kohli').
   // Multiple card variants of the same cricketer share this exact playerId.

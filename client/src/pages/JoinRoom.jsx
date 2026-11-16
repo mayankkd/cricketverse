@@ -15,7 +15,7 @@ export const JoinRoom = () => {
   const [selectedFormat, setSelectedFormat] = useState('All');
   const [selectedRoomForJoin, setSelectedRoomForJoin] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, guestLogin } = useAuth();
   const { addToast } = useNotification();
   const navigate = useNavigate();
 
@@ -61,6 +61,21 @@ export const JoinRoom = () => {
 
   const handleRoleJoinSuccess = async ({ role, teamName, password }) => {
     if (!selectedRoomForJoin) return;
+    let currentUser = user;
+    if (!currentUser) {
+      try {
+        const guestName = teamName ? teamName.replace(/\s*(XI|Super XI|Titans|Riders|Challengers)$/i, '').trim() : undefined;
+        const guestRes = await guestLogin({
+          username: guestName || undefined,
+          teamName: role === 'player' ? teamName : 'Spectator Dugout'
+        });
+        if (guestRes?.success && guestRes?.user) {
+          currentUser = guestRes.user;
+        }
+      } catch (err) {
+        console.warn('Guest login during room join fallback:', err);
+      }
+    }
     const res = await api.joinRoom(selectedRoomForJoin.roomCode, {
       role,
       teamName,

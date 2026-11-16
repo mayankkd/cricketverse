@@ -1,8 +1,10 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const teamSchema = new mongoose.Schema({
   _id: {
-    type: String
+    type: String,
+    default: () => `team_${crypto.randomBytes(12).toString('hex')}`
   },
   name: {
     type: String,

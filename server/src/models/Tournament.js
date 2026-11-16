@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const standingSchema = new mongoose.Schema({
   teamName: String,
@@ -25,7 +26,8 @@ const fixtureSchema = new mongoose.Schema({
 
 const tournamentSchema = new mongoose.Schema({
   _id: {
-    type: String
+    type: String,
+    default: () => `trn_${crypto.randomBytes(12).toString('hex')}`
   },
   tournamentId: {
     type: String,

@@ -1,8 +1,10 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const matchSchema = new mongoose.Schema({
   _id: {
-    type: String
+    type: String,
+    default: () => `match_${crypto.randomBytes(12).toString('hex')}`
   },
   matchId: {
     type: String,

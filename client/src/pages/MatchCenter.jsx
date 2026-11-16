@@ -604,7 +604,7 @@ export const MatchCenter = () => {
             </span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {match.commentary?.slice(0, 3).map((item) => (
+            {(match.commentary || []).slice(0, 3).map((item) => (
               <div key={item.id} className="p-3 rounded-2xl bg-stadium-950 border border-white/5 space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs font-bold text-gold-400">
@@ -632,7 +632,7 @@ export const MatchCenter = () => {
       <TacticalManagementModal
         isOpen={isTacticsOpen}
         onClose={() => setIsTacticsOpen(false)}
-        matchId="LIVE-IPL-FINAL"
+        matchId={match.matchId || match._id || 'LIVE-IPL-FINAL'}
         teamKey="teamB"
         format={match.format || 'T20'}
         initialTactics={match.teamBTactics}

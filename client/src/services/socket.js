@@ -154,6 +154,12 @@ class SocketService {
     return () => socket.off('lot_hammered', callback);
   }
 
+  onSquadsUpdated(callback) {
+    const socket = this.getSocket();
+    socket.on('squads_updated', callback);
+    return () => socket.off('squads_updated', callback);
+  }
+
   onActionError(callback) {
     const socket = this.getSocket();
     socket.on('action_error', callback);

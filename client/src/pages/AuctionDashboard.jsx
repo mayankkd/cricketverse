@@ -17,7 +17,14 @@ import {
   History,
   Eye,
   RefreshCw,
-  Plus
+  Plus,
+  Users,
+  Trophy,
+  Award,
+  Radio,
+  Layers,
+  ChevronRight,
+  ExternalLink
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
@@ -64,6 +71,9 @@ export const AuctionDashboard = () => {
   const [replayModalOpen, setReplayModalOpen] = useState(false);
   const [awardsModalOpen, setAwardsModalOpen] = useState(false);
   const [dramaticOverlay, setDramaticOverlay] = useState(null);
+  const [soldAnnouncement, setSoldAnnouncement] = useState(null);
+  const [bottomTab, setBottomTab] = useState('squads'); // 'squads' | 'participants' | 'sold'
+  const [selectedTeamUserId, setSelectedTeamUserId] = useState(null);
 
   const timerRef = useRef(null);
 
@@ -219,6 +229,25 @@ export const AuctionDashboard = () => {
 
     const unsubHammer = socketService.onLotHammered((data) => {
       handleLotResolution(data.lot);
+      if (data.participants) {
+        setRoomData(prev => prev ? { ...prev, participants: data.participants } : prev);
+        const me = data.participants.find(p => p.userId === user?._id);
+        if (me) {
+          setUserPurse(me.budgetRemaining !== undefined ? me.budgetRemaining : userPurse);
+          setVetoTokens(me.t2VetoTokens !== undefined ? me.t2VetoTokens : vetoTokens);
+        }
+      }
+    });
+
+    const unsubSquads = socketService.onSquadsUpdated((data) => {
+      if (data?.participants) {
+        setRoomData(prev => prev ? { ...prev, participants: data.participants } : prev);
+        const me = data.participants.find(p => p.userId === user?._id);
+        if (me) {
+          setUserPurse(me.budgetRemaining !== undefined ? me.budgetRemaining : userPurse);
+          setVetoTokens(me.t2VetoTokens !== undefined ? me.t2VetoTokens : vetoTokens);
+        }
+      }
     });
 
     const unsubError = socketService.onActionError((err) => {
@@ -255,6 +284,7 @@ export const AuctionDashboard = () => {
       unsubNominated();
       unsubVeto();
       unsubHammer();
+      unsubSquads();
       unsubError();
       socket.off('auction_timer_tick', handleTimerTick);
       socket.off('auction_completed', handleAuctionCompleted);
@@ -339,10 +369,22 @@ export const AuctionDashboard = () => {
       setIsSold(true);
       sound.playSixHit();
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      setSoldAnnouncement({
+        playerName: lot.playerName,
+        playerImage: lot.playerImage,
+        country: lot.country,
+        role: lot.role,
+        cardVariant: lot.cardVariant,
+        ovr: typeof lot.ovr === 'object' ? (lot.ovr.t20 || 90) : lot.ovr,
+        buyerTeam: lot.highestBidderTeam || 'Franchise',
+        buyerUsername: lot.highestBidderUsername || 'Manager',
+        finalPrice: lot.currentBid || 1
+      });
+      setTimeout(() => setSoldAnnouncement(null), 6000);
       addToast({
         type: 'gold',
         title: 'HAMMER DOWN! SOLD!',
-        message: `${lot.playerName} sold to ${lot.highestBidderUsername} for ${lot.currentBid} points!`
+        message: `${lot.playerName} sold to ${lot.highestBidderUsername} (${lot.highestBidderTeam}) for ${lot.currentBid} points!`
       });
     } else if (lot.status === 'unsold') {
       setIsSold(true);
@@ -517,6 +559,25 @@ export const AuctionDashboard = () => {
     return p?.username || 'Manager';
   }, [auctionState, roomData]);
 
+  // Active players and spectators lists
+  const activeParticipants = useMemo(() => {
+    return (roomData?.participants || []).filter(p => p.role === 'player');
+  }, [roomData]);
+
+  const spectatorParticipants = useMemo(() => {
+    return (roomData?.participants || []).filter(p => p.role === 'spectator');
+  }, [roomData]);
+
+  const currentViewedTeam = useMemo(() => {
+    if (!activeParticipants.length) return null;
+    if (selectedTeamUserId) {
+      const found = activeParticipants.find(p => p.userId === selectedTeamUserId);
+      if (found) return found;
+    }
+    const myTeam = activeParticipants.find(p => p.userId === user?._id);
+    return myTeam || activeParticipants[0];
+  }, [activeParticipants, selectedTeamUserId, user]);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 relative">
       {/* Dramatic Overlay for Veto / Alerts */}
@@ -647,6 +708,61 @@ export const AuctionDashboard = () => {
           </button>
         </div>
       </div>
+
+      {/* SOLD Celebration Announcement Banner */}
+      <AnimatePresence>
+        {soldAnnouncement && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="bg-gradient-to-r from-gold-950 via-stadium-950 to-amber-950 border-2 border-gold-400 p-5 rounded-3xl shadow-gold-glow flex flex-col md:flex-row items-center justify-between gap-5 relative overflow-hidden"
+          >
+            <div className="flex items-center gap-4">
+              <div className="relative w-16 h-20 rounded-xl overflow-hidden border-2 border-gold-400 bg-stadium-900 flex-shrink-0 shadow-lg">
+                {soldAnnouncement.playerImage ? (
+                  <img
+                    src={soldAnnouncement.playerImage}
+                    alt={soldAnnouncement.playerName}
+                    className="w-full h-full object-cover object-top"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gold-400 font-bold">🏏</div>
+                )}
+                <span className="absolute bottom-0 right-0 bg-black/90 font-mono text-[9px] text-gold-400 font-bold px-1 rounded-tl">
+                  {soldAnnouncement.ovr} OVR
+                </span>
+              </div>
+              <div>
+                <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-gold-400">
+                  <Gavel className="w-3.5 h-3.5 text-gold-400" /> OFFICIAL SALE ANNOUNCEMENT: SOLD!
+                </span>
+                <h2 className="font-display font-black text-2xl text-white uppercase tracking-tight">
+                  {soldAnnouncement.playerName}
+                </h2>
+                <p className="text-xs font-mono text-slate-300 mt-0.5">
+                  Role: <strong className="text-pitch-400">{soldAnnouncement.role}</strong> • Variant: <strong className="text-gold-400">{soldAnnouncement.cardVariant}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col md:items-end text-center md:text-right bg-stadium-900/80 border border-gold-500/30 px-5 py-3 rounded-2xl">
+              <span className="text-[10px] font-mono text-slate-400 uppercase font-bold tracking-wider">
+                PURCHASED BY FRANCHISE
+              </span>
+              <span className="font-display font-black text-lg text-white">
+                {soldAnnouncement.buyerTeam}
+              </span>
+              <span className="text-xs font-mono text-slate-400">
+                Manager: <strong className="text-pitch-300">{soldAnnouncement.buyerUsername}</strong>
+              </span>
+              <div className="mt-1.5 font-display font-black text-xl text-gold-400">
+                🔨 {soldAnnouncement.finalPrice} <span className="text-xs font-mono text-gold-500">PTS</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Auction Stage Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -890,6 +1006,336 @@ export const AuctionDashboard = () => {
             <span>Vetoed: {auctionState?.vetoedLots?.length || 0}</span>
           </div>
         </div>
+      </div>
+
+      {/* ============================================================== */}
+      {/* MULTIPLAYER SYNCHRONIZED SECTIONS: SQUADS, SOLD, PARTICIPANTS */}
+      {/* ============================================================== */}
+      <div className="bg-stadium-900 border border-stadium-800 rounded-3xl p-6 space-y-6 shadow-2xl">
+        {/* Navigation Tabs Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stadium-800 pb-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setBottomTab('squads')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-display font-bold uppercase text-xs transition-all ${
+                bottomTab === 'squads'
+                  ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
+                  : 'bg-stadium-950 text-slate-400 hover:text-white border border-white/5'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              FRANCHISE SQUADS ({activeParticipants.length})
+            </button>
+
+            <button
+              onClick={() => setBottomTab('sold')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-display font-bold uppercase text-xs transition-all ${
+                bottomTab === 'sold'
+                  ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
+                  : 'bg-stadium-950 text-slate-400 hover:text-white border border-white/5'
+              }`}
+            >
+              <Trophy className="w-4 h-4" />
+              RECENTLY SOLD ({auctionState?.soldLots?.length || 0})
+            </button>
+
+            <button
+              onClick={() => setBottomTab('participants')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-display font-bold uppercase text-xs transition-all ${
+                bottomTab === 'participants'
+                  ? 'bg-gold-500 text-slate-950 shadow-gold-glow'
+                  : 'bg-stadium-950 text-slate-400 hover:text-white border border-white/5'
+              }`}
+            >
+              <Radio className="w-4 h-4 text-pitch-400" />
+              LIVE PARTICIPANTS ({roomData?.participants?.length || 0})
+            </button>
+          </div>
+
+          <span className="text-xs font-mono text-slate-400 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-pitch-400 animate-ping" />
+            MongoDB Authoritative Sync Active
+          </span>
+        </div>
+
+        {/* TAB 1: FRANCHISE SQUADS */}
+        {bottomTab === 'squads' && (
+          <div className="space-y-6">
+            {/* Team Selector Ribbon */}
+            <div className="flex flex-wrap items-center gap-2 pb-2 overflow-x-auto">
+              {activeParticipants.map((p) => {
+                const isSelected = (currentViewedTeam?.userId === p.userId);
+                const squadCount = (p.squad || []).length;
+                const maxSquad = roomData?.format === 'T20' ? 13 : 15;
+                return (
+                  <button
+                    key={p.userId}
+                    onClick={() => setSelectedTeamUserId(p.userId)}
+                    className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-xs font-mono transition-all ${
+                      isSelected
+                        ? 'bg-stadium-950 border-gold-400 text-gold-300 shadow-md ring-1 ring-gold-400/50'
+                        : 'bg-stadium-950/60 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20'
+                    }`}
+                  >
+                    <span className="font-bold font-display text-white">{p.teamName}</span>
+                    <span className="text-[10px] bg-stadium-850 px-2 py-0.5 rounded text-slate-400">
+                      {squadCount}/{maxSquad} Players
+                    </span>
+                    <span className="text-[10px] text-gold-400 font-bold">
+                      {p.budgetRemaining !== undefined ? p.budgetRemaining : formatPurse} pts
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Currently Selected Team Header & Cards */}
+            {currentViewedTeam ? (
+              <div className="bg-stadium-950 border border-white/5 p-5 rounded-2xl space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stadium-800">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display font-black text-xl text-white">
+                        {currentViewedTeam.teamName}
+                      </h3>
+                      {currentViewedTeam.isHost && (
+                        <span className="bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-amber-500/40">
+                          HOST
+                        </span>
+                      )}
+                      {currentViewedTeam.userId === user?._id && (
+                        <span className="bg-pitch-500/20 text-pitch-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-pitch-500/40">
+                          YOUR TEAM
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-mono text-slate-400">
+                      Manager: <strong className="text-slate-200">@{currentViewedTeam.username}</strong>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-4 text-xs font-mono">
+                    <div className="bg-stadium-900 border border-gold-500/30 px-3.5 py-1.5 rounded-xl">
+                      <span className="text-slate-400 block text-[10px]">PURSE REMAINING</span>
+                      <strong className="text-gold-300 text-sm font-display">
+                        {currentViewedTeam.budgetRemaining !== undefined ? currentViewedTeam.budgetRemaining : formatPurse} PTS
+                      </strong>
+                    </div>
+
+                    <div className="bg-stadium-900 border border-white/10 px-3.5 py-1.5 rounded-xl">
+                      <span className="text-slate-400 block text-[10px]">SPENT</span>
+                      <strong className="text-slate-200 text-sm font-display">
+                        {(currentViewedTeam.squad || []).reduce((sum, s) => sum + (s.acquiredPrice || 0), 0)} PTS
+                      </strong>
+                    </div>
+
+                    <div className="bg-stadium-900 border border-white/10 px-3.5 py-1.5 rounded-xl">
+                      <span className="text-slate-400 block text-[10px]">SQUAD</span>
+                      <strong className="text-pitch-400 text-sm font-display">
+                        {(currentViewedTeam.squad || []).length} / {roomData?.format === 'T20' ? 13 : 15}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Squad Cards Grid */}
+                {(currentViewedTeam.squad || []).length === 0 ? (
+                  <div className="text-center py-12 border-2 border-dashed border-stadium-850 rounded-xl text-slate-500 font-mono text-xs">
+                    <Gavel className="w-8 h-8 text-slate-700 mx-auto mb-2 animate-bounce" />
+                    No cricketers acquired yet. Place winning bids on the gavel block to sign players!
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {(currentViewedTeam.squad || []).map((card, idx) => {
+                      const roleBadgeColor = {
+                        Batter: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                        Bowler: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+                        'All-Rounder': 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+                        Wicketkeeper: 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                      }[card.role] || 'bg-slate-700 text-slate-300 border-slate-600';
+
+                      const ovrVal = typeof card.ovr === 'object' ? (card.ovr.t20 || 90) : (card.ovr || 90);
+
+                      return (
+                        <div
+                          key={card.cardId || `${card.playerId}_${idx}`}
+                          className="bg-stadium-900 border border-gold-500/20 hover:border-gold-400/60 rounded-xl p-2.5 flex flex-col justify-between transition-all hover:scale-[1.02] shadow-sm relative overflow-hidden group"
+                        >
+                          <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden bg-stadium-950 mb-2 border border-white/5">
+                            {card.playerImage ? (
+                              <img
+                                src={card.playerImage}
+                                alt={card.playerName}
+                                className="w-full h-full object-cover object-top"
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-2xl">🏏</div>
+                            )}
+                            <span className="absolute top-1 right-1 bg-black/80 font-mono font-bold text-[9px] text-gold-400 px-1 py-0.5 rounded">
+                              {ovrVal}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="font-display font-bold text-xs text-white truncate block">
+                              {card.playerName}
+                            </span>
+                            <div className="flex items-center justify-between mt-1">
+                              <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border font-semibold ${roleBadgeColor}`}>
+                                {card.role?.substring(0, 4).toUpperCase()}
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-gold-400">
+                                {card.acquiredPrice} PTS
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* TAB 2: RECENTLY SOLD CRICKETERS */}
+        {bottomTab === 'sold' && (
+          <div>
+            {(auctionState?.soldLots || []).length === 0 ? (
+              <div className="text-center py-16 border-2 border-dashed border-stadium-850 rounded-2xl text-slate-500 font-mono text-xs">
+                <Trophy className="w-10 h-10 text-slate-700 mx-auto mb-3" />
+                No cricketers sold yet. Active lots in the Hammer Arena will appear here once hammered!
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {(auctionState?.soldLots || []).map((sold, idx) => {
+                  const lot = sold.lot || {};
+                  const ovrVal = typeof lot.ovr === 'object' ? (lot.ovr.t20 || 90) : (lot.ovr || 90);
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-stadium-950 border border-gold-500/30 p-4 rounded-2xl flex items-center gap-3.5 shadow-md hover:border-gold-400 transition-colors"
+                    >
+                      <div className="relative w-14 h-16 rounded-xl overflow-hidden bg-stadium-900 border border-gold-500/40 flex-shrink-0">
+                        {lot.playerImage ? (
+                          <img
+                            src={lot.playerImage}
+                            alt={lot.playerName}
+                            className="w-full h-full object-cover object-top"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-lg">🏏</div>
+                        )}
+                        <span className="absolute bottom-0 right-0 bg-black/90 font-mono text-[8px] text-gold-400 px-1 rounded-tl">
+                          {ovrVal}
+                        </span>
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <span className="font-display font-bold text-sm text-white truncate block">
+                          {lot.playerName}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400 block truncate">
+                          {lot.country} • {lot.role}
+                        </span>
+                        <div className="mt-1 flex items-center justify-between text-xs font-mono">
+                          <span className="text-pitch-300 font-bold truncate max-w-[120px]">
+                            {sold.buyerTeam}
+                          </span>
+                          <span className="text-gold-400 font-bold font-display">
+                            {sold.finalPrice} PTS
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: LIVE PARTICIPANTS & DUGOUT */}
+        {bottomTab === 'participants' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(roomData?.participants || []).map((p) => {
+              const isPPlayer = p.role === 'player';
+              const isMe = p.userId === user?._id;
+              const squadCount = (p.squad || []).length;
+              const maxSquad = roomData?.format === 'T20' ? 13 : 15;
+
+              return (
+                <div
+                  key={p.userId}
+                  className={`bg-stadium-950 border p-4 rounded-2xl space-y-3 transition-colors ${
+                    isMe
+                      ? 'border-gold-500/60 shadow-gold-glow'
+                      : 'border-white/5 hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-display font-bold text-sm text-white">
+                          {p.teamName || `${p.username}'s XI`}
+                        </span>
+                        {p.isHost && (
+                          <span className="bg-amber-500/20 text-amber-300 text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border border-amber-500/40">
+                            HOST
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-mono text-slate-400">
+                        @{p.username} {isMe && '(You)'}
+                      </span>
+                    </div>
+
+                    <span
+                      className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${
+                        isPPlayer
+                          ? 'bg-pitch-500/10 text-pitch-300 border-pitch-500/30'
+                          : 'bg-electric-500/10 text-electric-300 border-electric-500/30'
+                      }`}
+                    >
+                      {p.role}
+                    </span>
+                  </div>
+
+                  {isPPlayer && (
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-stadium-850 text-center font-mono text-xs">
+                      <div className="bg-stadium-900 p-2 rounded-lg">
+                        <span className="text-[9px] text-slate-500 block">PURSE</span>
+                        <strong className="text-gold-400 font-display">
+                          {p.budgetRemaining !== undefined ? p.budgetRemaining : formatPurse}
+                        </strong>
+                      </div>
+                      <div className="bg-stadium-900 p-2 rounded-lg">
+                        <span className="text-[9px] text-slate-500 block">SQUAD</span>
+                        <strong className="text-pitch-400 font-display">
+                          {squadCount}/{maxSquad}
+                        </strong>
+                      </div>
+                      <div className="bg-stadium-900 p-2 rounded-lg">
+                        <span className="text-[9px] text-slate-500 block">VETOES</span>
+                        <strong className="text-red-400 font-display">
+                          {p.t2VetoTokens !== undefined ? p.t2VetoTokens : 2}/2
+                        </strong>
+                      </div>
+                    </div>
+                  )}
+
+                  {!isPPlayer && (
+                    <div className="p-2.5 rounded-lg bg-electric-500/5 border border-electric-500/20 text-electric-300 font-mono text-[11px] text-center">
+                      Spectator in dugout • Observing live auction
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* T2 Veto Modal */}

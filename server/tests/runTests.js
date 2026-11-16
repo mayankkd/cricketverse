@@ -3841,6 +3841,14 @@ const runAllTests = async () => {
     await runAutomaticAuctionTests();
   });
 
+  // ==========================================
+  // REAL-TIME MULTIPLAYER COMPETITIVE BIDDING & SQUAD TESTS
+  // ==========================================
+  const { runCompetitiveAuctionTests } = require('./testRealtimeMultiplayerAuctionCompetitiveBidding');
+  await test('Real-Time Multiplayer Competitive Bidding & Live Squad Sync', async () => {
+    await runCompetitiveAuctionTests();
+  });
+
   console.log(`\n🎯 --- ALL TESTS PASSED: ${passed} PASSED, ${failed} FAILED --- 🎯\n`);
   process.exit(failed > 0 ? 1 : 0);
 };

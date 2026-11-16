@@ -1386,6 +1386,19 @@ const placeAuctionBid = async (roomCode, userId, { amount }) => {
 
     try {
       const auctionEngineService = require('./auctionEngineService');
+      const io = auctionEngineService.getIO();
+      if (io) {
+        io.to(code).emit('bid_updated', {
+          amount: updatedLot.currentBid,
+          username: updatedLot.highestBidderUsername,
+          teamName: updatedLot.highestBidderTeam,
+          userId,
+          lot: updatedLot,
+          bidHistory: updatedAuctionState.bidHistory
+        });
+        io.to(code).emit('auction_state', updatedAuctionState);
+        io.to(code).emit('room_state', updatedRoomResult);
+      }
       auctionEngineService.onBidPlaced(code, newTimer);
     } catch (e) {
       // Non-blocking
@@ -1534,6 +1547,18 @@ const useT2Veto = async (roomCode, userId) => {
 
     try {
       const auctionEngineService = require('./auctionEngineService');
+      const io = auctionEngineService.getIO();
+      if (io) {
+        io.to(code).emit('t2_veto_activated', {
+          vetoedBy: participant.username,
+          userId,
+          lot: vetoedLotRecord,
+          remainingTokens: participant.t2VetoTokens,
+          vetoedLots: updatedVetoedLots
+        });
+        io.to(code).emit('auction_state', updatedAuctionState);
+        io.to(code).emit('room_state', updatedRoomResult);
+      }
       auctionEngineService.onVetoPlayed(code);
     } catch (e) {
       // Non-blocking
@@ -1578,21 +1603,59 @@ const hammerCurrentLot = async (roomCode, hostId) => {
       if (buyerIndex !== -1) {
         const buyer = participants[buyerIndex];
         buyer.budgetRemaining = Math.max(0, buyer.budgetRemaining - currentLot.currentBid);
+        const acquiredItem = {
+          cardId: currentLot.cardId,
+          playerId: currentLot.playerId,
+          playerName: currentLot.playerName,
+          playerImage: currentLot.playerImage,
+          country: currentLot.country || '',
+          countryFlag: currentLot.countryFlag || '',
+          role: currentLot.role || 'Batter',
+          cardVariant: currentLot.cardVariant || 'Base',
+          ovr: currentLot.ovr,
+          battingStyle: currentLot.battingStyle || 'Right-hand bat',
+          bowlingStyle: currentLot.bowlingStyle || 'Right-arm medium fast',
+          acquiredPrice: currentLot.currentBid,
+          acquiredAt: new Date()
+        };
         buyer.squad = [
           ...(buyer.squad || []),
-          {
-            cardId: currentLot.cardId,
-            playerId: currentLot.playerId,
-            playerName: currentLot.playerName,
-            playerImage: currentLot.playerImage,
-            role: currentLot.role,
-            cardVariant: currentLot.cardVariant,
-            ovr: currentLot.ovr,
-            acquiredPrice: currentLot.currentBid,
-            acquiredAt: new Date()
-          }
+          acquiredItem
         ];
         participants[buyerIndex] = buyer;
+
+        // Synchronize Team in MongoDB / memoryStore for team-building & match system
+        try {
+          if (isMongoConnected()) {
+            const Team = require('../models/Team');
+            let userTeam = await Team.findOne({ ownerId: buyer.userId, roomCode: code });
+            if (userTeam) {
+              if (!userTeam.squad.includes(currentLot.cardId)) {
+                userTeam.squad.push(currentLot.cardId);
+              }
+              if (!userTeam.playingXI.includes(currentLot.cardId) && userTeam.playingXI.length < 11) {
+                userTeam.playingXI.push(currentLot.cardId);
+              }
+              userTeam.remainingPurse = buyer.budgetRemaining;
+              userTeam.totalSpending = (userTeam.totalSpending || 0) + currentLot.currentBid;
+              await userTeam.save();
+            }
+          } else {
+            const memTeam = memoryStore.teams.find(t => t.ownerId === buyer.userId && t.roomCode === code);
+            if (memTeam) {
+              if (!memTeam.squad.includes(currentLot.cardId)) {
+                memTeam.squad.push(currentLot.cardId);
+              }
+              if (!memTeam.playingXI.includes(currentLot.cardId) && memTeam.playingXI.length < 11) {
+                memTeam.playingXI.push(currentLot.cardId);
+              }
+              memTeam.remainingPurse = buyer.budgetRemaining;
+              memTeam.totalSpending = (memTeam.totalSpending || 0) + currentLot.currentBid;
+            }
+          }
+        } catch (teamSyncErr) {
+          console.error('[hammerCurrentLot] Team synchronization error:', teamSyncErr.message);
+        }
       }
 
       resolvedLot = { ...currentLot, status: 'sold' };
@@ -1675,6 +1738,22 @@ const hammerCurrentLot = async (roomCode, hostId) => {
 
     try {
       const auctionEngineService = require('./auctionEngineService');
+      const io = auctionEngineService.getIO();
+      if (io) {
+        io.to(code).emit('lot_hammered', {
+          lot: updatedRoomResult.auctionState?.currentLot,
+          soldLots: updatedRoomResult.auctionState?.soldLots,
+          unsoldLots: updatedRoomResult.auctionState?.unsoldLots,
+          participants: updatedRoomResult.participants,
+          room: updatedRoomResult
+        });
+        io.to(code).emit('auction_state', updatedRoomResult.auctionState);
+        io.to(code).emit('room_state', updatedRoomResult);
+        io.to(code).emit('squads_updated', {
+          participants: updatedRoomResult.participants,
+          roomCode: code
+        });
+      }
       auctionEngineService.onLotHammered(code);
     } catch (e) {
       // Non-blocking
@@ -2625,6 +2704,19 @@ const getOrCreateUserFranchise = async (userId, roomCode = null) => {
         const totalSpent = (participant.squad || []).reduce((sum, s) => sum + (s.acquiredPrice || 0), 0);
         team.remainingPurse = participant.budgetRemaining;
         team.totalSpending = totalSpent;
+        // Merge acquired players from auction into team squad
+        team.squad = team.squad || [];
+        for (const cardId of acquiredSquad) {
+          if (!team.squad.includes(cardId)) {
+            team.squad.push(cardId);
+          }
+        }
+        if (!team.playingXI || team.playingXI.length === 0) {
+          team.playingXI = team.squad.slice(0, 11);
+        }
+        if (isMongoConnected() && typeof team.save === 'function') {
+          await team.save();
+        }
       }
     }
 

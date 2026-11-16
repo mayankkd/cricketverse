@@ -480,6 +480,15 @@ const runPhase13QATests = async (context = {}) => {
   });
 
   const allPlayers = await storeService.getAllPlayers();
+  const uniquePlayers = [];
+  const seenPlayerIds = new Set();
+  for (const p of allPlayers) {
+    const pid = p.playerId || p._id;
+    if (!seenPlayerIds.has(pid)) {
+      seenPlayerIds.add(pid);
+      uniquePlayers.push(p);
+    }
+  }
 
   // QA 3.3: Bid increment works
   await test('QA 3.3: Bid increments enforced (Bids below minimum increment rejected)', async () => {
@@ -607,11 +616,11 @@ const runPhase13QATests = async (context = {}) => {
 
   // QA 3.10: Unsold players cannot return before unsold round
   await test('QA 3.10: Unsold players cannot return before unsold round', async () => {
-    // Nominate player 1 and let it go unsold
+    // Nominate unique player 1 and let it go unsold
     await callApp({
       method: 'POST',
       url: `/api/auction/${aucRoomCode}/nominate`,
-      body: { cardId: allPlayers[1]._id },
+      body: { cardId: uniquePlayers[1]._id },
       headers: { authorization: `Bearer ${hostUser.token}` }
     });
     await callApp({
@@ -623,7 +632,7 @@ const runPhase13QATests = async (context = {}) => {
     const reNom = await callApp({
       method: 'POST',
       url: `/api/auction/${aucRoomCode}/nominate`,
-      body: { cardId: allPlayers[1]._id },
+      body: { cardId: uniquePlayers[1]._id },
       headers: { authorization: `Bearer ${hostUser.token}` }
     });
     assert.strictEqual(reNom.status, 400);
@@ -632,11 +641,11 @@ const runPhase13QATests = async (context = {}) => {
 
   // QA 3.11: Vetoed players cannot return
   await test('QA 3.11: Vetoed players cannot return even in unsold round (Permanent barring)', async () => {
-    // Nominate player 2 and veto
+    // Nominate unique player 2 and veto
     await callApp({
       method: 'POST',
       url: `/api/auction/${aucRoomCode}/nominate`,
-      body: { cardId: allPlayers[2]._id },
+      body: { cardId: uniquePlayers[2]._id },
       headers: { authorization: `Bearer ${hostUser.token}` }
     });
     const vetoRes = await callApp({
@@ -657,7 +666,7 @@ const runPhase13QATests = async (context = {}) => {
     const reNom = await callApp({
       method: 'POST',
       url: `/api/auction/${aucRoomCode}/nominate`,
-      body: { cardId: allPlayers[2]._id },
+      body: { cardId: uniquePlayers[2]._id },
       headers: { authorization: `Bearer ${hostUser.token}` }
     });
     assert.strictEqual(reNom.status, 400);
@@ -675,11 +684,11 @@ const runPhase13QATests = async (context = {}) => {
 
   // QA 3.13: Veto transactions are atomic
   await test('QA 3.13: Veto transactions are atomic (Second concurrent veto fails without burning token)', async () => {
-    // Nominate player 3
+    // Nominate unique player 3
     await callApp({
       method: 'POST',
       url: `/api/auction/${aucRoomCode}/nominate`,
-      body: { cardId: allPlayers[3]._id },
+      body: { cardId: uniquePlayers[3]._id },
       headers: { authorization: `Bearer ${hostUser.token}` }
     });
 
